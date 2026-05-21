@@ -9,16 +9,37 @@ import type {
   Event as CalendarEvent,
   EventRequest,
   EventRequestInput,
+  KnowledgePageId,
   Profile,
   SessionUser,
   UserRole
 } from "@/lib/types";
+import { knowledgePages } from "@/lib/knowledge";
 
 const DATA_KEY = "ak-motion-data";
 const SESSION_KEY = "ak-motion-session";
 
 function cloneData(data: AppData): AppData {
   return JSON.parse(JSON.stringify(data)) as AppData;
+}
+
+function normalizeData(data: AppData): AppData {
+  const normalized = data as AppData;
+  normalized.knowledgePages = normalized.knowledgePages ?? [];
+  normalized.knowledgeSuggestions = normalized.knowledgeSuggestions ?? [];
+
+  knowledgePages.forEach((page) => {
+    if (!normalized.knowledgePages.some((item) => item.id === page.id)) {
+      normalized.knowledgePages.push({
+        id: page.id,
+        title: page.title,
+        content: "",
+        updatedAt: now()
+      });
+    }
+  });
+
+  return normalized;
 }
 
 function now() {
@@ -36,16 +57,19 @@ export function loadData(): AppData {
 
   const existing = window.localStorage.getItem(DATA_KEY);
   if (!existing) {
-    const seeded = cloneData(demoData);
+    const seeded = normalizeData(cloneData(demoData));
     window.localStorage.setItem(DATA_KEY, JSON.stringify(seeded));
     return seeded;
   }
 
   try {
-    return JSON.parse(existing) as AppData;
+    const parsed = normalizeData(JSON.parse(existing) as AppData);
+    window.localStorage.setItem(DATA_KEY, JSON.stringify(parsed));
+    return parsed;
   } catch {
-    window.localStorage.setItem(DATA_KEY, JSON.stringify(demoData));
-    return cloneData(demoData);
+    const seeded = normalizeData(cloneData(demoData));
+    window.localStorage.setItem(DATA_KEY, JSON.stringify(seeded));
+    return seeded;
   }
 }
 
@@ -89,11 +113,14 @@ export async function login(email: string, password: string): Promise<SessionUse
       throw new Error("Kein Profil für diesen Account gefunden.");
     }
 
+    const profileWithDetails = profile as Profile;
     const sessionUser: SessionUser = {
-      id: profile.id,
-      email: profile.email,
-      name: profile.name,
-      role: profile.role
+      id: profileWithDetails.id,
+      email: profileWithDetails.email,
+      name: profileWithDetails.name,
+      avatarUrl: profileWithDetails.avatarUrl,
+      phone: profileWithDetails.phone,
+      role: profileWithDetails.role
     };
     saveSession(sessionUser);
     return sessionUser;
@@ -113,6 +140,8 @@ export async function login(email: string, password: string): Promise<SessionUse
     id: profile.id,
     email: profile.email,
     name: profile.name,
+    avatarUrl: profile.avatarUrl,
+    phone: profile.phone,
     role: profile.role
   };
   saveSession(sessionUser);
@@ -166,6 +195,12 @@ export function rejectRequest(requestId: string) {
     request.status = "rejected";
     saveData(data);
   }
+}
+
+export function deleteRequest(requestId: string) {
+  const data = loadData();
+  data.requests = data.requests.filter((item) => item.id !== requestId);
+  saveData(data);
 }
 
 export function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">) {
@@ -273,12 +308,86 @@ export function updateEvent(eventId: string, patch: Partial<CalendarEvent>) {
   }
 }
 
+export function updateProfile(profileId: string, patch: Partial<Pick<Profile, "avatarUrl" | "name" | "phone">>) {
+  const data = loadData();
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) {
+    return;
+  }
+
+  Object.assign(profile, patch);
+  saveData(data);
+
+  const session = getSession();
+  if (session?.id === profileId) {
+    saveSession({
+      ...session,
+      avatarUrl: profile.avatarUrl,
+      name: profile.name,
+      phone: profile.phone
+    });
+  }
+}
+
+export function updateKnowledgePage(pageId: KnowledgePageId, content: string, user?: SessionUser | null) {
+  const data = loadData();
+  const page = data.knowledgePages.find((item) => item.id === pageId);
+  if (!page) {
+    return;
+  }
+
+  page.content = content;
+  page.updatedAt = now();
+  page.updatedBy = user?.name;
+  saveData(data);
+}
+
+export function createKnowledgeSuggestion(pageId: KnowledgePageId, content: string, user: SessionUser) {
+  const data = loadData();
+  data.knowledgeSuggestions.unshift({
+    id: id("suggestion"),
+    pageId,
+    content,
+    authorId: user.id,
+    authorName: user.name,
+    createdAt: now()
+  });
+  saveData(data);
+}
+
+export function deleteKnowledgeSuggestion(suggestionId: string) {
+  const data = loadData();
+  data.knowledgeSuggestions = data.knowledgeSuggestions.filter((item) => item.id !== suggestionId);
+  saveData(data);
+}
+
+export function acceptKnowledgeSuggestion(suggestionId: string, user?: SessionUser | null) {
+  const data = loadData();
+  const suggestion = data.knowledgeSuggestions.find((item) => item.id === suggestionId);
+  if (!suggestion) {
+    return;
+  }
+
+  const page = data.knowledgePages.find((item) => item.id === suggestion.pageId);
+  if (!page) {
+    return;
+  }
+
+  page.content = [page.content, suggestion.content].filter((content) => content.trim()).join("<p><br></p>");
+  page.updatedAt = now();
+  page.updatedBy = user?.name;
+  data.knowledgeSuggestions = data.knowledgeSuggestions.filter((item) => item.id !== suggestionId);
+  saveData(data);
+}
+
 export function createProfile(name: string, email: string, role: UserRole = "technician") {
   const data = loadData();
   const profile: Profile = {
     id: id("profile"),
     name,
     email: email.trim().toLowerCase(),
+    avatarUrl: "",
+    phone: "",
     role,
     createdAt: now()
   };

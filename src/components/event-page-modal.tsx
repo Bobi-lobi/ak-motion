@@ -8,7 +8,6 @@ import {
   Hash,
   Mail,
   MapPin,
-  Mic2,
   UsersRound,
   X
 } from "lucide-react";
@@ -22,6 +21,7 @@ import { useApp } from "@/components/app-provider";
 const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau"];
 const statusDefaults = ["Nicht begonnen", "In Planung", "Bereit", "Abgeschlossen"];
 const typePalette = ["#9b6a64", "#7d609a", "#5f7fa3", "#6f8f72", "#a18452", "#8b6f93"];
+const pageIconOptions = ["📄", "📌", "✅", "🎬", "🎤", "🎧", "💡", "🎵", "📷", "🧰", "📅", "⭐", "🔥", "🚀", "🏫", "🎭"];
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 type BlockHandle = { id: string; top: number; height: number };
 type TableControlsPosition = { top: number; left: number; width: number; height: number };
@@ -37,10 +37,12 @@ type SlashCommand = {
 type ActivePage = {
   content: string;
   element: HTMLElement;
+  icon: string;
   id: string;
   title: string;
 };
 type DropIndicator = { top: number; targetId: string; placement: "before" | "after" };
+type BlockContextMenu = { blockId: string; x: number; y: number };
 
 export function EventPageModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const { data, session, isAdmin, refresh } = useApp();
@@ -128,28 +130,6 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                 onChange={(changeEvent) => patchEvent({ contactEmail: changeEvent.target.value })}
                 placeholder="Leer"
                 type="email"
-              />
-            </PropertyRow>
-            <PropertyRow icon={<Mic2 size={18} />} label="Benötigte Technik">
-              <input
-                className="property-input"
-                value={event.techNeeds}
-                onChange={(changeEvent) => patchEvent({ techNeeds: changeEvent.target.value })}
-                placeholder="Leer"
-              />
-            </PropertyRow>
-            <PropertyRow icon={<Hash size={18} />} label="Anzahl Mikrofone">
-              <input
-                className="property-input number"
-                value={event.microphoneCount ?? ""}
-                min={0}
-                onChange={(changeEvent) =>
-                  patchEvent({
-                    microphoneCount: changeEvent.target.value === "" ? undefined : Number(changeEvent.target.value)
-                  })
-                }
-                placeholder="Leer"
-                type="number"
               />
             </PropertyRow>
             <PropertyRow icon={<CalendarDays size={18} />} label="Datum">
@@ -587,7 +567,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (value: stri
   );
 }
 
-function SlashRichTextEditor({
+export function SlashRichTextEditor({
   ariaLabel = "Notizen",
   value,
   onChange,
@@ -600,6 +580,7 @@ function SlashRichTextEditor({
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const pageIconPickerRef = useRef<HTMLDivElement>(null);
   const selectedTableRef = useRef<HTMLTableElement | null>(null);
   const selectedCellRef = useRef<HTMLTableCellElement | null>(null);
   const selectedListItemRef = useRef<HTMLLIElement | null>(null);
@@ -617,9 +598,12 @@ function SlashRichTextEditor({
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
   const [activePage, setActivePage] = useState<ActivePage | null>(null);
+  const [pageIconPickerOpen, setPageIconPickerOpen] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [tableControls, setTableControls] = useState<TableControlsPosition | null>(null);
+  const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenu | null>(null);
   useCloseOnOutside(shellRef, () => setSlashOpen(false), slashOpen);
+  useCloseOnOutside(pageIconPickerRef, () => setPageIconPickerOpen(false), pageIconPickerOpen);
 
   const commands: SlashCommand[] = [
     { label: "H1", description: "Große Überschrift", html: "<h1><br></h1><p><br></p>", keywords: ["heading", "überschrift"], section: "basis" },
@@ -657,6 +641,38 @@ function SlashRichTextEditor({
   useEffect(() => {
     setSelectedCommandIndex((current) => Math.min(current, Math.max(filteredCommands.length - 1, 0)));
   }, [filteredCommands.length]);
+
+  useEffect(() => {
+    function cleanupDrag() {
+      dragBlockIdRef.current = null;
+      setDraggingBlockId(null);
+      setDropIndicator(null);
+    }
+
+    window.addEventListener("dragend", cleanupDrag);
+    window.addEventListener("drop", cleanupDrag);
+    return () => {
+      window.removeEventListener("dragend", cleanupDrag);
+      window.removeEventListener("drop", cleanupDrag);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!blockContextMenu) {
+      return;
+    }
+
+    function closeMenu() {
+      setBlockContextMenu(null);
+    }
+
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("keydown", closeMenu);
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("keydown", closeMenu);
+    };
+  }, [blockContextMenu]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -734,6 +750,7 @@ function SlashRichTextEditor({
       selectionNode?.nodeType === Node.ELEMENT_NODE ? (selectionNode as HTMLElement) : selectionNode?.parentElement ?? null;
 
     const activeListItem = (selectionElement?.closest("li") as HTMLLIElement | null) ?? selectedListItemRef.current;
+    const liveSlashState = editor ? getSlashState(editor) : { active: false, query: "" };
 
     if (slashOpen && keyEvent.key === "ArrowDown") {
       keyEvent.preventDefault();
@@ -749,9 +766,15 @@ function SlashRichTextEditor({
       return;
     }
 
-    if (keyEvent.key === "Enter" && slashOpen && filteredCommands[selectedCommandIndex]) {
+    if (keyEvent.key === "Enter" && editor && (slashOpen || liveSlashState.active)) {
+      const liveCommands = commands.filter((command) => commandMatchesQuery(command, liveSlashState.query || slashQuery));
+      const command = liveCommands[selectedCommandIndex] ?? liveCommands[0];
+      if (!command) {
+        return;
+      }
+
       keyEvent.preventDefault();
-      insertCommand(filteredCommands[selectedCommandIndex]);
+      insertCommand(command);
       return;
     }
 
@@ -801,6 +824,7 @@ function SlashRichTextEditor({
     const pageLink = target.closest(".notion-page-link") as HTMLElement | null;
     if (pageLink && editorRef.current?.contains(pageLink)) {
       setActivePage(readPageFromElement(pageLink));
+      setPageIconPickerOpen(false);
       return;
     }
 
@@ -824,7 +848,7 @@ function SlashRichTextEditor({
   function handleEditorMouseMove(mouseEvent: ReactMouseEvent<HTMLDivElement>) {
     const editor = editorRef.current;
     const target = mouseEvent.target as HTMLElement;
-    const block = target.closest("p, h1, h2, h3, ul, ol, table, .notion-page-link, li") as HTMLElement | null;
+    const block = target.closest("p, div, h1, h2, h3, ul, ol, table, figure, .notion-page-link, li") as HTMLElement | null;
     const table = target.closest("table") as HTMLTableElement | null;
 
     if (table && editor?.contains(table)) {
@@ -932,6 +956,38 @@ function SlashRichTextEditor({
     positionTableControls(table);
   }
 
+  function removeTableRow() {
+    const table = getSelectedTable();
+    if (!table || table.rows.length <= 1) {
+      return;
+    }
+
+    const referenceRow = (selectedCellRef.current?.parentElement as HTMLTableRowElement | null) ?? table.rows[table.rows.length - 1];
+    const nextSelection = referenceRow.previousElementSibling ?? referenceRow.nextElementSibling;
+    referenceRow.remove();
+    selectedCellRef.current = (nextSelection?.querySelector("td, th") as HTMLTableCellElement | null) ?? null;
+    syncEditor(false);
+    positionTableControls(table);
+  }
+
+  function removeTableColumn() {
+    const table = getSelectedTable();
+    const columnCount = table?.rows[0]?.cells.length ?? 0;
+    if (!table || columnCount <= 1) {
+      return;
+    }
+
+    const referenceIndex = selectedCellRef.current?.cellIndex ?? columnCount - 1;
+    Array.from(table.rows).forEach((row) => {
+      row.cells[referenceIndex]?.remove();
+    });
+
+    const nextIndex = Math.min(referenceIndex, (table.rows[0]?.cells.length ?? 1) - 1);
+    selectedCellRef.current = table.rows[0]?.cells[nextIndex] ?? null;
+    syncEditor(false);
+    positionTableControls(table);
+  }
+
   function getSelectedTable() {
     if (selectedTableRef.current && editorRef.current?.contains(selectedTableRef.current)) {
       return selectedTableRef.current;
@@ -945,10 +1001,12 @@ function SlashRichTextEditor({
   function insertPageBlock(editor: HTMLElement) {
     const id = `page-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const title = "Neue Seite";
-    const page = createPageLinkElement({ content: "", id, title });
+    const icon = "📄";
+    const page = createPageLinkElement({ content: "", icon, id, title });
 
     insertBlockNodeAtSelection(editor, page);
-    setActivePage({ content: "", element: page, id, title });
+    setActivePage({ content: "", element: page, icon, id, title });
+    setPageIconPickerOpen(false);
   }
 
   function updateActivePageTitle(title: string) {
@@ -962,6 +1020,23 @@ function SlashRichTextEditor({
       current.element.querySelector("strong")!.textContent = nextTitle;
       syncEditor(false);
       return { ...current, title };
+    });
+  }
+
+  function updateActivePageIcon(icon: string) {
+    setActivePage((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextIcon = Array.from(icon.trim()).slice(0, 2).join("") || "📄";
+      current.element.dataset.pageIcon = nextIcon;
+      const glyph = current.element.querySelector(".notion-page-glyph");
+      if (glyph) {
+        glyph.textContent = nextIcon;
+      }
+      syncEditor(false);
+      return { ...current, icon: nextIcon };
     });
   }
 
@@ -998,7 +1073,7 @@ function SlashRichTextEditor({
     const blockMap = new Map<string, HTMLElement>();
     const blocks = Array.from(
       editor.querySelectorAll<HTMLElement>(
-        ":scope > p, :scope > h1, :scope > h2, :scope > h3, :scope > ul, :scope > ol, :scope > table, :scope > .notion-page-link, li"
+        ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > .notion-page-link, li"
       )
     );
 
@@ -1035,6 +1110,18 @@ function SlashRichTextEditor({
       target.before(source);
     }
 
+    syncEditor(false);
+  }
+
+  function deleteBlock(blockId: string) {
+    const block = blockElementsRef.current.get(blockId);
+    if (!block || !editorRef.current?.contains(block)) {
+      setBlockContextMenu(null);
+      return;
+    }
+
+    block.remove();
+    setBlockContextMenu(null);
     syncEditor(false);
   }
 
@@ -1089,8 +1176,10 @@ function SlashRichTextEditor({
   }
 
   function handleBlockDragStart(blockId: string, dragEvent: DragEvent<HTMLButtonElement>) {
+    dragEvent.stopPropagation();
     dragBlockIdRef.current = blockId;
     setDraggingBlockId(blockId);
+    setBlockContextMenu(null);
     dragEvent.dataTransfer.effectAllowed = "move";
     dragEvent.dataTransfer.setData("application/x-ak-motion-block", blockId);
     dragEvent.dataTransfer.setData("text/plain", "");
@@ -1155,6 +1244,11 @@ function SlashRichTextEditor({
             }}
             onDragOver={(dragEvent) => dragEvent.preventDefault()}
             onDrop={(dragEvent) => handleBlockDrop(handle.id, dragEvent)}
+            onContextMenu={(mouseEvent) => {
+              mouseEvent.preventDefault();
+              mouseEvent.stopPropagation();
+              setBlockContextMenu({ blockId: handle.id, x: mouseEvent.clientX, y: mouseEvent.clientY });
+            }}
             onMouseEnter={() => setHoveredBlockId(handle.id)}
             tabIndex={-1}
           >
@@ -1162,6 +1256,17 @@ function SlashRichTextEditor({
           </button>
         ))}
       </div>
+      {blockContextMenu ? (
+        <div
+          className="block-context-menu"
+          style={{ left: blockContextMenu.x, top: blockContextMenu.y }}
+          onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+        >
+          <button type="button" onClick={() => deleteBlock(blockContextMenu.blockId)}>
+            Löschen
+          </button>
+        </div>
+      ) : null}
       {dropIndicator ? <div className="block-drop-indicator" style={{ top: dropIndicator.top }} /> : null}
       {tableControls ? (
         <div
@@ -1180,6 +1285,17 @@ function SlashRichTextEditor({
             +
           </button>
           <button
+            className="table-remove-column"
+            type="button"
+            aria-label="Spalte löschen"
+            onMouseDown={(mouseEvent) => {
+              mouseEvent.preventDefault();
+              removeTableColumn();
+            }}
+          >
+            -
+          </button>
+          <button
             className="table-add-row"
             type="button"
             aria-label="Zeile hinzufügen"
@@ -1190,6 +1306,17 @@ function SlashRichTextEditor({
           >
             +
           </button>
+          <button
+            className="table-remove-row"
+            type="button"
+            aria-label="Zeile löschen"
+            onMouseDown={(mouseEvent) => {
+              mouseEvent.preventDefault();
+              removeTableRow();
+            }}
+          >
+            -
+          </button>
         </div>
       ) : null}
       <div
@@ -1199,6 +1326,7 @@ function SlashRichTextEditor({
         data-placeholder={placeholder}
         onInput={() => syncEditor()}
         onClick={handleEditorClick}
+        onDragEnter={handleEditorDragOver}
         onDragOver={handleEditorDragOver}
         onDrop={handleEditorDrop}
         onKeyDown={handleKeyDown}
@@ -1264,6 +1392,34 @@ function SlashRichTextEditor({
             Zurück
           </button>
           <div className="notion-page-view-inner">
+            <div className="notion-page-icon-picker" ref={pageIconPickerRef}>
+              <button
+                className="notion-page-icon-button"
+                type="button"
+                onClick={() => setPageIconPickerOpen((current) => !current)}
+                aria-expanded={pageIconPickerOpen}
+                aria-label="Seitenicon"
+              >
+                {activePage.icon}
+              </button>
+              {pageIconPickerOpen ? (
+                <div className="notion-page-icon-menu">
+                  {pageIconOptions.map((icon) => (
+                    <button
+                      className={icon === activePage.icon ? "is-selected" : ""}
+                      key={icon}
+                      type="button"
+                      onClick={() => {
+                        updateActivePageIcon(icon);
+                        setPageIconPickerOpen(false);
+                      }}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <input
               className="notion-page-title-input"
               value={activePage.title}
@@ -1471,21 +1627,25 @@ function commandMatchesQuery(command: SlashCommand, query: string) {
   );
 }
 
-function createPageLinkElement({ content, id, title }: { content: string; id: string; title: string }) {
+function createPageLinkElement({ content, icon, id, title }: { content: string; icon: string; id: string; title: string }) {
   const page = document.createElement("div");
   page.className = "notion-page-link";
   page.contentEditable = "false";
   page.dataset.pageContent = encodePageContent(content);
+  page.dataset.pageIcon = icon;
   page.dataset.pageId = id;
   page.dataset.pageTitle = title;
-  page.innerHTML = `<span class="notion-page-glyph" aria-hidden="true"></span><strong>${escapeHtml(title)}</strong>`;
+  page.innerHTML = `<span class="notion-page-glyph" aria-hidden="true">${escapeHtml(icon)}</span><strong>${escapeHtml(title)}</strong>`;
   return page;
 }
 
 function readPageFromElement(element: HTMLElement): ActivePage {
+  const icon = element.dataset.pageIcon || element.querySelector(".notion-page-glyph")?.textContent || "📄";
+
   return {
     content: decodePageContent(element.dataset.pageContent ?? ""),
     element,
+    icon,
     id: element.dataset.pageId ?? `page-${Date.now()}`,
     title: element.dataset.pageTitle ?? element.querySelector("strong")?.textContent ?? "Neue Seite"
   };
@@ -1658,8 +1818,13 @@ function placeCaretInInsertedBlock(block: HTMLElement) {
 
   const selection = window.getSelection();
   const range = document.createRange();
-  range.selectNodeContents(target);
-  range.collapse(false);
+  if (target.matches("h1, h2, h3") && target.textContent?.trim() === "") {
+    target.innerHTML = "";
+    range.setStart(target, 0);
+  } else {
+    range.selectNodeContents(target);
+    range.collapse(false);
+  }
   selection?.removeAllRanges();
   selection?.addRange(range);
 }
@@ -1672,7 +1837,7 @@ function closestEditorBlock(node: Node, editor: HTMLElement) {
       return current.parentElement;
     }
 
-    if (current.matches("p, .notion-page-link, h1, h2, h3, ul, ol, table")) {
+    if (current.matches("p, div, .notion-page-link, h1, h2, h3, ul, ol, table, figure")) {
       return current;
     }
 

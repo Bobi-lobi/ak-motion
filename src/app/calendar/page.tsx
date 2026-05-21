@@ -52,26 +52,23 @@ export default function CalendarPage() {
   return (
     <RouteGuard>
       <AppShell title="Veranstaltungskalender" contentClassName="calendar-content" titleIcon={<Bell size={30} />}>
-        <section className="calendar-page-head">
-          <div className="calendar-view-bar">
-            <div className="calendar-spacer" />
+        <section className="calendar-board-wrap">
+          <div className="calendar-board-toolbar">
+            <div className="calendar-month-label">{monthLabel(month)}</div>
             <div className="calendar-actions">
               <button className="button compact" type="button" onClick={() => setMonth(new Date())}>
                 Heute
               </button>
-              <button className="icon-button" type="button" onClick={() => setMonth(subMonths(month, 1))}>
+              <button className="icon-button" type="button" aria-label="Vorheriger Monat" onClick={() => setMonth(subMonths(month, 1))}>
                 <ChevronLeft size={18} />
               </button>
-              <button className="icon-button" type="button" onClick={() => setMonth(addMonths(month, 1))}>
+              <button className="icon-button" type="button" aria-label="Nächster Monat" onClick={() => setMonth(addMonths(month, 1))}>
                 <ChevronRight size={18} />
               </button>
             </div>
           </div>
-        </section>
 
-        <section className="calendar-board-wrap">
-            <div className="calendar-month-label">{monthLabel(month)}</div>
-            <div className="calendar-board" aria-label="Monatskalender">
+          <div className="calendar-board" aria-label="Monatskalender">
             {weekdays.map((weekday) => (
               <div className="calendar-weekday" key={weekday}>
                 {weekday}
@@ -96,11 +93,6 @@ export default function CalendarPage() {
                 <div
                   key={day.toISOString()}
                   className={dayClassName}
-                  onClick={() => {
-                    if (dayEvents[0]) {
-                      setSelectedEventId(dayEvents[0].id);
-                    }
-                  }}
                 >
                   <button
                     className="calendar-add-button"
@@ -133,8 +125,8 @@ export default function CalendarPage() {
                 </div>
               );
             })}
-            </div>
-          </section>
+          </div>
+        </section>
 
         {selectedEvent ? (
           <EventPageModal event={selectedEvent as Event} onClose={() => setSelectedEventId(null)} />

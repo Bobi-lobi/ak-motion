@@ -29,14 +29,18 @@ export function EventCard({
 
   if (compact) {
     return (
-      <div
+      <button
         className="calendar-event-pill"
-        onClick={() => onOpen?.()}
+        type="button"
+        onClick={(clickEvent) => {
+          clickEvent.stopPropagation();
+          onOpen?.();
+        }}
         onContextMenu={onContextMenu}
       >
         <span className="calendar-event-time">{formatTimeRange(event.startsAt, event.endsAt)}</span>
         <span className="calendar-event-title">{event.title}</span>
-      </div>
+      </button>
     );
   }
 

@@ -128,7 +128,34 @@ export const demoData: AppData = {
       attended: true,
       createdAt: "2026-05-25T16:20:00.000Z"
     }
-  ]
+  ],
+  knowledgePages: [
+    {
+      id: "rules",
+      title: "Regeln",
+      content: "",
+      updatedAt: "2026-05-01T10:00:00.000Z"
+    },
+    {
+      id: "guides",
+      title: "Anleitungen",
+      content: "",
+      updatedAt: "2026-05-01T10:00:00.000Z"
+    },
+    {
+      id: "tech-bible",
+      title: "Technik Bibel",
+      content: "",
+      updatedAt: "2026-05-01T10:00:00.000Z"
+    },
+    {
+      id: "ideas",
+      title: "Ideenwerkstatt",
+      content: "",
+      updatedAt: "2026-05-01T10:00:00.000Z"
+    }
+  ],
+  knowledgeSuggestions: []
 };
 
 export const demoPasswords: Record<string, string> = {

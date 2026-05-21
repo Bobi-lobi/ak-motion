@@ -6,10 +6,14 @@ export type AssignmentRole = "Ton" | "Licht" | "Umbau";
 
 export type RequestStatus = "pending" | "approved" | "rejected";
 
+export type KnowledgePageId = "rules" | "guides" | "tech-bible" | "ideas";
+
 export type Profile = {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string;
+  phone?: string;
   role: UserRole;
   createdAt: string;
 };
@@ -71,6 +75,23 @@ export type EventAttendance = {
   createdAt: string;
 };
 
+export type KnowledgePage = {
+  id: KnowledgePageId;
+  title: string;
+  content: string;
+  updatedAt: string;
+  updatedBy?: string;
+};
+
+export type KnowledgeSuggestion = {
+  id: string;
+  pageId: KnowledgePageId;
+  content: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+};
+
 export type AppData = {
   profiles: Profile[];
   requests: EventRequest[];
@@ -78,12 +99,16 @@ export type AppData = {
   availability: EventAvailability[];
   assignments: EventAssignment[];
   attendance: EventAttendance[];
+  knowledgePages: KnowledgePage[];
+  knowledgeSuggestions: KnowledgeSuggestion[];
 };
 
 export type SessionUser = {
   id: string;
   email: string;
   name: string;
+  avatarUrl?: string;
+  phone?: string;
   role: UserRole;
 };
 
