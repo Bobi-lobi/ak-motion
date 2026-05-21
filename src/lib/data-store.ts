@@ -1,0 +1,288 @@
+"use client";
+
+import { demoData, demoPasswords } from "@/lib/demo-data";
+import { hasSupabaseConfig, supabase } from "@/lib/supabase";
+import type {
+  AppData,
+  AssignmentRole,
+  AvailabilityStatus,
+  Event as CalendarEvent,
+  EventRequest,
+  EventRequestInput,
+  Profile,
+  SessionUser,
+  UserRole
+} from "@/lib/types";
+
+const DATA_KEY = "ak-motion-data";
+const SESSION_KEY = "ak-motion-session";
+
+function cloneData(data: AppData): AppData {
+  return JSON.parse(JSON.stringify(data)) as AppData;
+}
+
+function now() {
+  return new Date().toISOString();
+}
+
+function id(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+export function loadData(): AppData {
+  if (typeof window === "undefined") {
+    return cloneData(demoData);
+  }
+
+  const existing = window.localStorage.getItem(DATA_KEY);
+  if (!existing) {
+    const seeded = cloneData(demoData);
+    window.localStorage.setItem(DATA_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+
+  try {
+    return JSON.parse(existing) as AppData;
+  } catch {
+    window.localStorage.setItem(DATA_KEY, JSON.stringify(demoData));
+    return cloneData(demoData);
+  }
+}
+
+export function saveData(data: AppData) {
+  window.localStorage.setItem(DATA_KEY, JSON.stringify(data));
+  window.dispatchEvent(new Event("ak-motion-data"));
+}
+
+export function getSession(): SessionUser | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(SESSION_KEY);
+  return raw ? (JSON.parse(raw) as SessionUser) : null;
+}
+
+export function saveSession(user: SessionUser | null) {
+  if (!user) {
+    window.localStorage.removeItem(SESSION_KEY);
+  } else {
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  }
+  window.dispatchEvent(new Event("ak-motion-session"));
+}
+
+export async function login(email: string, password: string): Promise<SessionUser> {
+  if (hasSupabaseConfig && supabase) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) {
+      throw new Error(error?.message ?? "Login fehlgeschlagen.");
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, name, email, role")
+      .eq("id", data.user.id)
+      .single();
+
+    if (!profile) {
+      throw new Error("Kein Profil für diesen Account gefunden.");
+    }
+
+    const sessionUser: SessionUser = {
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      role: profile.role
+    };
+    saveSession(sessionUser);
+    return sessionUser;
+  }
+
+  const normalized = email.trim().toLowerCase();
+  if (demoPasswords[normalized] !== password) {
+    throw new Error("Demo-Login fehlgeschlagen. Probiere admin@ak-motion.local / admin123.");
+  }
+
+  const profile = loadData().profiles.find((item) => item.email === normalized);
+  if (!profile) {
+    throw new Error("Profil nicht gefunden.");
+  }
+
+  const sessionUser: SessionUser = {
+    id: profile.id,
+    email: profile.email,
+    name: profile.name,
+    role: profile.role
+  };
+  saveSession(sessionUser);
+  return sessionUser;
+}
+
+export function createPublicRequest(input: EventRequestInput) {
+  const data = loadData();
+  const request: EventRequest = {
+    ...input,
+    id: id("request"),
+    status: "pending",
+    createdAt: now()
+  };
+  data.requests.unshift(request);
+  saveData(data);
+  return request;
+}
+
+export function approveRequest(requestId: string) {
+  const data = loadData();
+  const request = data.requests.find((item) => item.id === requestId);
+  if (!request) {
+    return;
+  }
+
+  request.status = "approved";
+  const event: CalendarEvent = {
+    id: id("event"),
+    title: request.title,
+    startsAt: request.startsAt,
+    endsAt: request.endsAt,
+    location: request.location,
+    eventType: request.eventType,
+    status: "Nicht begonnen",
+    contactName: request.contactName,
+    contactEmail: request.contactEmail,
+    techNeeds: request.techNeeds,
+    notes: `${request.notes}\nKontakt: ${request.contactName} (${request.contactEmail})`.trim(),
+    requestId: request.id,
+    createdAt: now()
+  };
+  data.events.unshift(event);
+  saveData(data);
+}
+
+export function rejectRequest(requestId: string) {
+  const data = loadData();
+  const request = data.requests.find((item) => item.id === requestId);
+  if (request) {
+    request.status = "rejected";
+    saveData(data);
+  }
+}
+
+export function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">) {
+  const data = loadData();
+  const event: CalendarEvent = {
+    ...input,
+    id: id("event"),
+    createdAt: now()
+  };
+  data.events.unshift(event);
+  saveData(data);
+  return event;
+}
+
+export function deleteEvent(eventId: string) {
+  const data = loadData();
+  data.events = data.events.filter((item) => item.id !== eventId);
+  data.availability = data.availability.filter((item) => item.eventId !== eventId);
+  data.assignments = data.assignments.filter((item) => item.eventId !== eventId);
+  data.attendance = data.attendance.filter((item) => item.eventId !== eventId);
+  saveData(data);
+}
+
+export function setAvailability(eventId: string, profileId: string, status: AvailabilityStatus) {
+  const data = loadData();
+  const existing = data.availability.find((item) => item.eventId === eventId && item.profileId === profileId);
+  if (existing) {
+    existing.status = status;
+    existing.updatedAt = now();
+  } else {
+    data.availability.push({
+      id: id("availability"),
+      eventId,
+      profileId,
+      status,
+      updatedAt: now()
+    });
+  }
+  saveData(data);
+}
+
+export function addAssignment(eventId: string, profileId: string, role: AssignmentRole) {
+  const data = loadData();
+  const duplicate = data.assignments.some(
+    (item) => item.eventId === eventId && item.profileId === profileId && item.role === role
+  );
+  if (!duplicate) {
+    data.assignments.push({
+      id: id("assignment"),
+      eventId,
+      profileId,
+      role,
+      createdAt: now()
+    });
+  }
+  saveData(data);
+}
+
+export function removeAssignment(eventId: string, profileId: string, role: AssignmentRole) {
+  const data = loadData();
+  data.assignments = data.assignments.filter(
+    (item) => !(item.eventId === eventId && item.profileId === profileId && item.role === role)
+  );
+  data.attendance = data.attendance.filter(
+    (item) => !(item.eventId === eventId && item.profileId === profileId && item.role === role)
+  );
+  saveData(data);
+}
+
+export function markAttendance(eventId: string, profileId: string, role: AssignmentRole) {
+  const data = loadData();
+  const existing = data.attendance.find(
+    (item) => item.eventId === eventId && item.profileId === profileId && item.role === role
+  );
+  if (existing) {
+    existing.attended = !existing.attended;
+  } else {
+    data.attendance.push({
+      id: id("attendance"),
+      eventId,
+      profileId,
+      role,
+      attended: true,
+      createdAt: now()
+    });
+  }
+  saveData(data);
+}
+
+export function updateEventNotes(eventId: string, notes: string) {
+  const data = loadData();
+  const event = data.events.find((item) => item.id === eventId);
+  if (event) {
+    event.notes = notes;
+    saveData(data);
+  }
+}
+
+export function updateEvent(eventId: string, patch: Partial<CalendarEvent>) {
+  const data = loadData();
+  const event = data.events.find((item) => item.id === eventId);
+  if (event) {
+    Object.assign(event, patch);
+    saveData(data);
+  }
+}
+
+export function createProfile(name: string, email: string, role: UserRole = "technician") {
+  const data = loadData();
+  const profile: Profile = {
+    id: id("profile"),
+    name,
+    email: email.trim().toLowerCase(),
+    role,
+    createdAt: now()
+  };
+  data.profiles.push(profile);
+  saveData(data);
+  return profile;
+}
