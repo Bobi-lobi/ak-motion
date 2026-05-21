@@ -1,6 +1,6 @@
 # AK-Motion
 
-Web-App fuer ein Schul-Technikteam: Kalender, QR-Anfragen, Verfuegbarkeit, Einsatzplanung und Statistik.
+Web-App für ein Schul-Technikteam: Kalender, QR-Anfragen, Verfuegbarkeit, Einsatzplanung und Statistik.
 
 ## Lokaler Start
 
