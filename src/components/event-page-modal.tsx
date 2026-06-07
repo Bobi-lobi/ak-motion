@@ -18,7 +18,7 @@ import { addMonths, format, getCalendarGridDays, isDayInMonth, parseISO, subMont
 import type { AssignmentRole, Event, Profile } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
 
-const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau"];
+const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau", "Kleine"];
 const statusDefaults = ["Nicht begonnen", "In Planung", "Bereit", "Abgeschlossen"];
 const typePalette = ["#9b6a64", "#7d609a", "#5f7fa3", "#6f8f72", "#a18452", "#8b6f93"];
 const pageIconOptions = ["📄", "📌", "✅", "🎬", "🎤", "🎧", "💡", "🎵", "📷", "🧰", "📅", "⭐", "🔥", "🚀", "🏫", "🎭"];
@@ -276,7 +276,7 @@ function TechnicianField({
   return (
     <MultiTagPicker
       selected={selectedIds}
-      options={visibleTechnicians.map((profile) => ({ value: profile.id, label: profile.name }))}
+      options={visibleTechnicians.map((profile) => ({ avatarUrl: profile.avatarUrl, value: profile.id, label: profile.name }))}
       emptyLabel="Leer"
       canCreate={canChooseAll}
       onAdd={(profileId) => {
@@ -413,7 +413,7 @@ function MultiTagPicker({
   onCreate
 }: {
   selected: string[];
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ avatarUrl?: string; value: string; label: string }>;
   emptyLabel: string;
   canCreate?: boolean;
   onAdd: (value: string) => void;
@@ -436,6 +436,7 @@ function MultiTagPicker({
           {selectedOptions.length ? (
             selectedOptions.map((option) => (
               <span className="people-chip" key={option.value}>
+                <PersonAvatar name={option.label} src={option.avatarUrl} />
                 {option.label}
                 <span
                   role="button"
@@ -488,7 +489,10 @@ function MultiTagPicker({
                 setOpen(false);
               }}
             >
-              <span className="people-chip">{option.label}</span>
+              <span className="people-chip">
+                <PersonAvatar name={option.label} src={option.avatarUrl} />
+                {option.label}
+              </span>
             </button>
           ))}
           {canCreate && query.trim() ? (
@@ -507,6 +511,14 @@ function MultiTagPicker({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function PersonAvatar({ name, src }: { name: string; src?: string }) {
+  return (
+    <span className="person-avatar" aria-hidden="true">
+      {src ? <img src={src} alt="" /> : initials(name)}
+    </span>
   );
 }
 
@@ -609,6 +621,13 @@ export function SlashRichTextEditor({
     { label: "H1", description: "Große Überschrift", html: "<h1><br></h1><p><br></p>", keywords: ["heading", "überschrift"], section: "basis" },
     { label: "H2", description: "Zwischenüberschrift", html: "<h2><br></h2><p><br></p>", keywords: ["heading", "überschrift"], section: "basis" },
     { label: "H3", description: "Abschnitt", html: "<h3><br></h3><p><br></p>", keywords: ["heading", "überschrift"], section: "basis" },
+    {
+      label: "Aufklappbare Überschrift",
+      description: "Toggle mit Inhalt",
+      html: "<details open><summary><br></summary><p><br></p></details><p><br></p>",
+      keywords: ["toggle", "aufklappen", "überschrift"],
+      section: "basis"
+    },
     { label: "Liste", description: "Aufzählung", html: "<ul><li><br></li></ul><p><br></p>", keywords: ["bullet", "punkt"], section: "basis" },
     {
       label: "Tabelle",
@@ -848,7 +867,7 @@ export function SlashRichTextEditor({
   function handleEditorMouseMove(mouseEvent: ReactMouseEvent<HTMLDivElement>) {
     const editor = editorRef.current;
     const target = mouseEvent.target as HTMLElement;
-    const block = target.closest("p, div, h1, h2, h3, ul, ol, table, figure, .notion-page-link, li") as HTMLElement | null;
+    const block = target.closest("p, div, h1, h2, h3, details, ul, ol, table, figure, .notion-page-link, li") as HTMLElement | null;
     const table = target.closest("table") as HTMLTableElement | null;
 
     if (table && editor?.contains(table)) {
@@ -1073,7 +1092,7 @@ export function SlashRichTextEditor({
     const blockMap = new Map<string, HTMLElement>();
     const blocks = Array.from(
       editor.querySelectorAll<HTMLElement>(
-        ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > .notion-page-link, li"
+        ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > details, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > .notion-page-link, li"
       )
     );
 
@@ -1467,7 +1486,7 @@ function normalizeNoteHtml(value: string) {
     return "";
   }
 
-  if (/<(p|br|h1|h2|h3|ul|ol|li|table|tbody|tr|th|td|strong|em|div|figure|figcaption|img|video|audio|source)\b/i.test(trimmed)) {
+  if (/<(p|br|h1|h2|h3|details|summary|ul|ol|li|table|tbody|tr|th|td|strong|em|div|figure|figcaption|img|video|audio|source)\b/i.test(trimmed)) {
     return trimmed;
   }
 
@@ -1806,6 +1825,8 @@ function placeCaretInInsertedBlock(block: HTMLElement) {
   const target =
     block.matches("table")
       ? (block.querySelector("td, th") as HTMLElement | null)
+      : block.matches("details")
+        ? (block.querySelector("summary") as HTMLElement | null)
       : block.matches("ul, ol")
         ? (block.querySelector("li") as HTMLElement | null)
         : block.matches("figure")
@@ -1837,7 +1858,7 @@ function closestEditorBlock(node: Node, editor: HTMLElement) {
       return current.parentElement;
     }
 
-    if (current.matches("p, div, .notion-page-link, h1, h2, h3, ul, ol, table, figure")) {
+    if (current.matches("p, div, .notion-page-link, h1, h2, h3, details, ul, ol, table, figure")) {
       return current;
     }
 
@@ -1957,4 +1978,13 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ".")
     .replace(/(^\.|\.$)/g, "");
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }

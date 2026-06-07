@@ -2,9 +2,10 @@ export type UserRole = "admin" | "technician";
 
 export type AvailabilityStatus = "committed" | "backup";
 
-export type AssignmentRole = "Ton" | "Licht" | "Umbau";
+export type AssignmentRole = "Ton" | "Licht" | "Umbau" | "Kleine";
 
 export type RequestStatus = "pending" | "approved" | "rejected";
+export type RegistrationStatus = "pending" | "approved" | "rejected";
 
 export type KnowledgePageId = "rules" | "guides" | "tech-bible" | "ideas";
 
@@ -92,8 +93,39 @@ export type KnowledgeSuggestion = {
   createdAt: string;
 };
 
+export type RegistrationRequest = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  motivation: string;
+  password: string;
+  status: RegistrationStatus;
+  createdAt: string;
+};
+
+export type LandingContent = {
+  heroTitle: string;
+  heroText: string;
+  joinTitle: string;
+  joinText: string;
+  eventImages: string[];
+  teamImage: string;
+  teamNames: string[];
+  impressions: LandingImpression[];
+};
+
+export type LandingImpression = {
+  id: string;
+  title: string;
+  text: string;
+  images: string[];
+};
+
 export type AppData = {
   profiles: Profile[];
+  registrationRequests: RegistrationRequest[];
+  landingContent: LandingContent;
   requests: EventRequest[];
   events: Event[];
   availability: EventAvailability[];
@@ -102,6 +134,8 @@ export type AppData = {
   knowledgePages: KnowledgePage[];
   knowledgeSuggestions: KnowledgeSuggestion[];
 };
+
+export type RegistrationRequestInput = Pick<RegistrationRequest, "email" | "motivation" | "name" | "password" | "phone">;
 
 export type SessionUser = {
   id: string;

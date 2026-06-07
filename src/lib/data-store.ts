@@ -10,7 +10,10 @@ import type {
   EventRequest,
   EventRequestInput,
   KnowledgePageId,
+  LandingContent,
   Profile,
+  RegistrationRequest,
+  RegistrationRequestInput,
   SessionUser,
   UserRole
 } from "@/lib/types";
@@ -18,6 +21,7 @@ import { knowledgePages } from "@/lib/knowledge";
 
 const DATA_KEY = "ak-motion-data";
 const SESSION_KEY = "ak-motion-session";
+const PASSWORDS_KEY = "ak-motion-passwords";
 
 function cloneData(data: AppData): AppData {
   return JSON.parse(JSON.stringify(data)) as AppData;
@@ -25,6 +29,22 @@ function cloneData(data: AppData): AppData {
 
 function normalizeData(data: AppData): AppData {
   const normalized = data as AppData;
+  normalized.registrationRequests = normalized.registrationRequests ?? [];
+  normalized.landingContent = normalized.landingContent ?? cloneData(demoData).landingContent;
+  normalized.landingContent.eventImages = normalized.landingContent.eventImages?.length
+    ? normalized.landingContent.eventImages
+    : cloneData(demoData).landingContent.eventImages;
+  normalized.landingContent.teamNames = normalized.landingContent.teamNames?.length
+    ? normalized.landingContent.teamNames
+    : cloneData(demoData).landingContent.teamNames;
+  normalized.landingContent.teamNames = normalized.landingContent.teamNames.map((name) => (name === "Teamleitung" ? "Max" : name));
+  if (normalized.landingContent.joinText.includes("Keine Vorerfahrung nötig") && !normalized.landingContent.joinText.includes("Freitag um 13:00 Uhr")) {
+    normalized.landingContent.joinText =
+      "Wir suchen Schüler, die Lust auf Technik, Verantwortung und echte Veranstaltungen haben. Keine Vorerfahrung nötig, nur Neugier und Zuverlässigkeit. Hast du Interesse? Dann komm doch gerne am Freitag um 13:00 Uhr in die Aula!";
+  }
+  normalized.landingContent.impressions = normalized.landingContent.impressions?.length
+    ? normalized.landingContent.impressions
+    : cloneData(demoData).landingContent.impressions;
   normalized.knowledgePages = normalized.knowledgePages ?? [];
   normalized.knowledgeSuggestions = normalized.knowledgeSuggestions ?? [];
 
@@ -96,6 +116,39 @@ export function saveSession(user: SessionUser | null) {
   window.dispatchEvent(new Event("ak-motion-session"));
 }
 
+function loadPasswords() {
+  if (typeof window === "undefined") {
+    return demoPasswords;
+  }
+
+  const raw = window.localStorage.getItem(PASSWORDS_KEY);
+  if (!raw) {
+    const seeded = { ...demoPasswords };
+    window.localStorage.setItem(PASSWORDS_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+
+  try {
+    return { ...demoPasswords, ...(JSON.parse(raw) as Record<string, string>) };
+  } catch {
+    const seeded = { ...demoPasswords };
+    window.localStorage.setItem(PASSWORDS_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+}
+
+function savePassword(email: string, password: string) {
+  const passwords = loadPasswords();
+  passwords[email.trim().toLowerCase()] = password;
+  window.localStorage.setItem(PASSWORDS_KEY, JSON.stringify(passwords));
+}
+
+function deletePassword(email: string) {
+  const passwords = loadPasswords();
+  delete passwords[email.trim().toLowerCase()];
+  window.localStorage.setItem(PASSWORDS_KEY, JSON.stringify(passwords));
+}
+
 export async function login(email: string, password: string): Promise<SessionUser> {
   if (hasSupabaseConfig && supabase) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -127,7 +180,7 @@ export async function login(email: string, password: string): Promise<SessionUse
   }
 
   const normalized = email.trim().toLowerCase();
-  if (demoPasswords[normalized] !== password) {
+  if (loadPasswords()[normalized] !== password) {
     throw new Error("Demo-Login fehlgeschlagen. Probiere admin@ak-motion.local / admin123.");
   }
 
@@ -159,6 +212,75 @@ export function createPublicRequest(input: EventRequestInput) {
   data.requests.unshift(request);
   saveData(data);
   return request;
+}
+
+export function createRegistrationRequest(input: RegistrationRequestInput) {
+  const data = loadData();
+  const email = input.email.trim().toLowerCase();
+
+  if (data.profiles.some((profile) => profile.email === email)) {
+    throw new Error("Für diese E-Mail gibt es bereits einen Account.");
+  }
+
+  const existing = data.registrationRequests.find((request) => request.email === email && request.status === "pending");
+  if (existing) {
+    throw new Error("Für diese E-Mail liegt bereits eine Bewerbung vor.");
+  }
+
+  const request: RegistrationRequest = {
+    id: id("registration"),
+    name: input.name.trim(),
+    email,
+    phone: input.phone?.trim(),
+    motivation: input.motivation.trim(),
+    password: input.password,
+    status: "pending",
+    createdAt: now()
+  };
+  data.registrationRequests.unshift(request);
+  saveData(data);
+  return request;
+}
+
+export function approveRegistrationRequest(requestId: string) {
+  const data = loadData();
+  const request = data.registrationRequests.find((item) => item.id === requestId);
+  if (!request) {
+    return;
+  }
+
+  request.status = "approved";
+  let profile = data.profiles.find((item) => item.email === request.email);
+  if (!profile) {
+    profile = {
+      id: id("profile"),
+      name: request.name,
+      email: request.email,
+      avatarUrl: "",
+      phone: request.phone ?? "",
+      role: "technician",
+      createdAt: now()
+    };
+    data.profiles.push(profile);
+  }
+  savePassword(request.email, request.password);
+  data.registrationRequests = data.registrationRequests.filter((item) => item.id !== requestId);
+  saveData(data);
+}
+
+export function rejectRegistrationRequest(requestId: string) {
+  const data = loadData();
+  const request = data.registrationRequests.find((item) => item.id === requestId);
+  if (request) {
+    request.status = "rejected";
+    saveData(data);
+  }
+}
+
+export function deleteRegistrationRequest(requestId: string) {
+  const data = loadData();
+  data.registrationRequests = data.registrationRequests.filter((item) => item.id !== requestId);
+  saveData(data);
 }
 
 export function approveRequest(requestId: string) {
@@ -392,6 +514,49 @@ export function createProfile(name: string, email: string, role: UserRole = "tec
     createdAt: now()
   };
   data.profiles.push(profile);
+  savePassword(profile.email, "technik123");
   saveData(data);
   return profile;
+}
+
+export function updateLandingContent(patch: LandingContent) {
+  const data = loadData();
+  data.landingContent = patch;
+  saveData(data);
+}
+
+export function updateProfileRole(profileId: string, role: UserRole) {
+  const data = loadData();
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) {
+    return;
+  }
+
+  profile.role = role;
+  saveData(data);
+
+  const session = getSession();
+  if (session?.id === profileId) {
+    saveSession({ ...session, role });
+  }
+}
+
+export function deleteProfile(profileId: string) {
+  const data = loadData();
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) {
+    return;
+  }
+
+  data.profiles = data.profiles.filter((item) => item.id !== profileId);
+  data.availability = data.availability.filter((item) => item.profileId !== profileId);
+  data.assignments = data.assignments.filter((item) => item.profileId !== profileId);
+  data.attendance = data.attendance.filter((item) => item.profileId !== profileId);
+  deletePassword(profile.email);
+  saveData(data);
+
+  const session = getSession();
+  if (session?.id === profileId) {
+    saveSession(null);
+  }
 }

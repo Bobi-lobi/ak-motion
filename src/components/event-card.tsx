@@ -7,7 +7,7 @@ import { formatDateTime, formatTimeRange } from "@/lib/date-utils";
 import type { AssignmentRole, Event } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
 
-const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau"];
+const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau", "Kleine"];
 
 export function EventCard({
   event,

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, CalendarDays, ClipboardList, LogOut, PanelLeftClose, PanelLeftOpen, Upload, Users, X } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LogOut, Package, PanelLeftClose, PanelLeftOpen, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -11,13 +11,19 @@ import { knowledgePages } from "@/lib/knowledge";
 
 const SIDEBAR_WIDTH_KEY = "ak-motion-sidebar-width";
 const SIDEBAR_COLLAPSED_KEY = "ak-motion-sidebar-collapsed";
+const MOBILE_OPENED_PAGE_KEY = "ak-motion-mobile-opened-page";
 
 const navItems = [
-  { href: "/calendar", label: "Kalender", icon: CalendarDays, admin: false },
+  { href: "/calendar", label: "Veranstaltungskalender", icon: CalendarDays, admin: false },
+  { href: "/analytics", label: "Statistik", icon: BarChart3, admin: false },
+  ...knowledgePages.map((page) => ({ href: page.href, label: page.title, icon: page.icon, admin: false })),
+  { href: "/equipment", label: "Equipment", icon: Package, admin: false }
+];
+
+const adminNavItems = [
   { href: "/requests", label: "Anfragen", icon: ClipboardList, admin: true },
   { href: "/team", label: "Techniker", icon: Users, admin: true },
-  { href: "/analytics", label: "Statistik", icon: BarChart3, admin: false },
-  ...knowledgePages.map((page) => ({ href: page.href, label: page.title, icon: page.icon, admin: false }))
+  { href: "/landing", label: "Startseite", icon: GalleryVerticalEnd, admin: true }
 ];
 
 export function AppShell({
@@ -36,7 +42,7 @@ export function AppShell({
   const pathname = usePathname();
   const { session, isAdmin, logout, refresh } = useApp();
   const [sidebarWidth, setSidebarWidth] = useState(280);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getInitialSidebarCollapsed());
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState(session?.name ?? "");
   const [profilePhone, setProfilePhone] = useState(session?.phone ?? "");
@@ -45,7 +51,9 @@ export function AppShell({
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
     setSidebarWidth(Number.isFinite(savedWidth) && savedWidth >= 220 ? savedWidth : 280);
-    setSidebarCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+    if (window.sessionStorage.getItem(MOBILE_OPENED_PAGE_KEY) === "true") {
+      window.sessionStorage.removeItem(MOBILE_OPENED_PAGE_KEY);
+    }
   }, []);
 
   useEffect(() => {
@@ -106,6 +114,20 @@ export function AppShell({
     reader.readAsDataURL(file);
   }
 
+  function openPageOnMobile(clickEvent: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    if (!window.matchMedia("(max-width: 900px)").matches) {
+      return;
+    }
+
+    window.sessionStorage.setItem(MOBILE_OPENED_PAGE_KEY, "true");
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true");
+    setSidebarCollapsed(true);
+    if (pathname === href) {
+      clickEvent.preventDefault();
+      window.sessionStorage.removeItem(MOBILE_OPENED_PAGE_KEY);
+    }
+  }
+
   return (
     <div
       className={clsx("workspace", sidebarCollapsed && "is-sidebar-collapsed")}
@@ -115,7 +137,10 @@ export function AppShell({
         <button
           className="sidebar-show-button"
           type="button"
-          onClick={() => setSidebarCollapsed(false)}
+          onClick={() => {
+            window.sessionStorage.removeItem(MOBILE_OPENED_PAGE_KEY);
+            setSidebarCollapsed(false);
+          }}
           aria-label="Menü einblenden"
           title="Menü einblenden"
         >
@@ -125,10 +150,10 @@ export function AppShell({
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
-            <div className="brand-mark">AK</div>
+            <div className="brand-mark">M</div>
             <div>
-              <strong>AK-Motion</strong>
-              <span>Technikteam</span>
+              <strong>Motion</strong>
+              <span>AK-Technik</span>
             </div>
           </div>
           <button
@@ -143,19 +168,44 @@ export function AppShell({
         </div>
 
         <nav className="nav-list" aria-label="Hauptnavigation">
-          {navItems
-            .filter((item) => !item.admin || isAdmin)
-            .map((item) => {
+          <div className="nav-section">
+            {navItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
 
               return (
-                <Link key={item.href} className={clsx("nav-item", active && "is-active")} href={item.href}>
+                <Link
+                  key={item.href}
+                  className={clsx("nav-item", active && "is-active")}
+                  href={item.href}
+                  onClick={(clickEvent) => openPageOnMobile(clickEvent, item.href)}
+                >
                   <Icon size={18} />
                   {item.label}
                 </Link>
               );
             })}
+          </div>
+          {isAdmin ? (
+            <div className="nav-section admin-nav-section" aria-label="Adminbereich">
+              {adminNavItems.map((item) => {
+                const Icon = item.icon;
+                const active = pathname === item.href;
+
+                return (
+                  <Link
+                    key={item.href}
+                    className={clsx("nav-item", active && "is-active")}
+                    href={item.href}
+                    onClick={(clickEvent) => openPageOnMobile(clickEvent, item.href)}
+                  >
+                    <Icon size={18} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : null}
         </nav>
 
         <div className="sidebar-footer">
@@ -259,4 +309,16 @@ function initials(name?: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+}
+
+function getInitialSidebarCollapsed() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    return window.sessionStorage.getItem(MOBILE_OPENED_PAGE_KEY) === "true";
+  }
+
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
 }

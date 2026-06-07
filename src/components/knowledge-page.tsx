@@ -49,7 +49,12 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
 
   return (
     <RouteGuard>
-      <AppShell title={definition.title} eyebrow={definition.eyebrow} contentClassName="knowledge-document-page" titleIcon={<Icon size={30} />}>
+      <AppShell
+        title={definition.title}
+        eyebrow={definition.eyebrow}
+        contentClassName={usesSuggestions ? "knowledge-document-page has-suggestions" : "knowledge-document-page"}
+        titleIcon={<Icon size={30} />}
+      >
         <section className="knowledge-layout">
           <div className="knowledge-main">
             <div className="knowledge-page-shell">

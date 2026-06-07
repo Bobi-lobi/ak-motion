@@ -31,6 +31,41 @@ export const demoData: AppData = {
       createdAt: "2026-05-02T10:30:00.000Z"
     }
   ],
+  registrationRequests: [],
+  landingContent: {
+    heroTitle: "Wir machen Veranstaltungen sichtbar, hörbar und zuverlässig.",
+    heroText: "Ton, Licht, Bühne, Umbau und Planung für alles, was an der Schule nach mehr als nur Klassenzimmer klingt.",
+    joinTitle: "Du willst mitmachen?",
+    joinText:
+      "Wir suchen Schüler, die Lust auf Technik, Verantwortung und echte Veranstaltungen haben. Keine Vorerfahrung nötig, nur Neugier und Zuverlässigkeit. Hast du Interesse? Dann komm doch gerne am Freitag um 13:00 Uhr in die Aula!",
+    eventImages: [
+      "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=700&q=80",
+      "https://images.unsplash.com/photo-1522158637959-30385a09e0da?auto=format&fit=crop&w=700&q=80"
+    ],
+    teamImage: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=900&q=80",
+    teamNames: ["Mara", "Jonas", "Nora", "Max"],
+    impressions: [
+      {
+        id: "impression-1",
+        title: "Sommerkonzert",
+        text: "Lichtstimmungen, Funkmikrofone und ein voller Saal. Genau die Art Abend, bei dem Technik leise glänzen darf.",
+        images: [
+          "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=80",
+          "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=900&q=80"
+        ]
+      },
+      {
+        id: "impression-2",
+        title: "Theaterabend",
+        text: "Umbauten, Cues und präzise Lichtwechsel für eine Bühne, die sich lebendig anfühlt.",
+        images: [
+          "https://images.unsplash.com/photo-1503095396549-807759245b35?auto=format&fit=crop&w=900&q=80",
+          "https://images.unsplash.com/photo-1514306191717-452ec28c7814?auto=format&fit=crop&w=900&q=80"
+        ]
+      }
+    ]
+  },
   requests: [
     {
       id: "request-1",
