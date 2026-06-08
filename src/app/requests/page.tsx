@@ -7,6 +7,7 @@ import {
   FileText,
   Mail,
   MapPin,
+  Paperclip,
   Tag,
   Trash2,
   UserRound,
@@ -33,19 +34,19 @@ export default function RequestsPage() {
   const visibleRequests = useMemo(() => data.requests.filter((request) => request.status !== "approved"), [data.requests]);
   const selectedRequest = data.requests.find((request) => request.id === selectedRequestId) ?? null;
 
-  function approve(requestId: string) {
-    approveRequest(requestId);
+  async function approve(requestId: string) {
+    await approveRequest(requestId);
     setSelectedRequestId(null);
     refresh();
   }
 
-  function reject(requestId: string) {
-    rejectRequest(requestId);
+  async function reject(requestId: string) {
+    await rejectRequest(requestId);
     refresh();
   }
 
-  function remove(requestId: string) {
-    deleteRequest(requestId);
+  async function remove(requestId: string) {
+    await deleteRequest(requestId);
     if (selectedRequestId === requestId) {
       setSelectedRequestId(null);
     }
@@ -216,6 +217,24 @@ function RequestPreviewModal({
           <section className="request-preview-section">
             <h3>Technik</h3>
             <p>{request.techNeeds || "Keine Angaben"}</p>
+          </section>
+
+          <section className="request-preview-section">
+            <h3>
+              <Paperclip size={17} />
+              Präsentationen
+            </h3>
+            {request.presentationFiles?.length ? (
+              <div className="attachment-list">
+                {request.presentationFiles.map((file, index) => (
+                  <a href={file.url} key={`${file.name}-${index}`} download={file.name} target="_blank" rel="noreferrer">
+                    {file.name}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p>Keine Dateien</p>
+            )}
           </section>
 
           <RequestActions request={request} onApprove={onApprove} onReject={onReject} onDelete={onDelete} />

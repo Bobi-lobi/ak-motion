@@ -5,6 +5,7 @@ import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LogOut, Pac
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
 import { updateProfile } from "@/lib/data-store";
 import { knowledgePages } from "@/lib/knowledge";
@@ -89,12 +90,12 @@ export function AppShell({
     document.addEventListener("mouseup", stopResize);
   }
 
-  function saveProfile() {
+  async function saveProfile() {
     if (!session || !profileName.trim()) {
       return;
     }
 
-    updateProfile(session.id, {
+    await updateProfile(session.id, {
       avatarUrl: profileAvatar,
       name: profileName.trim(),
       phone: profilePhone.trim()
@@ -127,6 +128,64 @@ export function AppShell({
       window.sessionStorage.removeItem(MOBILE_OPENED_PAGE_KEY);
     }
   }
+
+  const profileModal =
+    profileOpen && typeof document !== "undefined" ? (
+      <div className="page-modal-backdrop profile-modal-backdrop" role="presentation" onClick={() => setProfileOpen(false)}>
+        <section
+          className="profile-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Profil bearbeiten"
+          onClick={(clickEvent) => clickEvent.stopPropagation()}
+        >
+          <header className="profile-modal-head">
+            <div>
+              <span className="eyebrow">Profil</span>
+              <h2>Deine Angaben</h2>
+            </div>
+            <button className="icon-button ghost" type="button" aria-label="Profil schließen" onClick={() => setProfileOpen(false)}>
+              <X size={18} />
+            </button>
+          </header>
+
+          <div className="profile-editor">
+            <div className="profile-editor-avatar">
+              <span className="profile-avatar large" aria-hidden="true">
+                {profileAvatar ? <img src={profileAvatar} alt="" /> : initials(profileName)}
+              </span>
+              <label className="button">
+                <Upload size={16} />
+                Bild ändern
+                <input className="visually-hidden" type="file" accept="image/*" onChange={(event) => updateAvatar(event.target.files)} />
+              </label>
+            </div>
+
+            <label>
+              <span>Name</span>
+              <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
+            </label>
+            <label>
+              <span>Telefonnummer</span>
+              <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} inputMode="tel" placeholder="Optional" />
+            </label>
+            <label>
+              <span>E-Mail</span>
+              <input value={session?.email ?? ""} disabled />
+            </label>
+          </div>
+
+          <div className="button-row">
+            <button className="button primary" type="button" onClick={saveProfile} disabled={!profileName.trim()}>
+              Speichern
+            </button>
+            <button className="button" type="button" onClick={() => setProfileOpen(false)}>
+              Abbrechen
+            </button>
+          </div>
+        </section>
+      </div>
+    ) : null;
 
   return (
     <div
@@ -242,62 +301,7 @@ export function AppShell({
         {children}
       </main>
 
-      {profileOpen ? (
-        <div className="page-modal-backdrop profile-modal-backdrop" role="presentation" onClick={() => setProfileOpen(false)}>
-          <section
-            className="profile-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Profil bearbeiten"
-            onClick={(clickEvent) => clickEvent.stopPropagation()}
-          >
-            <header className="profile-modal-head">
-              <div>
-                <span className="eyebrow">Profil</span>
-                <h2>Deine Angaben</h2>
-              </div>
-              <button className="icon-button ghost" type="button" aria-label="Profil schließen" onClick={() => setProfileOpen(false)}>
-                <X size={18} />
-              </button>
-            </header>
-
-            <div className="profile-editor">
-              <div className="profile-editor-avatar">
-                <span className="profile-avatar large" aria-hidden="true">
-                  {profileAvatar ? <img src={profileAvatar} alt="" /> : initials(profileName)}
-                </span>
-                <label className="button">
-                  <Upload size={16} />
-                  Bild ändern
-                  <input className="visually-hidden" type="file" accept="image/*" onChange={(event) => updateAvatar(event.target.files)} />
-                </label>
-              </div>
-
-              <label>
-                <span>Name</span>
-                <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
-              </label>
-              <label>
-                <span>Telefonnummer</span>
-                <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} inputMode="tel" placeholder="Optional" />
-              </label>
-              <label>
-                <span>E-Mail</span>
-                <input value={session?.email ?? ""} disabled />
-              </label>
-            </div>
-
-            <div className="button-row">
-              <button className="button primary" type="button" onClick={saveProfile} disabled={!profileName.trim()}>
-                Speichern
-              </button>
-              <button className="button" type="button" onClick={() => setProfileOpen(false)}>
-                Abbrechen
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      {profileModal ? createPortal(profileModal, document.body) : null}
     </div>
   );
 }

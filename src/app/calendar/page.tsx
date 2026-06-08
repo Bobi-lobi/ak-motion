@@ -30,12 +30,12 @@ export default function CalendarPage() {
   const calendarDays = useMemo(() => getCalendarGridDays(month), [month]);
   const selectedEvent = data.events.find((event) => event.id === selectedEventId) ?? null;
 
-  function createEventOnDay(day: Date) {
+  async function createEventOnDay(day: Date) {
     const startsAt = new Date(day);
     startsAt.setHours(13, 0, 0, 0);
     const endsAt = new Date(day);
     endsAt.setHours(16, 0, 0, 0);
-    const event = createEvent({
+    const event = await createEvent({
       title: "Neue Veranstaltung",
       startsAt: startsAt.toISOString(),
       endsAt: endsAt.toISOString(),
@@ -43,7 +43,8 @@ export default function CalendarPage() {
       eventType: "",
       status: "Nicht begonnen",
       techNeeds: "",
-      notes: ""
+      notes: "",
+      presentationFiles: []
     });
     refresh();
     setSelectedEventId(event.id);
@@ -151,8 +152,8 @@ export default function CalendarPage() {
               <button
                 className="danger"
                 type="button"
-                onClick={() => {
-                  deleteEvent(contextMenu.eventId);
+                onClick={async () => {
+                  await deleteEvent(contextMenu.eventId);
                   if (selectedEventId === contextMenu.eventId) {
                     setSelectedEventId(null);
                   }

@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AudioLines, CalendarDays, ChevronLeft, ChevronRight, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
+import { AudioLines, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { createRegistrationRequest } from "@/lib/data-store";
+import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import type { LandingImpression } from "@/lib/types";
 
 type AuthPanel = "landing" | "login" | "register";
@@ -16,13 +17,12 @@ export default function LoginPage() {
   const [equipmentStats, setEquipmentStats] = useState({ lamps: 64, items: 0 });
   const [statsVisible, setStatsVisible] = useState(false);
   const [visibleStats, setVisibleStats] = useState([0, 0, 0, 0]);
-  const [email, setEmail] = useState("admin@ak-motion.local");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
-  const [registerMotivation, setRegisterMotivation] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [pending, setPending] = useState(false);
@@ -30,7 +30,20 @@ export default function LoginPage() {
   const selectedImages = selectedImpression?.images.filter(Boolean) ?? [];
 
   useEffect(() => {
-    function readEquipmentStats() {
+    async function readEquipmentStats() {
+      if (hasSupabaseConfig && supabase) {
+        const { data: rows } = await supabase.from("equipment_items").select("name, amount, type");
+        const equipmentRows = rows ?? [];
+        const lamps = equipmentRows.reduce((sum, row) => {
+          const type = row.type?.toLowerCase() ?? "";
+          const name = row.name?.toLowerCase() ?? "";
+          const amount = Number(row.amount ?? 1) || 1;
+          return type.includes("licht") || name.includes("lampe") || name.includes("spot") ? sum + amount : sum;
+        }, 0);
+        setEquipmentStats({ items: equipmentRows.length, lamps: lamps || 64 });
+        return;
+      }
+
       const raw = window.localStorage.getItem("ak-motion-equipment-database");
       if (!raw) {
         return;
@@ -51,19 +64,31 @@ export default function LoginPage() {
       }
     }
 
-    readEquipmentStats();
-    window.addEventListener("storage", readEquipmentStats);
-    return () => window.removeEventListener("storage", readEquipmentStats);
+    void readEquipmentStats();
+    const handleStorage = () => void readEquipmentStats();
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("ak-motion-equipment", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("ak-motion-equipment", handleStorage);
+    };
   }, []);
 
   const stats = useMemo(
-    () => [
-      { label: "Veranstaltungen", value: data.events.length, icon: CalendarDays },
-      { label: "Lampen", value: equipmentStats.lamps, icon: Lightbulb },
-      { label: "Techniker", value: data.profiles.length, icon: UsersRound },
-      { label: "Equipment-Teile", value: Math.max(equipmentStats.items, 1), icon: Sparkles }
-    ],
-    [data.events.length, data.profiles.length, equipmentStats.items, equipmentStats.lamps]
+    () =>
+      landing.stats.map((stat) => ({
+        ...stat,
+        value:
+          stat.id === "events"
+            ? data.events.length
+            : stat.id === "lamps"
+              ? equipmentStats.lamps
+              : stat.id === "technicians"
+                ? data.profiles.length
+                : Math.max(equipmentStats.items, 1),
+        icon: stat.id === "events" ? CalendarDays : stat.id === "lamps" ? Lightbulb : stat.id === "technicians" ? UsersRound : Sparkles
+      })),
+    [data.events.length, data.profiles.length, equipmentStats.items, equipmentStats.lamps, landing.stats]
   );
 
   useEffect(() => {
@@ -139,25 +164,24 @@ export default function LoginPage() {
     }
   }
 
-  function handleRegister(event: FormEvent<HTMLFormElement>) {
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setError("");
     setSuccess("");
     try {
-      createRegistrationRequest({
+      await createRegistrationRequest({
         name: registerName,
         email: registerEmail,
         phone: registerPhone,
         password: registerPassword,
-        motivation: registerMotivation
+        motivation: ""
       });
       setSuccess("Deine Bewerbung ist angekommen. Die Teamleitung kann dich jetzt freischalten.");
       setRegisterName("");
       setRegisterEmail("");
       setRegisterPhone("");
       setRegisterPassword("");
-      setRegisterMotivation("");
     } catch (registerError) {
       setError(registerError instanceof Error ? registerError.message : "Registrierung fehlgeschlagen.");
     } finally {
@@ -210,16 +234,12 @@ export default function LoginPage() {
                 <input value={registerEmail} onChange={(event) => setRegisterEmail(event.target.value)} type="email" required />
               </label>
               <label>
-                Telefonnummer
+                Telefonnummer <span className="optional-label">(optional)</span>
                 <input value={registerPhone} onChange={(event) => setRegisterPhone(event.target.value)} inputMode="tel" />
               </label>
               <label>
                 Passwort
                 <input value={registerPassword} onChange={(event) => setRegisterPassword(event.target.value)} minLength={6} type="password" required />
-              </label>
-              <label>
-                Warum möchtest du ins Team?
-                <textarea value={registerMotivation} onChange={(event) => setRegisterMotivation(event.target.value)} rows={4} required />
               </label>
               {error ? <p className="error-text">{error}</p> : null}
               {success ? <p className="success-text">{success}</p> : null}
@@ -234,11 +254,6 @@ export default function LoginPage() {
               </p>
             </form>
           )}
-          <div className="demo-note">
-            <strong>Demo-Zugang</strong>
-            <span>Admin: admin@ak-motion.local / admin123</span>
-            <span>Techniker: mara@ak-motion.local / technik123</span>
-          </div>
         </section>
       </main>
     );
@@ -251,7 +266,7 @@ export default function LoginPage() {
           <div className="brand-mark">
             <AudioLines size={18} />
           </div>
-          <strong>Motion</strong>
+          <strong>{landing.brandTitle}</strong>
         </div>
         <div>
           <a className="landing-login-link" href="/login?panel=login">
@@ -262,9 +277,9 @@ export default function LoginPage() {
 
       <section className="landing-hero landing-reveal is-visible">
         <div className="landing-copy">
-          <span className="landing-kicker">AK-Technik</span>
-          <h2>{landing.heroTitle}</h2>
-          <p>{landing.heroText}</p>
+          <span className="landing-kicker" dangerouslySetInnerHTML={{ __html: landing.heroKicker }} />
+          <h2 dangerouslySetInnerHTML={{ __html: landing.heroTitle }} />
+          <p dangerouslySetInnerHTML={{ __html: landing.heroText }} />
           <div className="landing-actions">
             <a
               className="button primary landing-member-button"
@@ -274,7 +289,10 @@ export default function LoginPage() {
                 document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
             >
-              Mitglied werden
+              <span dangerouslySetInnerHTML={{ __html: landing.primaryButtonText }} />
+            </a>
+            <a className="button landing-request-button" href="/request/motion">
+              <span dangerouslySetInnerHTML={{ __html: landing.requestButtonText }} />
             </a>
           </div>
         </div>
@@ -292,7 +310,10 @@ export default function LoginPage() {
           return (
             <article key={stat.label}>
               <Icon size={20} />
-              <strong>{(statsVisible ? visibleStats[index] : stat.value) ?? stat.value}+</strong>
+              <strong>
+                {(statsVisible ? visibleStats[index] : stat.value) ?? stat.value}
+                {stat.suffix}
+              </strong>
               <span>{stat.label}</span>
             </article>
           );
@@ -301,8 +322,8 @@ export default function LoginPage() {
 
       <section className="landing-impressions landing-reveal">
         <div className="landing-section-head">
-          <span className="eyebrow">Eindrücke</span>
-          <h2>Momente aus Veranstaltungen</h2>
+          <span className="eyebrow" dangerouslySetInnerHTML={{ __html: landing.impressionsKicker }} />
+          <h2 dangerouslySetInnerHTML={{ __html: landing.impressionsTitle }} />
         </div>
         <div className="impression-grid">
           {landing.impressions.map((impression) => (
@@ -324,8 +345,8 @@ export default function LoginPage() {
 
       <section className="landing-team landing-reveal" id="team">
         <div className="landing-section-head">
-          <span className="eyebrow">Team</span>
-          <h2>Menschen hinter dem Mischpult</h2>
+          <span className="eyebrow" dangerouslySetInnerHTML={{ __html: landing.teamKicker }} />
+          <h2 dangerouslySetInnerHTML={{ __html: landing.teamTitle }} />
         </div>
         <div className="team-portrait-card">
           <img alt="Technikteam bei einer Veranstaltung" src={landing.teamImage} />
@@ -339,10 +360,24 @@ export default function LoginPage() {
         </div>
       </section>
 
+      <section className="landing-request-section landing-reveal">
+        <article className="landing-request-card">
+          <div>
+            <ClipboardList size={24} />
+            <span className="eyebrow" dangerouslySetInnerHTML={{ __html: landing.requestKicker }} />
+            <h2 dangerouslySetInnerHTML={{ __html: landing.requestTitle }} />
+            <p dangerouslySetInnerHTML={{ __html: landing.requestText }} />
+          </div>
+          <a className="button primary landing-member-button" href="/request/motion">
+            <span dangerouslySetInnerHTML={{ __html: landing.requestCta }} />
+          </a>
+        </article>
+      </section>
+
       <section className="landing-bottom landing-reveal" id="join">
         <article className="join-card">
-          <h2>{landing.joinTitle}</h2>
-          <p>{landing.joinText}</p>
+          <h2 dangerouslySetInnerHTML={{ __html: landing.joinTitle }} />
+          <p dangerouslySetInnerHTML={{ __html: landing.joinText }} />
         </article>
       </section>
 
@@ -408,5 +443,9 @@ function initialPanel(): AuthPanel {
   }
 
   const panel = new URLSearchParams(window.location.search).get("panel");
-  return panel === "login" || panel === "register" ? panel : "landing";
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (panel === "login" || panel === "register") {
+    return panel;
+  }
+  return next ? "login" : "landing";
 }

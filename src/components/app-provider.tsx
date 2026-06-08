@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login as loginAction, getSession, loadData, saveSession } from "@/lib/data-store";
+import { login as loginAction, getSession, loadData, loadRemoteData, saveSession } from "@/lib/data-store";
 import type { AppData, SessionUser } from "@/lib/types";
 
 type AppContextValue = {
@@ -26,6 +26,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => {
     setData(loadData());
     setSession(getSession());
+    loadRemoteData()
+      .then((remoteData) => {
+        setData(remoteData);
+        setSession(getSession());
+      })
+      .catch((error) => {
+        console.error("Supabase-Daten konnten nicht geladen werden:", error);
+      });
   }, []);
 
   useEffect(() => {

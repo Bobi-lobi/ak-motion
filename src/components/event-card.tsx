@@ -77,9 +77,9 @@ export function EventCard({
           <button
             className={currentAvailability?.status === "committed" ? "button primary" : "button"}
             type="button"
-            onClick={() => {
+            onClick={async () => {
               if (session) {
-                setAvailability(event.id, session.id, "committed");
+                await setAvailability(event.id, session.id, "committed");
                 refresh();
               }
             }}
@@ -89,9 +89,9 @@ export function EventCard({
           <button
             className={currentAvailability?.status === "backup" ? "button primary" : "button"}
             type="button"
-            onClick={() => {
+            onClick={async () => {
               if (session) {
-                setAvailability(event.id, session.id, "backup");
+                await setAvailability(event.id, session.id, "backup");
                 refresh();
               }
             }}
@@ -113,9 +113,9 @@ export function EventCard({
                 <span>{role}</span>
                 <select
                   defaultValue=""
-                  onChange={(eventValue) => {
+                  onChange={async (eventValue) => {
                     if (eventValue.target.value) {
-                      addAssignment(event.id, eventValue.target.value, role);
+                      await addAssignment(event.id, eventValue.target.value, role);
                       eventValue.target.value = "";
                       refresh();
                     }
@@ -162,9 +162,9 @@ export function EventCard({
                   key={item.id}
                   className={attended ? "status-line clickable is-done" : "status-line clickable"}
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (isAdmin) {
-                      markAttendance(event.id, item.profileId, item.role);
+                      await markAttendance(event.id, item.profileId, item.role);
                       refresh();
                     }
                   }}

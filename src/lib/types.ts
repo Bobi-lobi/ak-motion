@@ -30,6 +30,7 @@ export type EventRequest = {
   eventType: string;
   techNeeds: string;
   notes: string;
+  presentationFiles?: AttachmentFile[];
   status: RequestStatus;
   createdAt: string;
 };
@@ -47,8 +48,15 @@ export type Event = {
   microphoneCount?: number;
   techNeeds: string;
   notes: string;
+  presentationFiles?: AttachmentFile[];
   requestId?: string;
   createdAt: string;
+};
+
+export type AttachmentFile = {
+  name: string;
+  type: string;
+  url: string;
 };
 
 export type EventAvailability = {
@@ -105,14 +113,33 @@ export type RegistrationRequest = {
 };
 
 export type LandingContent = {
+  brandTitle: string;
+  heroKicker: string;
   heroTitle: string;
   heroText: string;
+  primaryButtonText: string;
+  requestButtonText: string;
+  stats: LandingStat[];
+  impressionsKicker: string;
+  impressionsTitle: string;
+  teamKicker: string;
+  teamTitle: string;
+  requestKicker: string;
+  requestTitle: string;
+  requestText: string;
+  requestCta: string;
   joinTitle: string;
   joinText: string;
   eventImages: string[];
   teamImage: string;
   teamNames: string[];
   impressions: LandingImpression[];
+};
+
+export type LandingStat = {
+  id: "events" | "lamps" | "technicians" | "equipment";
+  label: string;
+  suffix: string;
 };
 
 export type LandingImpression = {
@@ -157,4 +184,5 @@ export type EventRequestInput = Pick<
   | "eventType"
   | "techNeeds"
   | "notes"
+  | "presentationFiles"
 >;

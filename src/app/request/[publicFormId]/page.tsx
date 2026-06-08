@@ -3,7 +3,9 @@
 import { FormEvent, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { createPublicRequest } from "@/lib/data-store";
-import type { EventRequestInput } from "@/lib/types";
+import type { AttachmentFile, EventRequestInput } from "@/lib/types";
+
+const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Konzert", "Feier", "Theater", "Vortrag", "Sonstiges"];
 
 const initialForm: EventRequestInput = {
   title: "",
@@ -14,7 +16,8 @@ const initialForm: EventRequestInput = {
   contactEmail: "",
   eventType: "",
   techNeeds: "",
-  notes: ""
+  notes: "",
+  presentationFiles: []
 };
 
 export default function PublicRequestPage() {
@@ -26,7 +29,7 @@ export default function PublicRequestPage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
@@ -37,7 +40,7 @@ export default function PublicRequestPage() {
       return;
     }
 
-    createPublicRequest({
+    await createPublicRequest({
       ...form,
       startsAt: startsAt.toISOString(),
       endsAt: endsAt.toISOString()
@@ -46,13 +49,37 @@ export default function PublicRequestPage() {
     setForm(initialForm);
   }
 
+  async function readPresentationFiles(fileList: FileList | null) {
+    const files = Array.from(fileList ?? []);
+    if (!files.length) {
+      return;
+    }
+
+    const attachments = await Promise.all(
+      files.map(
+        (file) =>
+          new Promise<AttachmentFile>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ name: file.name, type: file.type, url: String(reader.result ?? "") });
+            reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."));
+            reader.readAsDataURL(file);
+          })
+      )
+    );
+    update("presentationFiles", [...(form.presentationFiles ?? []), ...attachments]);
+  }
+
+  function removePresentationFile(index: number) {
+    update("presentationFiles", (form.presentationFiles ?? []).filter((_, fileIndex) => fileIndex !== index));
+  }
+
   return (
     <main className="public-request">
       <section className="public-panel">
         <div className="public-header">
-          <span className="eyebrow">AK-Motion Anfrage</span>
+          <span className="eyebrow">AK-Technik Anfrage</span>
           <h1>Veranstaltung einreichen</h1>
-          <p>Die Anfrage wird vom Technikteam geprüft und danach in den Kalender übernommen.</p>
+          <p>Beschreibe kurz deine Veranstaltung. Die Teamleitung prüft die Anfrage und meldet sich bei Rückfragen.</p>
         </div>
 
         {submitted ? (
@@ -107,11 +134,39 @@ export default function PublicRequestPage() {
             </label>
             <label>
               Veranstaltungsart
-              <input value={form.eventType} onChange={(event) => update("eventType", event.target.value)} required />
+              <select value={form.eventType} onChange={(event) => update("eventType", event.target.value)} required>
+                <option value="">Bitte auswählen</option>
+                {eventTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="wide">
-              Benötigte Technik
-              <textarea value={form.techNeeds} onChange={(event) => update("techNeeds", event.target.value)} required />
+              Benötigte Technik <span className="optional-label">optional</span>
+              <textarea value={form.techNeeds} onChange={(event) => update("techNeeds", event.target.value)} placeholder="Falls du schon weißt, was gebraucht wird." />
+            </label>
+            <label className="wide">
+              Präsentation <span className="optional-label">optional</span>
+              <input
+                type="file"
+                accept=".pdf,.ppt,.pptx,.key,.odp,image/*"
+                multiple
+                onChange={(event) => void readPresentationFiles(event.target.files)}
+              />
+              {form.presentationFiles?.length ? (
+                <div className="attachment-list">
+                  {form.presentationFiles.map((file, index) => (
+                    <span key={`${file.name}-${index}`}>
+                      {file.name}
+                      <button type="button" onClick={() => removePresentationFile(index)} aria-label={`${file.name} entfernen`}>
+                        entfernen
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </label>
             <label className="wide">
               Weitere Hinweise

@@ -1,13 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { Check, Plus, Shield, Trash2, UserRound, X } from "lucide-react";
+import { useState } from "react";
+import { Check, Shield, Trash2, UserRound, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
 import {
   approveRegistrationRequest,
-  createProfile,
   deleteProfile,
   deleteRegistrationRequest,
   rejectRegistrationRequest,
@@ -17,67 +16,49 @@ import type { UserRole } from "@/lib/types";
 
 export default function TeamPage() {
   const { data, refresh, session } = useApp();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [actionError, setActionError] = useState("");
 
-  function handleCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    createProfile(name, email);
-    setName("");
-    setEmail("");
+  async function handleRoleChange(profileId: string, role: UserRole) {
+    await updateProfileRole(profileId, role);
     refresh();
   }
 
-  function handleRoleChange(profileId: string, role: UserRole) {
-    updateProfileRole(profileId, role);
+  async function handleDeleteProfile(profileId: string) {
+    await deleteProfile(profileId);
     refresh();
   }
 
-  function handleDeleteProfile(profileId: string) {
-    deleteProfile(profileId);
+  async function handleApproveRegistration(requestId: string) {
+    setActionError("");
+    try {
+      await approveRegistrationRequest(requestId);
+      refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Bewerbung konnte nicht angenommen werden.");
+    }
+  }
+
+  async function handleRejectRegistration(requestId: string) {
+    await rejectRegistrationRequest(requestId);
     refresh();
   }
 
-  function handleApproveRegistration(requestId: string) {
-    approveRegistrationRequest(requestId);
-    refresh();
-  }
-
-  function handleRejectRegistration(requestId: string) {
-    rejectRegistrationRequest(requestId);
-    refresh();
-  }
-
-  function handleDeleteRegistration(requestId: string) {
-    deleteRegistrationRequest(requestId);
+  async function handleDeleteRegistration(requestId: string) {
+    await deleteRegistrationRequest(requestId);
     refresh();
   }
 
   return (
     <RouteGuard adminOnly>
       <AppShell title="Techniker" eyebrow="Teamverwaltung">
-        <section className="two-column">
-          <form className="panel form-stack" onSubmit={handleCreate}>
-            <h2>Techniker anlegen</h2>
-            <label>
-              Name
-              <input value={name} onChange={(event) => setName(event.target.value)} required />
-            </label>
-            <label>
-              E-Mail
-              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
-            </label>
-            <button className="button primary" type="submit">
-              <Plus size={16} />
-              Konto vorbereiten
-            </button>
-            <p className="muted">
-              Im Demo-Modus wird nur das Profil angelegt. Mit Supabase erstellt der Admin später den echten Auth-Account.
-            </p>
-          </form>
-
-          <section className="panel">
-            <h2>Bewerbungen</h2>
+        <section className="team-admin-grid">
+          <section className="panel team-admin-card team-applications-card">
+            <div>
+              <span className="eyebrow">Freischaltung</span>
+              <h2>Bewerbungen</h2>
+              <p>Neue Mitglieder werden hier geprüft und erst danach für die App freigeschaltet.</p>
+            </div>
+            {actionError ? <p className="error-text">{actionError}</p> : null}
             <div className="team-list">
               {data.registrationRequests.length ? (
                 data.registrationRequests.map((request) => (
@@ -111,13 +92,23 @@ export default function TeamPage() {
                   </article>
                 ))
               ) : (
-                <p className="muted">Keine offenen Bewerbungen.</p>
+                <div className="empty-state compact">
+                  <UserRound size={22} />
+                  <strong>Keine offenen Bewerbungen</strong>
+                  <span>Wenn sich jemand registriert, erscheint die Anfrage hier.</span>
+                </div>
               )}
             </div>
           </section>
 
-          <section className="panel team-panel-wide">
-            <h2>Team</h2>
+          <section className="panel team-admin-card team-panel-wide">
+            <div className="team-panel-head">
+              <div>
+                <span className="eyebrow">Zugänge</span>
+                <h2>Team</h2>
+              </div>
+              <span className="pill">{data.profiles.length} Mitglieder</span>
+            </div>
             <div className="team-list">
               {data.profiles.map((profile) => (
                 <article className="team-row" key={profile.id}>

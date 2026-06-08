@@ -32,18 +32,18 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
   );
   const Icon = definition.icon;
 
-  function submitSuggestion() {
+  async function submitSuggestion() {
     if (!session || !suggestionDraft.trim()) {
       return;
     }
 
-    createKnowledgeSuggestion(pageId, suggestionDraft, session);
+    await createKnowledgeSuggestion(pageId, suggestionDraft, session);
     setSuggestionDraft("");
     refresh();
   }
 
-  function saveOfficialContent(content: string) {
-    updateKnowledgePage(pageId, content, session);
+  async function saveOfficialContent(content: string) {
+    await updateKnowledgePage(pageId, content, session);
     refresh();
   }
 
@@ -99,8 +99,8 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                       <button
                         className="button success"
                         type="button"
-                        onClick={() => {
-                          acceptKnowledgeSuggestion(suggestion.id, session);
+                        onClick={async () => {
+                          await acceptKnowledgeSuggestion(suggestion.id, session);
                           refresh();
                         }}
                       >
@@ -110,8 +110,8 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                       <button
                         className="button danger"
                         type="button"
-                        onClick={() => {
-                          deleteKnowledgeSuggestion(suggestion.id);
+                        onClick={async () => {
+                          await deleteKnowledgeSuggestion(suggestion.id);
                           refresh();
                         }}
                       >

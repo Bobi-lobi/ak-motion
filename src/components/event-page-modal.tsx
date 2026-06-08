@@ -8,6 +8,7 @@ import {
   Hash,
   Mail,
   MapPin,
+  Paperclip,
   UsersRound,
   X
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { createProfile, addAssignment, removeAssignment, updateEvent, updateEven
 import { addMonths, format, getCalendarGridDays, isDayInMonth, parseISO, subMonths, monthLabel } from "@/lib/date-utils";
 import type { AssignmentRole, Event, Profile } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
+import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 
 const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau", "Kleine"];
 const statusDefaults = ["Nicht begonnen", "In Planung", "Bereit", "Abgeschlossen"];
@@ -52,8 +54,8 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
   const locationOptions = Array.from(new Set(["Aula", "Bühne", "Musikraum", "Sporthalle", ...data.events.map((item) => item.location).filter(Boolean)]));
   const canChooseAllTechnicians = isAdmin;
 
-  function patchEvent(patch: Partial<Event>) {
-    updateEvent(event.id, patch);
+  async function patchEvent(patch: Partial<Event>) {
+    await updateEvent(event.id, patch);
     refresh();
   }
 
@@ -178,6 +180,19 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                 onChange={(value) => patchEvent({ status: value })}
               />
             </PropertyRow>
+            <PropertyRow icon={<Paperclip size={18} />} label="Präsentationen">
+              {event.presentationFiles?.length ? (
+                <div className="attachment-list compact">
+                  {event.presentationFiles.map((file, index) => (
+                    <a href={file.url} key={`${file.name}-${index}`} download={file.name} target="_blank" rel="noreferrer">
+                      {file.name}
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <span className="property-empty">Keine Dateien</span>
+              )}
+            </PropertyRow>
           </div>
 
           <section className="notion-document">
@@ -186,7 +201,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
               key={event.id}
               value={event.notes}
               onChange={(changeEvent) => {
-                updateEventNotes(event.id, changeEvent);
+                void updateEventNotes(event.id, changeEvent);
                 refresh();
               }}
               placeholder="Ablauf, Aufbauplan, Sonderwünsche, Links oder interne Hinweise..."
@@ -279,17 +294,17 @@ function TechnicianField({
       options={visibleTechnicians.map((profile) => ({ avatarUrl: profile.avatarUrl, value: profile.id, label: profile.name }))}
       emptyLabel="Leer"
       canCreate={canChooseAll}
-      onAdd={(profileId) => {
-        addAssignment(eventId, profileId, role);
+      onAdd={async (profileId) => {
+        await addAssignment(eventId, profileId, role);
         onChange();
       }}
-      onRemove={(profileId) => {
-        removeAssignment(eventId, profileId, role);
+      onRemove={async (profileId) => {
+        await removeAssignment(eventId, profileId, role);
         onChange();
       }}
-      onCreate={(name) => {
-        const profile = createProfile(name, `${slugify(name)}@ak-motion.local`);
-        addAssignment(eventId, profile.id, role);
+      onCreate={async (name) => {
+        const profile = await createProfile(name, `${slugify(name)}@ak-motion.local`);
+        await addAssignment(eventId, profile.id, role);
         onChange();
       }}
     />
@@ -319,15 +334,46 @@ function TagSelect({
   const filtered = options.filter((option) => option.toLowerCase().includes(query.toLowerCase()));
   useCloseOnOutside(pickerRef, () => setOpen(false), open);
 
+  useEffect(() => {
+    if (!hasSupabaseConfig || !supabase) {
+      return;
+    }
+
+    void supabase
+      .from("app_options")
+      .select("label")
+      .eq("namespace", storageKey)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (data) {
+          setLocalOptions(Array.from(new Set([...defaults, ...data.map((option) => option.label)])));
+        }
+      });
+  }, [storageKey]);
+
   function saveOptions(next: string[]) {
     setLocalOptions(next);
-    window.localStorage.setItem(storageKey, JSON.stringify(next));
+    if (!hasSupabaseConfig) {
+      window.localStorage.setItem(storageKey, JSON.stringify(next));
+    }
   }
 
-  function createAndSelect(label: string) {
+  async function createAndSelect(label: string) {
     const clean = label.trim();
     if (!clean) {
       return;
+    }
+    if (hasSupabaseConfig && supabase) {
+      const { error } = await supabase.from("app_options").upsert(
+        {
+          namespace: storageKey,
+          label: clean
+        },
+        { onConflict: "namespace,label" }
+      );
+      if (error) {
+        throw new Error(error.message);
+      }
     }
     const next = Array.from(new Set([...options, clean]));
     saveOptions(next);
@@ -363,7 +409,7 @@ function TagSelect({
               onKeyDown={(keyEvent) => {
                 if (keyEvent.key === "Enter") {
                   keyEvent.preventDefault();
-                  createAndSelect(query);
+                  void createAndSelect(query);
                 }
               }}
               placeholder="Option auswählen oder erstellen"
@@ -385,15 +431,21 @@ function TagSelect({
               </span>
               <X
                 size={15}
-                onClick={(clickEvent) => {
+                onClick={async (clickEvent) => {
                   clickEvent.stopPropagation();
+                  if (hasSupabaseConfig && supabase) {
+                    const { error } = await supabase.from("app_options").delete().eq("namespace", storageKey).eq("label", option);
+                    if (error) {
+                      throw new Error(error.message);
+                    }
+                  }
                   saveOptions(options.filter((item) => item !== option));
                 }}
               />
             </button>
           ))}
           {query.trim() && !options.includes(query.trim()) ? (
-            <button className="tag-create-option" type="button" onClick={() => createAndSelect(query)}>
+            <button className="tag-create-option" type="button" onClick={() => void createAndSelect(query)}>
               + "{query.trim()}" erstellen
             </button>
           ) : null}
@@ -416,9 +468,9 @@ function MultiTagPicker({
   options: Array<{ avatarUrl?: string; value: string; label: string }>;
   emptyLabel: string;
   canCreate?: boolean;
-  onAdd: (value: string) => void;
-  onRemove: (value: string) => void;
-  onCreate?: (label: string) => void;
+  onAdd: (value: string) => void | Promise<void>;
+  onRemove: (value: string) => void | Promise<void>;
+  onCreate?: (label: string) => void | Promise<void>;
 }) {
   const pickerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);

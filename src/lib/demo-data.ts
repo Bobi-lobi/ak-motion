@@ -33,8 +33,26 @@ export const demoData: AppData = {
   ],
   registrationRequests: [],
   landingContent: {
+    brandTitle: "Motion",
+    heroKicker: "AK-Technik",
     heroTitle: "Wir machen Veranstaltungen sichtbar, hörbar und zuverlässig.",
     heroText: "Ton, Licht, Bühne, Umbau und Planung für alles, was an der Schule nach mehr als nur Klassenzimmer klingt.",
+    primaryButtonText: "Mitglied werden",
+    requestButtonText: "Veranstaltung anfragen",
+    stats: [
+      { id: "events", label: "Veranstaltungen", suffix: "+" },
+      { id: "lamps", label: "Lampen", suffix: "+" },
+      { id: "technicians", label: "Techniker", suffix: "+" },
+      { id: "equipment", label: "Equipment-Teile", suffix: "+" }
+    ],
+    impressionsKicker: "Eindrücke",
+    impressionsTitle: "Momente aus Veranstaltungen",
+    teamKicker: "Team",
+    teamTitle: "Menschen hinter dem Mischpult",
+    requestKicker: "Veranstaltung planen",
+    requestTitle: "Du brauchst Technik für eine Veranstaltung?",
+    requestText: "Fülle kurz das Formular aus. Die Teamleitung prüft deine Anfrage und übernimmt passende Termine in den Veranstaltungskalender.",
+    requestCta: "Anfrageformular öffnen",
     joinTitle: "Du willst mitmachen?",
     joinText:
       "Wir suchen Schüler, die Lust auf Technik, Verantwortung und echte Veranstaltungen haben. Keine Vorerfahrung nötig, nur Neugier und Zuverlässigkeit. Hast du Interesse? Dann komm doch gerne am Freitag um 13:00 Uhr in die Aula!",
