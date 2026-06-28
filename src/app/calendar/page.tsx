@@ -17,12 +17,13 @@ import {
   monthLabel,
   subMonths
 } from "@/lib/date-utils";
-import type { Event } from "@/lib/types";
+import type { AssignmentRole, Event } from "@/lib/types";
 
 const weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const requiredRoles: AssignmentRole[] = ["Ton", "Licht"];
 
 export default function CalendarPage() {
-  const { data, refresh } = useApp();
+  const { data, refresh, updateData } = useApp();
   const [month, setMonth] = useState(() => new Date());
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; eventId: string } | null>(null);
@@ -35,7 +36,8 @@ export default function CalendarPage() {
     startsAt.setHours(13, 0, 0, 0);
     const endsAt = new Date(day);
     endsAt.setHours(16, 0, 0, 0);
-    const event = await createEvent({
+    const optimisticEvent: Event = {
+      id: `optimistic-event-${Date.now()}`,
       title: "Neue Veranstaltung",
       startsAt: startsAt.toISOString(),
       endsAt: endsAt.toISOString(),
@@ -44,10 +46,38 @@ export default function CalendarPage() {
       status: "Nicht begonnen",
       techNeeds: "",
       notes: "",
-      presentationFiles: []
-    });
-    refresh();
-    setSelectedEventId(event.id);
+      presentationFiles: [],
+      createdAt: new Date().toISOString()
+    };
+
+    updateData((current) => ({ ...current, events: [optimisticEvent, ...current.events] }));
+    setSelectedEventId(optimisticEvent.id);
+
+    try {
+      const event = await createEvent({
+        title: optimisticEvent.title,
+        startsAt: optimisticEvent.startsAt,
+        endsAt: optimisticEvent.endsAt,
+        location: optimisticEvent.location,
+        eventType: optimisticEvent.eventType,
+        status: optimisticEvent.status,
+        techNeeds: optimisticEvent.techNeeds,
+        notes: optimisticEvent.notes,
+        presentationFiles: optimisticEvent.presentationFiles
+      });
+      updateData((current) => ({
+        ...current,
+        events: current.events.map((item) => (item.id === optimisticEvent.id ? event : item))
+      }));
+      setSelectedEventId(event.id);
+    } catch (error) {
+      updateData((current) => ({
+        ...current,
+        events: current.events.filter((item) => item.id !== optimisticEvent.id)
+      }));
+      setSelectedEventId(null);
+      console.error("Veranstaltung konnte nicht erstellt werden:", error);
+    }
   }
 
   return (
@@ -115,6 +145,7 @@ export default function CalendarPage() {
                       key={event.id}
                       event={event}
                       compact
+                      staffingComplete={isEventStaffed(event.id, data.assignments)}
                       onOpen={() => setSelectedEventId(event.id)}
                       onContextMenu={(contextEvent) => {
                         contextEvent.preventDefault();
@@ -170,4 +201,8 @@ export default function CalendarPage() {
       </AppShell>
     </RouteGuard>
   );
+}
+
+function isEventStaffed(eventId: string, assignments: Array<{ eventId: string; role: AssignmentRole }>) {
+  return requiredRoles.every((role) => assignments.some((assignment) => assignment.eventId === eventId && assignment.role === role));
 }

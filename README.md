@@ -31,6 +31,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 
 4. Auth-Benutzer in Supabase anlegen und passende Datensaetze in `profiles` erstellen.
 
+Fuer Supabase Cloud Free siehe `supabase/cloud-setup.md`.
+
 ## Enthaltene Version-1-Workflows
 
 - `/login`: E-Mail/Passwort Login.

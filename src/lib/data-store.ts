@@ -169,7 +169,7 @@ export async function loadRemoteData(): Promise<AppData> {
     supabase.from("event_availability").select("id, event_id, profile_id, status, updated_at"),
     supabase.from("event_assignments").select("id, event_id, profile_id, role, created_at"),
     supabase.from("event_attendance").select("id, event_id, profile_id, role, attended, created_at"),
-    supabase.from("registration_requests").select("id, name, email, phone, motivation, password, status, created_at").order("created_at", { ascending: false }),
+    supabase.from("registration_requests").select("id, name, email, phone, motivation, status, created_at").order("created_at", { ascending: false }),
     supabase.from("knowledge_pages").select("id, title, content, updated_at, updated_by"),
     supabase.from("knowledge_suggestions").select("id, page_id, content, author_id, author_name, created_at").order("created_at", { ascending: false }),
     supabase
@@ -249,7 +249,6 @@ export async function loadRemoteData(): Promise<AppData> {
       email: request.email,
       phone: request.phone ?? "",
       motivation: request.motivation,
-      password: request.password,
       status: request.status,
       createdAt: request.created_at
     })) ?? fallback.registrationRequests,
@@ -477,7 +476,6 @@ export async function createRegistrationRequest(input: RegistrationRequestInput)
       email: input.email.trim().toLowerCase(),
       phone: input.phone?.trim() ?? "",
       motivation: input.motivation.trim(),
-      password: input.password,
       status: "pending"
     });
     if (error) {
@@ -505,7 +503,6 @@ export async function createRegistrationRequest(input: RegistrationRequestInput)
     email,
     phone: input.phone?.trim(),
     motivation: input.motivation.trim(),
-    password: input.password,
     status: "pending",
     createdAt: now()
   };
@@ -523,8 +520,9 @@ export async function approveRegistrationRequest(requestId: string) {
     if (!response.ok) {
       throw new Error(await readApiError(response, "Anfrage konnte nicht angenommen werden."));
     }
+    const result = (await response.json().catch(() => ({}))) as { temporaryPassword?: string };
     window.dispatchEvent(new Event("ak-motion-data"));
-    return;
+    return result;
   }
 
   const data = loadData();
@@ -547,9 +545,11 @@ export async function approveRegistrationRequest(requestId: string) {
     };
     data.profiles.push(profile);
   }
-  savePassword(request.email, request.password);
+  const temporaryPassword = `motion-${Math.random().toString(36).slice(2, 10)}`;
+  savePassword(request.email, temporaryPassword);
   data.registrationRequests = data.registrationRequests.filter((item) => item.id !== requestId);
   saveData(data);
+  return { temporaryPassword };
 }
 
 export async function rejectRegistrationRequest(requestId: string) {

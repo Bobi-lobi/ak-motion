@@ -279,7 +279,7 @@ CREATE TABLE IF NOT EXISTS "public"."registration_requests" (
     "email" "text" NOT NULL,
     "phone" "text",
     "motivation" "text" NOT NULL,
-    "password" "text" NOT NULL,
+    "password" "text",
     "status" "public"."request_status" DEFAULT 'pending'::"public"."request_status" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
@@ -433,11 +433,11 @@ ALTER TABLE ONLY "public"."profiles"
 
 
 
-CREATE POLICY "admins manage assignments" ON "public"."event_assignments" TO "authenticated" USING ("public"."is_admin"()) WITH CHECK ("public"."is_admin"());
+CREATE POLICY "signed in users manage assignments" ON "public"."event_assignments" TO "authenticated" USING (true) WITH CHECK (true);
 
 
 
-CREATE POLICY "admins manage attendance" ON "public"."event_attendance" TO "authenticated" USING ("public"."is_admin"()) WITH CHECK ("public"."is_admin"());
+CREATE POLICY "signed in users manage attendance" ON "public"."event_attendance" TO "authenticated" USING (true) WITH CHECK (true);
 
 
 
@@ -445,7 +445,7 @@ CREATE POLICY "admins manage event requests" ON "public"."event_requests" TO "au
 
 
 
-CREATE POLICY "admins manage events" ON "public"."events" TO "authenticated" USING ("public"."is_admin"()) WITH CHECK ("public"."is_admin"());
+CREATE POLICY "signed in users manage events" ON "public"."events" TO "authenticated" USING (true) WITH CHECK (true);
 
 
 

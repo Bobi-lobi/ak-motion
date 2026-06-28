@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AudioLines, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { createRegistrationRequest } from "@/lib/data-store";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
@@ -10,7 +10,7 @@ import type { LandingImpression } from "@/lib/types";
 type AuthPanel = "landing" | "login" | "register";
 
 export default function LoginPage() {
-  const { data, login } = useApp();
+  const { data, login, ready } = useApp();
   const [panel, setPanel] = useState<AuthPanel>(() => initialPanel());
   const [selectedImpression, setSelectedImpression] = useState<LandingImpression | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -22,12 +22,12 @@ export default function LoginPage() {
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [pending, setPending] = useState(false);
   const landing = data.landingContent;
   const selectedImages = selectedImpression?.images.filter(Boolean) ?? [];
+  const teamNames = landing.teamNames.map((name) => name.trim()).filter(Boolean);
 
   useEffect(() => {
     async function readEquipmentStats() {
@@ -174,14 +174,12 @@ export default function LoginPage() {
         name: registerName,
         email: registerEmail,
         phone: registerPhone,
-        password: registerPassword,
         motivation: ""
       });
-      setSuccess("Deine Bewerbung ist angekommen. Die Teamleitung kann dich jetzt freischalten.");
+      setSuccess("Deine Bewerbung ist angekommen. Die Teamleitung prüft sie und richtet deinen Zugang ein.");
       setRegisterName("");
       setRegisterEmail("");
       setRegisterPhone("");
-      setRegisterPassword("");
     } catch (registerError) {
       setError(registerError instanceof Error ? registerError.message : "Registrierung fehlgeschlagen.");
     } finally {
@@ -194,9 +192,7 @@ export default function LoginPage() {
       <main className="login-screen auth-only-screen">
         <section className="login-panel">
           <div className="login-brand">
-            <div className="brand-mark large">
-              <AudioLines size={24} />
-            </div>
+            <img className="brand-mark large" src="/ak-motion-logo.png" alt="Motion" />
             <div>
               <span className="eyebrow">AK-Technik</span>
               <h1>Motion</h1>
@@ -237,10 +233,6 @@ export default function LoginPage() {
                 Telefonnummer <span className="optional-label">(optional)</span>
                 <input value={registerPhone} onChange={(event) => setRegisterPhone(event.target.value)} inputMode="tel" />
               </label>
-              <label>
-                Passwort
-                <input value={registerPassword} onChange={(event) => setRegisterPassword(event.target.value)} minLength={6} type="password" required />
-              </label>
               {error ? <p className="error-text">{error}</p> : null}
               {success ? <p className="success-text">{success}</p> : null}
               <button className="button primary full" type="submit" disabled={pending}>
@@ -254,6 +246,10 @@ export default function LoginPage() {
               </p>
             </form>
           )}
+          <nav className="legal-links auth-legal-links" aria-label="Rechtliche Hinweise">
+            <a href="/impressum">Impressum</a>
+            <a href="/datenschutz">Datenschutz</a>
+          </nav>
         </section>
       </main>
     );
@@ -263,12 +259,16 @@ export default function LoginPage() {
     <main className="landing-screen">
       <nav className="landing-nav" aria-label="Startseite">
         <div className="login-brand">
-          <div className="brand-mark">
-            <AudioLines size={18} />
-          </div>
+          <img className="brand-mark" src="/ak-motion-logo.png" alt="Motion" />
           <strong>{landing.brandTitle}</strong>
         </div>
         <div>
+          <a href="/impressum">
+            Impressum
+          </a>
+          <a href="/datenschutz">
+            Datenschutz
+          </a>
           <a className="landing-login-link" href="/login?panel=login">
             Login
           </a>
@@ -311,8 +311,7 @@ export default function LoginPage() {
             <article key={stat.label}>
               <Icon size={20} />
               <strong>
-                {(statsVisible ? visibleStats[index] : stat.value) ?? stat.value}
-                {stat.suffix}
+                {ready ? `${(statsVisible ? visibleStats[index] : stat.value) ?? stat.value}${stat.suffix}` : "–"}
               </strong>
               <span>{stat.label}</span>
             </article>
@@ -350,8 +349,8 @@ export default function LoginPage() {
         </div>
         <div className="team-portrait-card">
           <img alt="Technikteam bei einer Veranstaltung" src={landing.teamImage} />
-          <div>
-            {landing.teamNames.map((name) => (
+          <div className="team-name-cloud" aria-label="Teammitglieder">
+            {teamNames.map((name) => (
               <span key={name}>
                 <strong>{name}</strong>
               </span>
@@ -380,6 +379,11 @@ export default function LoginPage() {
           <p dangerouslySetInnerHTML={{ __html: landing.joinText }} />
         </article>
       </section>
+
+      <footer className="legal-footer">
+        <a href="/impressum">Impressum</a>
+        <a href="/datenschutz">Datenschutz</a>
+      </footer>
 
       {selectedImpression ? (
         <div className="page-modal-backdrop impression-modal-backdrop" role="presentation" onClick={() => setSelectedImpression(null)}>

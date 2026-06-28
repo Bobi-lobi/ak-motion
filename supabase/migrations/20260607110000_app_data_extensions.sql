@@ -10,7 +10,7 @@ create table if not exists public.registration_requests (
   email text not null,
   phone text,
   motivation text not null,
-  password text not null,
+  password text,
   status public.request_status not null default 'pending',
   created_at timestamptz not null default now()
 );

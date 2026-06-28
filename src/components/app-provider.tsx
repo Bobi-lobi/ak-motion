@@ -11,6 +11,7 @@ type AppContextValue = {
   ready: boolean;
   isAdmin: boolean;
   refresh: () => void;
+  updateData: (updater: (current: AppData) => AppData) => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 };
@@ -26,19 +27,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => {
     setData(loadData());
     setSession(getSession());
-    loadRemoteData()
+    return loadRemoteData()
       .then((remoteData) => {
         setData(remoteData);
         setSession(getSession());
+        setReady(true);
       })
       .catch((error) => {
         console.error("Supabase-Daten konnten nicht geladen werden:", error);
+        setReady(true);
       });
   }, []);
 
   useEffect(() => {
-    refresh();
-    setReady(true);
+    void refresh();
     window.addEventListener("ak-motion-data", refresh);
     window.addEventListener("ak-motion-session", refresh);
     window.addEventListener("storage", refresh);
@@ -56,6 +58,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ready,
       isAdmin: session?.role === "admin",
       refresh,
+      updateData: (updater) => setData((current) => updater(current)),
       login: async (email, password) => {
         const user = await loginAction(email, password);
         setSession(user);

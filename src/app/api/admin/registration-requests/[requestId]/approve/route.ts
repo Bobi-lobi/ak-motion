@@ -7,7 +7,7 @@ export async function POST(request: Request, context: { params: Promise<{ reques
     const { requestId } = await context.params;
     const { data: registration, error: requestError } = await supabaseAdmin!
       .from("registration_requests")
-      .select("id, name, email, phone, password, status")
+      .select("id, name, email, phone, status")
       .eq("id", requestId)
       .maybeSingle();
     if (requestError || !registration) {
@@ -15,9 +15,10 @@ export async function POST(request: Request, context: { params: Promise<{ reques
     }
 
     const email = registration.email.trim().toLowerCase();
+    const temporaryPassword = `motion-${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
     const { data: created, error: createError } = await supabaseAdmin!.auth.admin.createUser({
       email,
-      password: registration.password,
+      password: temporaryPassword,
       email_confirm: true,
       user_metadata: { name: registration.name }
     });
@@ -53,7 +54,7 @@ export async function POST(request: Request, context: { params: Promise<{ reques
       return NextResponse.json({ error: updateError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, temporaryPassword: created.user?.id ? temporaryPassword : undefined });
   } catch (error) {
     if (error instanceof Response) {
       return error;

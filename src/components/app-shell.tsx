@@ -209,7 +209,7 @@ export function AppShell({
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="brand">
-            <div className="brand-mark">M</div>
+            <img className="brand-mark" src="/ak-motion-logo.png" alt="Motion" />
             <div>
               <strong>Motion</strong>
               <span>AK-Technik</span>
@@ -267,19 +267,25 @@ export function AppShell({
           ) : null}
         </nav>
 
-        <div className="sidebar-footer">
-          <button className="profile-trigger" type="button" onClick={() => setProfileOpen(true)}>
-            <span className="profile-avatar" aria-hidden="true">
-              {session?.avatarUrl ? <img src={session.avatarUrl} alt="" /> : initials(session?.name)}
-            </span>
-            <span>
-              <strong>{session?.name}</strong>
-              <span>{session?.role === "admin" ? "Admin" : "Techniker"}</span>
-            </span>
-          </button>
-          <button className="icon-button" type="button" onClick={logout} aria-label="Abmelden" title="Abmelden">
-            <LogOut size={18} />
-          </button>
+        <div className="sidebar-bottom">
+          <nav className="sidebar-legal-links" aria-label="Rechtliche Hinweise">
+            <Link href="/impressum">Impressum</Link>
+            <Link href="/datenschutz">Datenschutz</Link>
+          </nav>
+          <div className="sidebar-footer">
+            <button className="profile-trigger" type="button" onClick={() => setProfileOpen(true)}>
+              <span className="profile-avatar" aria-hidden="true">
+                {session?.avatarUrl ? <img src={session.avatarUrl} alt="" /> : initials(session?.name)}
+              </span>
+              <span>
+                <strong>{session?.name}</strong>
+                <span>{session?.role === "admin" ? "Admin" : "Techniker"}</span>
+              </span>
+            </button>
+            <button className="icon-button" type="button" onClick={logout} aria-label="Abmelden" title="Abmelden">
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
         <button
           className="sidebar-resize-handle"

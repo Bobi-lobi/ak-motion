@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { DragEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createProfile, addAssignment, removeAssignment, updateEvent, updateEventNotes } from "@/lib/data-store";
+import { createProfile, addAssignment, removeAssignment, updateEvent } from "@/lib/data-store";
 import { addMonths, format, getCalendarGridDays, isDayInMonth, parseISO, subMonths, monthLabel } from "@/lib/date-utils";
 import type { AssignmentRole, Event, Profile } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
@@ -47,25 +47,82 @@ type DropIndicator = { top: number; targetId: string; placement: "before" | "aft
 type BlockContextMenu = { blockId: string; x: number; y: number };
 
 export function EventPageModal({ event, onClose }: { event: Event; onClose: () => void }) {
-  const { data, session, isAdmin, refresh } = useApp();
-  const technicians = data.profiles.filter((profile) => profile.role === "technician");
+  const { data, session, isAdmin, refresh, updateData } = useApp();
+  const [draftEvent, setDraftEvent] = useState(event);
+  const pendingPatchRef = useRef<Partial<Event>>({});
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestEventIdRef = useRef(event.id);
+  const technicians = data.profiles;
   const assignments = data.assignments.filter((item) => item.eventId === event.id);
   const typeOptions = Array.from(new Set(["Schulische Veranstaltung", "Probe", "Feier", "Konzert", ...data.events.map((item) => item.eventType).filter(Boolean)]));
   const locationOptions = Array.from(new Set(["Aula", "Bühne", "Musikraum", "Sporthalle", ...data.events.map((item) => item.location).filter(Boolean)]));
-  const canChooseAllTechnicians = isAdmin;
+  const canChooseAllTechnicians = Boolean(session);
 
-  async function patchEvent(patch: Partial<Event>) {
-    await updateEvent(event.id, patch);
-    refresh();
+  useEffect(() => {
+    const previousPatch = pendingPatchRef.current;
+    if (Object.keys(previousPatch).length) {
+      void updateEvent(latestEventIdRef.current, previousPatch);
+    }
+    latestEventIdRef.current = event.id;
+    setDraftEvent(event);
+    pendingPatchRef.current = {};
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+  }, [event.id]);
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      const patch = pendingPatchRef.current;
+      pendingPatchRef.current = {};
+      if (Object.keys(patch).length) {
+        void updateEvent(latestEventIdRef.current, patch);
+      }
+    },
+    []
+  );
+
+  async function flushEventPatch() {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const patch = pendingPatchRef.current;
+    pendingPatchRef.current = {};
+    if (!Object.keys(patch).length) {
+      return;
+    }
+    await updateEvent(latestEventIdRef.current, patch);
+  }
+
+  function patchEvent(patch: Partial<Event>, options: { immediate?: boolean } = {}) {
+    setDraftEvent((current) => ({ ...current, ...patch }));
+    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    if (options.immediate) {
+      void flushEventPatch();
+      return;
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      void flushEventPatch();
+    }, 550);
   }
 
   function updateDate(dateValue: string) {
-    const startTime = format(parseISO(event.startsAt), "HH:mm");
-    const endTime = format(parseISO(event.endsAt), "HH:mm");
+    const startTime = format(parseISO(draftEvent.startsAt), "HH:mm");
+    const endTime = format(parseISO(draftEvent.endsAt), "HH:mm");
     patchEvent({
       startsAt: new Date(`${dateValue}T${startTime}:00`).toISOString(),
       endsAt: new Date(`${dateValue}T${endTime}:00`).toISOString()
-    });
+    }, { immediate: true });
   }
 
   function updateTime(which: "start" | "end", timeValue: string) {
@@ -73,10 +130,10 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
       return;
     }
 
-    const dateValue = format(parseISO(event.startsAt), "yyyy-MM-dd");
+    const dateValue = format(parseISO(draftEvent.startsAt), "yyyy-MM-dd");
     patchEvent({
       [which === "start" ? "startsAt" : "endsAt"]: new Date(`${dateValue}T${timeValue}:00`).toISOString()
-    });
+    }, { immediate: true });
   }
 
   return (
@@ -85,7 +142,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
         className="page-modal"
         role="dialog"
         aria-modal="true"
-        aria-label={`${event.title} bearbeiten`}
+        aria-label={`${draftEvent.title} bearbeiten`}
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
         <header className="page-modal-actions">
@@ -97,7 +154,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
         <div className="page-modal-inner">
           <input
             className="notion-title-input"
-            value={event.title}
+            value={draftEvent.title}
             onChange={(changeEvent) => patchEvent({ title: changeEvent.target.value })}
             aria-label="Veranstaltungstitel"
           />
@@ -111,8 +168,43 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                   technicians={technicians}
                   assignments={assignments}
                   canChooseAll={canChooseAllTechnicians}
+                  canCreateTechnicians={isAdmin}
                   currentUserId={session?.id}
                   onChange={refresh}
+                  onOptimisticAdd={(profileId, role) => {
+                    const optimisticAssignment = {
+                      id: `optimistic-assignment-${event.id}-${profileId}-${role}`,
+                      eventId: event.id,
+                      profileId,
+                      role,
+                      createdAt: new Date().toISOString()
+                    };
+                    updateData((current) =>
+                      current.assignments.some(
+                        (assignment) => assignment.eventId === event.id && assignment.profileId === profileId && assignment.role === role
+                      )
+                        ? current
+                        : { ...current, assignments: [...current.assignments, optimisticAssignment] }
+                    );
+                    return optimisticAssignment.id;
+                  }}
+                  onOptimisticRemove={(profileId, role) => {
+                    updateData((current) => ({
+                      ...current,
+                      assignments: current.assignments.filter(
+                        (assignment) => !(assignment.eventId === event.id && assignment.profileId === profileId && assignment.role === role)
+                      ),
+                      attendance: current.attendance.filter(
+                        (attendance) => !(attendance.eventId === event.id && attendance.profileId === profileId && attendance.role === role)
+                      )
+                    }));
+                  }}
+                  onOptimisticRollback={(assignmentId) => {
+                    updateData((current) => ({
+                      ...current,
+                      assignments: current.assignments.filter((assignment) => assignment.id !== assignmentId)
+                    }));
+                  }}
                 />
               </PropertyRow>
             ))}
@@ -120,7 +212,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
             <PropertyRow icon={<Mail size={18} />} label="Ansprechpartner">
               <input
                 className="property-input"
-                value={event.contactName ?? ""}
+                value={draftEvent.contactName ?? ""}
                 onChange={(changeEvent) => patchEvent({ contactName: changeEvent.target.value })}
                 placeholder="Leer"
               />
@@ -128,25 +220,25 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
             <PropertyRow icon={<Mail size={18} />} label="E-Mail">
               <input
                 className="property-input"
-                value={event.contactEmail ?? ""}
+                value={draftEvent.contactEmail ?? ""}
                 onChange={(changeEvent) => patchEvent({ contactEmail: changeEvent.target.value })}
                 placeholder="Leer"
                 type="email"
               />
             </PropertyRow>
             <PropertyRow icon={<CalendarDays size={18} />} label="Datum">
-              <DatePicker value={format(parseISO(event.startsAt), "yyyy-MM-dd")} onChange={updateDate} />
+              <DatePicker value={format(parseISO(draftEvent.startsAt), "yyyy-MM-dd")} onChange={updateDate} />
             </PropertyRow>
             <PropertyRow icon={<Clock size={18} />} label="Uhrzeit">
               <div className="time-input-row">
                 <TimeInput
-                  value={format(parseISO(event.startsAt), "HH:mm")}
+                  value={format(parseISO(draftEvent.startsAt), "HH:mm")}
                   onChange={(value) => updateTime("start", value)}
                   ariaLabel="Startzeit"
                 />
                 <span>-</span>
                 <TimeInput
-                  value={format(parseISO(event.endsAt), "HH:mm")}
+                  value={format(parseISO(draftEvent.endsAt), "HH:mm")}
                   onChange={(value) => updateTime("end", value)}
                   ariaLabel="Endzeit"
                 />
@@ -155,35 +247,35 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
             <PropertyRow icon={<MapPin size={18} />} label="Ort">
               <TagSelect
                 storageKey="ak-motion-location-options"
-                value={event.location}
+                value={draftEvent.location}
                 defaults={locationOptions}
                 emptyLabel="Leer"
-                onChange={(value) => patchEvent({ location: value })}
+                onChange={(value) => patchEvent({ location: value }, { immediate: true })}
               />
             </PropertyRow>
             <PropertyRow icon={<Hash size={18} />} label="Typ">
               <TagSelect
                 storageKey="ak-motion-event-types"
-                value={event.eventType}
+                value={draftEvent.eventType}
                 defaults={typeOptions}
                 emptyLabel="Leer"
-                onChange={(value) => patchEvent({ eventType: value })}
+                onChange={(value) => patchEvent({ eventType: value }, { immediate: true })}
               />
             </PropertyRow>
             <PropertyRow icon={<CheckCircle2 size={18} />} label="Status">
               <TagSelect
                 storageKey="ak-motion-status-options"
-                value={event.status ?? "Nicht begonnen"}
+                value={draftEvent.status ?? "Nicht begonnen"}
                 defaults={statusDefaults}
                 emptyLabel="Leer"
                 neutral
-                onChange={(value) => patchEvent({ status: value })}
+                onChange={(value) => patchEvent({ status: value }, { immediate: true })}
               />
             </PropertyRow>
             <PropertyRow icon={<Paperclip size={18} />} label="Präsentationen">
-              {event.presentationFiles?.length ? (
+              {draftEvent.presentationFiles?.length ? (
                 <div className="attachment-list compact">
-                  {event.presentationFiles.map((file, index) => (
+                  {draftEvent.presentationFiles.map((file, index) => (
                     <a href={file.url} key={`${file.name}-${index}`} download={file.name} target="_blank" rel="noreferrer">
                       {file.name}
                     </a>
@@ -199,10 +291,9 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
             <h2>Notizen</h2>
             <SlashRichTextEditor
               key={event.id}
-              value={event.notes}
+              value={draftEvent.notes}
               onChange={(changeEvent) => {
-                void updateEventNotes(event.id, changeEvent);
-                refresh();
+                patchEvent({ notes: changeEvent });
               }}
               placeholder="Ablauf, Aufbauplan, Sonderwünsche, Links oder interne Hinweise..."
             />
@@ -272,16 +363,24 @@ function TechnicianField({
   technicians,
   assignments,
   canChooseAll,
+  canCreateTechnicians,
   currentUserId,
-  onChange
+  onChange,
+  onOptimisticAdd,
+  onOptimisticRemove,
+  onOptimisticRollback
 }: {
   role: AssignmentRole;
   eventId: string;
   technicians: Profile[];
   assignments: Array<{ profileId: string; role: AssignmentRole }>;
   canChooseAll: boolean;
+  canCreateTechnicians: boolean;
   currentUserId?: string;
   onChange: () => void;
+  onOptimisticAdd: (profileId: string, role: AssignmentRole) => string;
+  onOptimisticRemove: (profileId: string, role: AssignmentRole) => void;
+  onOptimisticRollback: (assignmentId: string) => void;
 }) {
   const selectedIds = assignments.filter((assignment) => assignment.role === role).map((assignment) => assignment.profileId);
   const visibleTechnicians = canChooseAll
@@ -293,19 +392,35 @@ function TechnicianField({
       selected={selectedIds}
       options={visibleTechnicians.map((profile) => ({ avatarUrl: profile.avatarUrl, value: profile.id, label: profile.name }))}
       emptyLabel="Leer"
-      canCreate={canChooseAll}
+      canCreate={canCreateTechnicians}
       onAdd={async (profileId) => {
-        await addAssignment(eventId, profileId, role);
-        onChange();
+        const optimisticId = onOptimisticAdd(profileId, role);
+        try {
+          await addAssignment(eventId, profileId, role);
+        } catch (error) {
+          onOptimisticRollback(optimisticId);
+          console.error("Techniker konnte nicht eingeteilt werden:", error);
+        }
       }}
       onRemove={async (profileId) => {
-        await removeAssignment(eventId, profileId, role);
-        onChange();
+        onOptimisticRemove(profileId, role);
+        try {
+          await removeAssignment(eventId, profileId, role);
+        } catch (error) {
+          onChange();
+          console.error("Einteilung konnte nicht entfernt werden:", error);
+        }
       }}
       onCreate={async (name) => {
         const profile = await createProfile(name, `${slugify(name)}@ak-motion.local`);
-        await addAssignment(eventId, profile.id, role);
-        onChange();
+        const optimisticId = onOptimisticAdd(profile.id, role);
+        try {
+          await addAssignment(eventId, profile.id, role);
+          onChange();
+        } catch (error) {
+          onOptimisticRollback(optimisticId);
+          console.error("Techniker konnte nicht erstellt und eingeteilt werden:", error);
+        }
       }}
     />
   );
@@ -678,6 +793,13 @@ export function SlashRichTextEditor({
       description: "Toggle mit Inhalt",
       html: "<details open><summary><br></summary><p><br></p></details><p><br></p>",
       keywords: ["toggle", "aufklappen", "überschrift"],
+      section: "basis"
+    },
+    {
+      label: "Hinweis",
+      description: "Hervorgehobene Infozeile",
+      html: '<div class="callout-block"><span>💡</span><p><br></p></div><p><br></p>',
+      keywords: ["info", "hinweis", "callout", "hervorhebung"],
       section: "basis"
     },
     { label: "Liste", description: "Aufzählung", html: "<ul><li><br></li></ul><p><br></p>", keywords: ["bullet", "punkt"], section: "basis" },

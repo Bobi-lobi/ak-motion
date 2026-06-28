@@ -107,7 +107,7 @@ export type RegistrationRequest = {
   email: string;
   phone?: string;
   motivation: string;
-  password: string;
+  password?: string;
   status: RegistrationStatus;
   createdAt: string;
 };
@@ -162,7 +162,7 @@ export type AppData = {
   knowledgeSuggestions: KnowledgeSuggestion[];
 };
 
-export type RegistrationRequestInput = Pick<RegistrationRequest, "email" | "motivation" | "name" | "password" | "phone">;
+export type RegistrationRequestInput = Pick<RegistrationRequest, "email" | "motivation" | "name" | "phone">;
 
 export type SessionUser = {
   id: string;

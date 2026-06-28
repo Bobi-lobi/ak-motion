@@ -232,7 +232,7 @@ export default function LandingEditorPage() {
           <section className="landing-live-preview">
             <nav className="landing-nav landing-editor-nav" aria-label="Startseitenkopf bearbeiten">
               <div className="login-brand">
-                <div className="brand-mark">M</div>
+                <img className="brand-mark" src="/ak-motion-logo.png" alt="Motion" />
                 <strong
                   data-landing-field="brandTitle"
                   contentEditable
@@ -449,7 +449,7 @@ export default function LandingEditorPage() {
               </figure>
               <div className="landing-live-names">
                 {content.teamNames.map((name, index) => (
-                  <div key={`${name}-${index}`}>
+                  <div key={`team-name-${index}`}>
                     <input value={name} onChange={(event) => updateTeamName(index, event.target.value)} aria-label={`Name ${index + 1}`} />
                     <button className="icon-button danger" type="button" aria-label="Namen entfernen" onClick={() => removeTeamName(index)}>
                       <Trash2 size={14} />

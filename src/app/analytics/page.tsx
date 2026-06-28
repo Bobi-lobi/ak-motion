@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Lightbulb } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
@@ -101,6 +102,11 @@ export default function AnalyticsPage() {
             </ResponsiveContainer>
           </article>
         </section>
+
+        <aside className="analytics-info-callout">
+          <Lightbulb size={26} />
+          <p>Nur wer mehr als zwei Veranstaltungen im Jahr betreut, bekommt am Ende des Jahres ein Zertifikat und darf mit zum Pizza Essen gehen!</p>
+        </aside>
       </AppShell>
     </RouteGuard>
   );

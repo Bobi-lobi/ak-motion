@@ -17,6 +17,7 @@ import type { UserRole } from "@/lib/types";
 export default function TeamPage() {
   const { data, refresh, session } = useApp();
   const [actionError, setActionError] = useState("");
+  const [actionNotice, setActionNotice] = useState("");
 
   async function handleRoleChange(profileId: string, role: UserRole) {
     await updateProfileRole(profileId, role);
@@ -30,8 +31,12 @@ export default function TeamPage() {
 
   async function handleApproveRegistration(requestId: string) {
     setActionError("");
+    setActionNotice("");
     try {
-      await approveRegistrationRequest(requestId);
+      const result = await approveRegistrationRequest(requestId);
+      if (result?.temporaryPassword) {
+        setActionNotice(`Zugang erstellt. Temporäres Passwort: ${result.temporaryPassword}`);
+      }
       refresh();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Bewerbung konnte nicht angenommen werden.");
@@ -59,6 +64,7 @@ export default function TeamPage() {
               <p>Neue Mitglieder werden hier geprüft und erst danach für die App freigeschaltet.</p>
             </div>
             {actionError ? <p className="error-text">{actionError}</p> : null}
+            {actionNotice ? <p className="success-text">{actionNotice}</p> : null}
             <div className="team-list">
               {data.registrationRequests.length ? (
                 data.registrationRequests.map((request) => (

@@ -12,16 +12,19 @@ const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau", "Kleine"];
 export function EventCard({
   event,
   compact = false,
+  staffingComplete,
   onOpen,
   onContextMenu
 }: {
   event: Event;
   compact?: boolean;
+  staffingComplete?: boolean;
   onOpen?: () => void;
   onContextMenu?: (event: MouseEvent) => void;
 }) {
-  const { data, session, isAdmin, refresh } = useApp();
-  const technicians = data.profiles.filter((profile) => profile.role === "technician");
+  const { data, session, refresh, updateData } = useApp();
+  const canManageCalendar = Boolean(session);
+  const technicians = data.profiles;
   const availability = data.availability.filter((item) => item.eventId === event.id);
   const assignments = data.assignments.filter((item) => item.eventId === event.id);
   const attendance = data.attendance.filter((item) => item.eventId === event.id && item.attended);
@@ -30,7 +33,12 @@ export function EventCard({
   if (compact) {
     return (
       <button
-        className="calendar-event-pill"
+        className={[
+          "calendar-event-pill",
+          staffingComplete === undefined ? "" : staffingComplete ? "is-staffed" : "is-understaffed"
+        ]
+          .filter(Boolean)
+          .join(" ")}
         type="button"
         onClick={(clickEvent) => {
           clickEvent.stopPropagation();
@@ -101,7 +109,7 @@ export function EventCard({
         </div>
       ) : null}
 
-      {isAdmin ? (
+      {canManageCalendar ? (
         <div className="admin-panel">
           <h3>
             <UserCheck size={16} />
@@ -115,9 +123,31 @@ export function EventCard({
                   defaultValue=""
                   onChange={async (eventValue) => {
                     if (eventValue.target.value) {
-                      await addAssignment(event.id, eventValue.target.value, role);
+                      const profileId = eventValue.target.value;
+                      const optimisticAssignment = {
+                        id: `optimistic-assignment-${event.id}-${profileId}-${role}`,
+                        eventId: event.id,
+                        profileId,
+                        role,
+                        createdAt: new Date().toISOString()
+                      };
+                      updateData((current) =>
+                        current.assignments.some(
+                          (assignment) => assignment.eventId === event.id && assignment.profileId === profileId && assignment.role === role
+                        )
+                          ? current
+                          : { ...current, assignments: [...current.assignments, optimisticAssignment] }
+                      );
                       eventValue.target.value = "";
-                      refresh();
+                      try {
+                        await addAssignment(event.id, profileId, role);
+                      } catch (error) {
+                        updateData((current) => ({
+                          ...current,
+                          assignments: current.assignments.filter((assignment) => assignment.id !== optimisticAssignment.id)
+                        }));
+                        console.error("Techniker konnte nicht eingeteilt werden:", error);
+                      }
                     }
                   }}
                 >
@@ -163,12 +193,12 @@ export function EventCard({
                   className={attended ? "status-line clickable is-done" : "status-line clickable"}
                   type="button"
                   onClick={async () => {
-                    if (isAdmin) {
+                    if (canManageCalendar) {
                       await markAttendance(event.id, item.profileId, item.role);
                       refresh();
                     }
                   }}
-                  title={isAdmin ? "Anwesenheit umschalten" : undefined}
+                  title={canManageCalendar ? "Anwesenheit umschalten" : undefined}
                 >
                   <CheckCircle2 size={15} />
                   {profile?.name ?? "Unbekannt"}: {item.role}
