@@ -220,6 +220,12 @@ export async function loadRemoteData(): Promise<AppData> {
     return fallback;
   }
 
+  const { data: authData, error: authError } = await supabase.auth.getSession();
+  if (authError) {
+    throw authError;
+  }
+  const isAuthenticated = Boolean(authData.session);
+
   const [
     profilesResult,
     requestsResult,
@@ -249,7 +255,7 @@ export async function loadRemoteData(): Promise<AppData> {
 
   const remote: AppData = normalizeData({
     ...fallback,
-    profiles: profilesResult.data?.map((profile) => ({
+    profiles: isAuthenticated && profilesResult.data ? profilesResult.data.map((profile) => ({
       id: profile.id,
       name: profile.name,
       email: profile.email,
@@ -257,8 +263,8 @@ export async function loadRemoteData(): Promise<AppData> {
       phone: profile.phone ?? "",
       role: profile.role,
       createdAt: profile.created_at
-    })) ?? fallback.profiles,
-    requests: requestsResult.data?.map((request) => ({
+    })) : fallback.profiles,
+    requests: isAuthenticated && requestsResult.data ? requestsResult.data.map((request) => ({
       id: request.id,
       title: request.title,
       startsAt: request.starts_at,
@@ -272,8 +278,8 @@ export async function loadRemoteData(): Promise<AppData> {
       presentationFiles: attachmentFiles(request.presentation_files),
       status: request.status,
       createdAt: request.created_at
-    })) ?? fallback.requests,
-    events: eventsResult.data?.map((event) => ({
+    })) : fallback.requests,
+    events: isAuthenticated && eventsResult.data ? eventsResult.data.map((event) => ({
       id: event.id,
       title: event.title,
       startsAt: event.starts_at,
@@ -289,30 +295,30 @@ export async function loadRemoteData(): Promise<AppData> {
       presentationFiles: attachmentFiles(event.presentation_files),
       requestId: event.request_id ?? undefined,
       createdAt: event.created_at
-    })) ?? fallback.events,
-    availability: availabilityResult.data?.map((availability) => ({
+    })) : fallback.events,
+    availability: isAuthenticated && availabilityResult.data ? availabilityResult.data.map((availability) => ({
       id: availability.id,
       eventId: availability.event_id,
       profileId: availability.profile_id,
       status: availability.status,
       updatedAt: availability.updated_at
-    })) ?? fallback.availability,
-    assignments: assignmentsResult.data?.map((assignment) => ({
+    })) : fallback.availability,
+    assignments: isAuthenticated && assignmentsResult.data ? assignmentsResult.data.map((assignment) => ({
       id: assignment.id,
       eventId: assignment.event_id,
       profileId: assignment.profile_id,
       role: assignment.role,
       createdAt: assignment.created_at
-    })) ?? fallback.assignments,
-    attendance: attendanceResult.data?.map((attendance) => ({
+    })) : fallback.assignments,
+    attendance: isAuthenticated && attendanceResult.data ? attendanceResult.data.map((attendance) => ({
       id: attendance.id,
       eventId: attendance.event_id,
       profileId: attendance.profile_id,
       role: attendance.role,
       attended: attendance.attended,
       createdAt: attendance.created_at
-    })) ?? fallback.attendance,
-    registrationRequests: registrationsResult.data?.map((request) => ({
+    })) : fallback.attendance,
+    registrationRequests: isAuthenticated && registrationsResult.data ? registrationsResult.data.map((request) => ({
       id: request.id,
       authUserId: request.auth_user_id ?? undefined,
       name: request.name,
@@ -321,22 +327,22 @@ export async function loadRemoteData(): Promise<AppData> {
       motivation: request.motivation,
       status: request.status,
       createdAt: request.created_at
-    })) ?? fallback.registrationRequests,
-    knowledgePages: knowledgePagesResult.data?.map((page) => ({
+    })) : fallback.registrationRequests,
+    knowledgePages: isAuthenticated && knowledgePagesResult.data ? knowledgePagesResult.data.map((page) => ({
       id: page.id,
       title: page.title,
       content: page.content,
       updatedAt: page.updated_at,
       updatedBy: page.updated_by ?? undefined
-    })) ?? fallback.knowledgePages,
-    knowledgeSuggestions: knowledgeSuggestionsResult.data?.map((suggestion) => ({
+    })) : fallback.knowledgePages,
+    knowledgeSuggestions: isAuthenticated && knowledgeSuggestionsResult.data ? knowledgeSuggestionsResult.data.map((suggestion) => ({
       id: suggestion.id,
       pageId: suggestion.page_id,
       content: suggestion.content,
       authorId: suggestion.author_id,
       authorName: suggestion.author_name,
       createdAt: suggestion.created_at
-    })) ?? fallback.knowledgeSuggestions,
+    })) : fallback.knowledgeSuggestions,
     landingContent: landingResult.data
       ? normalizeLandingContent({
           ...landingSettings(landingResult.data.content_settings),

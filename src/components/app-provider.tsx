@@ -40,13 +40,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (!authData.session) {
+          window.localStorage.removeItem("ak-motion-session");
           setSession(null);
+          setReady(true);
+          return;
         }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, name, email, avatar_url, phone, role")
+          .eq("id", authData.session.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          throw profileError ?? new Error("Kein Profil für die aktive Sitzung gefunden.");
+        }
+
+        const authenticatedUser: SessionUser = {
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          avatarUrl: profile.avatar_url ?? "",
+          phone: profile.phone ?? "",
+          role: profile.role
+        };
+        window.localStorage.setItem("ak-motion-session", JSON.stringify(authenticatedUser));
+        setSession(authenticatedUser);
       }
 
       const remoteData = await loadRemoteData();
       setData(remoteData);
-      setSession(getSession());
     } catch (error) {
       console.error("Supabase-Daten konnten nicht geladen werden:", error);
     } finally {
