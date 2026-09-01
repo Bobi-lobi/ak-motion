@@ -7,7 +7,7 @@ export async function POST(request: Request, context: { params: Promise<{ reques
     const { requestId } = await context.params;
     const { data: registration, error: requestError } = await supabaseAdmin!
       .from("registration_requests")
-      .select("id, name, email, phone, status")
+      .select("id, auth_user_id, name, email, phone, status")
       .eq("id", requestId)
       .maybeSingle();
     if (requestError || !registration) {
@@ -15,19 +15,19 @@ export async function POST(request: Request, context: { params: Promise<{ reques
     }
 
     const email = registration.email.trim().toLowerCase();
-    const temporaryPassword = `motion-${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
-    const { data: created, error: createError } = await supabaseAdmin!.auth.admin.createUser({
-      email,
-      password: temporaryPassword,
-      email_confirm: true,
-      user_metadata: { name: registration.name }
-    });
-    let userId = created.user?.id;
-    if (createError || !userId) {
+    let userId = registration.auth_user_id as string | undefined;
+    if (userId) {
+      const { data: authUser, error: authUserError } = await supabaseAdmin!.auth.admin.getUserById(userId);
+      if (authUserError || !authUser.user) {
+        userId = undefined;
+      }
+    }
+
+    if (!userId) {
       const { data: users, error: listError } = await supabaseAdmin!.auth.admin.listUsers();
       const existing = users?.users.find((user) => user.email?.toLowerCase() === email);
       if (listError || !existing) {
-        return NextResponse.json({ error: createError?.message ?? "Benutzer konnte nicht erstellt werden." }, { status: 400 });
+        return NextResponse.json({ error: "Kein Supabase-Account für diese Bewerbung gefunden." }, { status: 400 });
       }
       userId = existing.id;
     }
@@ -40,9 +40,6 @@ export async function POST(request: Request, context: { params: Promise<{ reques
       role: "technician"
     });
     if (profileError) {
-      if (created.user?.id) {
-        await supabaseAdmin!.auth.admin.deleteUser(created.user.id);
-      }
       return NextResponse.json({ error: profileError.message }, { status: 400 });
     }
 
@@ -54,7 +51,7 @@ export async function POST(request: Request, context: { params: Promise<{ reques
       return NextResponse.json({ error: updateError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, temporaryPassword: created.user?.id ? temporaryPassword : undefined });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) {
       return error;

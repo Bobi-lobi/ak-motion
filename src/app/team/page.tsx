@@ -12,12 +12,13 @@ import {
   rejectRegistrationRequest,
   updateProfileRole
 } from "@/lib/data-store";
+import { isPlaceholderProfile } from "@/lib/gamification";
 import type { UserRole } from "@/lib/types";
 
 export default function TeamPage() {
   const { data, refresh, session } = useApp();
   const [actionError, setActionError] = useState("");
-  const [actionNotice, setActionNotice] = useState("");
+  const visibleProfiles = data.profiles.filter((profile) => !isPlaceholderProfile(profile));
 
   async function handleRoleChange(profileId: string, role: UserRole) {
     await updateProfileRole(profileId, role);
@@ -31,12 +32,8 @@ export default function TeamPage() {
 
   async function handleApproveRegistration(requestId: string) {
     setActionError("");
-    setActionNotice("");
     try {
-      const result = await approveRegistrationRequest(requestId);
-      if (result?.temporaryPassword) {
-        setActionNotice(`Zugang erstellt. Temporäres Passwort: ${result.temporaryPassword}`);
-      }
+      await approveRegistrationRequest(requestId);
       refresh();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Bewerbung konnte nicht angenommen werden.");
@@ -64,7 +61,6 @@ export default function TeamPage() {
               <p>Neue Mitglieder werden hier geprüft und erst danach für die App freigeschaltet.</p>
             </div>
             {actionError ? <p className="error-text">{actionError}</p> : null}
-            {actionNotice ? <p className="success-text">{actionNotice}</p> : null}
             <div className="team-list">
               {data.registrationRequests.length ? (
                 data.registrationRequests.map((request) => (
@@ -113,10 +109,10 @@ export default function TeamPage() {
                 <span className="eyebrow">Zugänge</span>
                 <h2>Team</h2>
               </div>
-              <span className="pill">{data.profiles.length} Mitglieder</span>
+              <span className="pill">{visibleProfiles.length} Mitglieder</span>
             </div>
             <div className="team-list">
-              {data.profiles.map((profile) => (
+              {visibleProfiles.map((profile) => (
                 <article className="team-row" key={profile.id}>
                   <div className="avatar">
                     {profile.role === "admin" ? <Shield size={18} /> : <UserRound size={18} />}

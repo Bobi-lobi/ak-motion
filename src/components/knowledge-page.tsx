@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { useApp } from "@/components/app-provider";
 import { SlashRichTextEditor } from "@/components/event-page-modal";
@@ -18,6 +18,10 @@ import type { KnowledgePageId } from "@/lib/types";
 export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
   const definition = getKnowledgePageDefinition(pageId);
   const { data, isAdmin, refresh, session } = useApp();
+  const pendingContentRef = useRef<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savingRef = useRef(false);
+  const saveAgainRef = useRef(false);
   const [suggestionDraft, setSuggestionDraft] = useState("");
   const usesSuggestions = pageId === "rules";
   const page = data.knowledgePages.find((item) => item.id === pageId) ?? {
@@ -42,10 +46,52 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
     refresh();
   }
 
-  async function saveOfficialContent(content: string) {
-    await updateKnowledgePage(pageId, content, session);
-    refresh();
-  }
+  const flushOfficialContent = useCallback(async () => {
+    if (savingRef.current) {
+      saveAgainRef.current = true;
+      return;
+    }
+
+    const content = pendingContentRef.current;
+    if (content === null) {
+      return;
+    }
+
+    pendingContentRef.current = null;
+    savingRef.current = true;
+    try {
+      await updateKnowledgePage(pageId, content, session);
+    } finally {
+      savingRef.current = false;
+      if (saveAgainRef.current || pendingContentRef.current !== null) {
+        saveAgainRef.current = false;
+        void flushOfficialContent();
+      }
+    }
+  }, [pageId, session]);
+
+  const saveOfficialContent = useCallback(
+    (content: string) => {
+      pendingContentRef.current = content;
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      saveTimerRef.current = setTimeout(() => {
+        void flushOfficialContent();
+      }, 450);
+    },
+    [flushOfficialContent]
+  );
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      void flushOfficialContent();
+    },
+    [flushOfficialContent]
+  );
 
   return (
     <RouteGuard>
@@ -63,6 +109,8 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                   value={page.content}
                   onChange={saveOfficialContent}
                   placeholder="Schreibe etwas oder tippe / für Befehle..."
+                  currentUser={session}
+                  realtimeKey={`knowledge-${pageId}`}
                 />
               ) : page.content.trim() ? (
                 <div className="knowledge-content" dangerouslySetInnerHTML={{ __html: page.content }} />
@@ -81,6 +129,8 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                   value={suggestionDraft}
                   onChange={setSuggestionDraft}
                   placeholder="Vorschlag schreiben oder / für Blöcke..."
+                  currentUser={session}
+                  realtimeKey={`knowledge-suggestion-${pageId}-${session?.id ?? "guest"}`}
                 />
                 <button className="button primary" type="button" onClick={submitSuggestion} disabled={!suggestionDraft.trim()}>
                   Vorschlag einreichen

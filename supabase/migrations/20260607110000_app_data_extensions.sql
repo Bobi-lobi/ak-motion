@@ -6,6 +6,7 @@ alter type public.assignment_role add value if not exists 'Kleine';
 
 create table if not exists public.registration_requests (
   id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid,
   name text not null,
   email text not null,
   phone text,

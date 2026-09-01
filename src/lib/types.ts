@@ -2,7 +2,7 @@ export type UserRole = "admin" | "technician";
 
 export type AvailabilityStatus = "committed" | "backup";
 
-export type AssignmentRole = "Ton" | "Licht" | "Umbau" | "Kleine";
+export type AssignmentRole = "Ton" | "Licht" | "Angel" | "Umbau" | "Kleine";
 
 export type RequestStatus = "pending" | "approved" | "rejected";
 export type RegistrationStatus = "pending" | "approved" | "rejected";
@@ -103,6 +103,7 @@ export type KnowledgeSuggestion = {
 
 export type RegistrationRequest = {
   id: string;
+  authUserId?: string;
   name: string;
   email: string;
   phone?: string;
@@ -162,7 +163,7 @@ export type AppData = {
   knowledgeSuggestions: KnowledgeSuggestion[];
 };
 
-export type RegistrationRequestInput = Pick<RegistrationRequest, "email" | "motivation" | "name" | "phone">;
+export type RegistrationRequestInput = Pick<RegistrationRequest, "email" | "motivation" | "name" | "password" | "phone">;
 
 export type SessionUser = {
   id: string;

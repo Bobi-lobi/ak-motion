@@ -9,23 +9,44 @@ import {
   Mail,
   MapPin,
   Paperclip,
+  Trophy,
   UsersRound,
   X
 } from "lucide-react";
 import type { DragEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import * as Y from "yjs";
 import { createProfile, addAssignment, removeAssignment, updateEvent } from "@/lib/data-store";
 import { addMonths, format, getCalendarGridDays, isDayInMonth, parseISO, subMonths, monthLabel } from "@/lib/date-utils";
-import type { AssignmentRole, Event, Profile } from "@/lib/types";
+import type { AssignmentRole, Event, Profile, SessionUser } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
+import { assignmentRolesForEventType, eventMaxXp } from "@/lib/gamification";
 
-const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau", "Kleine"];
 const statusDefaults = ["Nicht begonnen", "In Planung", "Bereit", "Abgeschlossen"];
 const typePalette = ["#9b6a64", "#7d609a", "#5f7fa3", "#6f8f72", "#a18452", "#8b6f93"];
 const pageIconOptions = ["📄", "📌", "✅", "🎬", "🎤", "🎧", "💡", "🎵", "📷", "🧰", "📅", "⭐", "🔥", "🚀", "🏫", "🎭"];
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
-type BlockHandle = { id: string; top: number; height: number };
+type BlockHandle = { authorAvatar?: string; authorName?: string; id: string; top: number; height: number };
+type LiveTypingState = {
+  avatarUrl?: string;
+  blockId: string;
+  blockHtml: string;
+  caretTop?: number;
+  clientId: string;
+  html: string;
+  name: string;
+};
+type YjsEditorPayload = {
+  clientId: string;
+  documentKey: string;
+  update: string;
+};
+type EventFieldPatchPayload = {
+  clientId: string;
+  eventId: string;
+  patch: Partial<Event>;
+};
 type TableControlsPosition = { top: number; left: number; width: number; height: number };
 type SlashCommand = {
   action?: "audio" | "image" | "page" | "video";
@@ -49,28 +70,98 @@ type BlockContextMenu = { blockId: string; x: number; y: number };
 export function EventPageModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const { data, session, isAdmin, refresh, updateData } = useApp();
   const [draftEvent, setDraftEvent] = useState(event);
+  const eventFieldChannelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
+  const eventFieldChannelReadyRef = useRef(false);
+  const eventFieldClientIdRef = useRef(`event-client-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const pendingEventFieldPayloadRef = useRef<EventFieldPatchPayload | null>(null);
   const pendingPatchRef = useRef<Partial<Event>>({});
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestEventIdRef = useRef(event.id);
   const technicians = data.profiles;
   const assignments = data.assignments.filter((item) => item.eventId === event.id);
-  const typeOptions = Array.from(new Set(["Schulische Veranstaltung", "Probe", "Feier", "Konzert", ...data.events.map((item) => item.eventType).filter(Boolean)]));
+  const visibleAssignmentRoles = assignmentRolesForEventType(draftEvent.eventType);
+  const typeOptions = Array.from(
+    new Set([
+      "Schulische Veranstaltung",
+      "Probe",
+      "Feier",
+      "Vortrag",
+      "Aufführung",
+      "Konzert",
+      ...data.events.map((item) => item.eventType).filter(Boolean)
+    ])
+  );
   const locationOptions = Array.from(new Set(["Aula", "Bühne", "Musikraum", "Sporthalle", ...data.events.map((item) => item.location).filter(Boolean)]));
   const canChooseAllTechnicians = Boolean(session);
 
   useEffect(() => {
-    const previousPatch = pendingPatchRef.current;
-    if (Object.keys(previousPatch).length) {
-      void updateEvent(latestEventIdRef.current, previousPatch);
+    if (!hasSupabaseConfig || !supabase) {
+      return;
     }
-    latestEventIdRef.current = event.id;
-    setDraftEvent(event);
-    pendingPatchRef.current = {};
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
+
+    const supabaseClient = supabase;
+    const channel = supabaseClient
+      .channel(`ak-motion-event-fields-${event.id}`)
+      .on("broadcast", { event: "event_patch" }, ({ payload }) => {
+        const eventPatch = payload as EventFieldPatchPayload;
+        if (
+          !eventPatch ||
+          eventPatch.clientId === eventFieldClientIdRef.current ||
+          eventPatch.eventId !== event.id ||
+          !eventPatch.patch
+        ) {
+          return;
+        }
+
+        setDraftEvent((current) => {
+          const pendingKeys = new Set(Object.keys(pendingPatchRef.current));
+          const safePatch = Object.fromEntries(
+            Object.entries(eventPatch.patch).filter(([key]) => !pendingKeys.has(key))
+          ) as Partial<Event>;
+          return Object.keys(safePatch).length ? { ...current, ...safePatch } : current;
+        });
+        updateData((current) => ({
+          ...current,
+          events: current.events.map((item) => (item.id === event.id ? { ...item, ...eventPatch.patch } : item))
+        }));
+      })
+      .subscribe((status) => {
+        eventFieldChannelReadyRef.current = status === "SUBSCRIBED";
+        if (eventFieldChannelReadyRef.current && pendingEventFieldPayloadRef.current) {
+          void channel.send({ type: "broadcast", event: "event_patch", payload: pendingEventFieldPayloadRef.current });
+          pendingEventFieldPayloadRef.current = null;
+        }
+      });
+    eventFieldChannelRef.current = channel;
+
+    return () => {
+      eventFieldChannelReadyRef.current = false;
+      eventFieldChannelRef.current = null;
+      pendingEventFieldPayloadRef.current = null;
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [event.id, updateData]);
+
+  useEffect(() => {
+    if (event.id !== latestEventIdRef.current) {
+      const previousPatch = pendingPatchRef.current;
+      if (Object.keys(previousPatch).length) {
+        void updateEvent(latestEventIdRef.current, previousPatch);
+      }
+      latestEventIdRef.current = event.id;
+      setDraftEvent(event);
+      pendingPatchRef.current = {};
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      return;
     }
-  }, [event.id]);
+
+    if (!Object.keys(pendingPatchRef.current).length) {
+      setDraftEvent(event);
+    }
+  }, [event]);
 
   useEffect(
     () => () => {
@@ -101,6 +192,11 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
 
   function patchEvent(patch: Partial<Event>, options: { immediate?: boolean } = {}) {
     setDraftEvent((current) => ({ ...current, ...patch }));
+    updateData((current) => ({
+      ...current,
+      events: current.events.map((item) => (item.id === latestEventIdRef.current ? { ...item, ...patch } : item))
+    }));
+    broadcastEventFieldPatch(patch);
     pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
@@ -114,6 +210,27 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
     saveTimerRef.current = setTimeout(() => {
       void flushEventPatch();
     }, 550);
+  }
+
+  function broadcastEventFieldPatch(patch: Partial<Event>) {
+    if (!hasSupabaseConfig || !supabase) {
+      return;
+    }
+
+    const payload: EventFieldPatchPayload = {
+      clientId: eventFieldClientIdRef.current,
+      eventId: latestEventIdRef.current,
+      patch
+    };
+
+    if (!eventFieldChannelReadyRef.current || !eventFieldChannelRef.current) {
+      pendingEventFieldPayloadRef.current = pendingEventFieldPayloadRef.current
+        ? { ...pendingEventFieldPayloadRef.current, patch: { ...pendingEventFieldPayloadRef.current.patch, ...patch } }
+        : payload;
+      return;
+    }
+
+    void eventFieldChannelRef.current.send({ type: "broadcast", event: "event_patch", payload });
   }
 
   function updateDate(dateValue: string) {
@@ -146,6 +263,10 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
         <header className="page-modal-actions">
+          <div className="event-xp-badge" title="Maximale XP für eine Person bei bester Rolle und markierter Anwesenheit">
+            <Trophy size={17} />
+            <span>Max {eventMaxXp(draftEvent)} XP</span>
+          </div>
           <button className="icon-button ghost" type="button" aria-label="Fenster schließen" onClick={onClose}>
             <X size={18} />
           </button>
@@ -160,7 +281,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
           />
 
           <div className="property-grid">
-            {assignmentRoles.map((role) => (
+            {visibleAssignmentRoles.map((role) => (
               <PropertyRow key={role} icon={<UsersRound size={18} />} label={role}>
                 <TechnicianField
                   role={role}
@@ -296,6 +417,8 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                 patchEvent({ notes: changeEvent });
               }}
               placeholder="Ablauf, Aufbauplan, Sonderwünsche, Links oder interne Hinweise..."
+              currentUser={session}
+              realtimeKey={`event-notes-${event.id}`}
             />
           </section>
         </div>
@@ -748,11 +871,15 @@ function DatePicker({ value, onChange }: { value: string; onChange: (value: stri
 
 export function SlashRichTextEditor({
   ariaLabel = "Notizen",
+  currentUser,
+  realtimeKey,
   value,
   onChange,
   placeholder
 }: {
   ariaLabel?: string;
+  currentUser?: SessionUser | null;
+  realtimeKey?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -765,10 +892,27 @@ export function SlashRichTextEditor({
   const selectedListItemRef = useRef<HTMLLIElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const pendingMediaCommandRef = useRef<SlashCommand | null>(null);
+  const applyingRemoteHtmlRef = useRef(false);
   const blockIdsRef = useRef<WeakMap<HTMLElement, string>>(new WeakMap());
   const blockElementsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const clientIdRef = useRef(`client-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const channelReadyRef = useRef(false);
+  const liveTypingChannelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
+  const pendingTypingPayloadRef = useRef<(LiveTypingState & { documentKey: string }) | null>(null);
+  const pendingYjsPayloadsRef = useRef<YjsEditorPayload[]>([]);
+  const onChangeRef = useRef(onChange);
+  const yDocRef = useRef<Y.Doc | null>(null);
+  const yTextRef = useRef<Y.Text | null>(null);
+  const yDocumentKeyRef = useRef<string | null>(null);
+  const yApplyingEditorRef = useRef(false);
+  const yReadyRef = useRef(false);
+  const ySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const yLocalOriginRef = useRef(Symbol("ak-motion-local-editor"));
+  const yRemoteOriginRef = useRef(Symbol("ak-motion-remote-editor"));
   const dragBlockIdRef = useRef<string | null>(null);
+  const lastLocalEditAtRef = useRef(0);
   const latestEditorHtmlRef = useRef(normalizeNoteHtml(value));
+  const liveTypingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
   const [isEmpty, setIsEmpty] = useState(() => !value.trim());
@@ -781,8 +925,13 @@ export function SlashRichTextEditor({
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [tableControls, setTableControls] = useState<TableControlsPosition | null>(null);
   const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenu | null>(null);
+  const [liveTypers, setLiveTypers] = useState<Record<string, LiveTypingState>>({});
   useCloseOnOutside(shellRef, () => setSlashOpen(false), slashOpen);
   useCloseOnOutside(pageIconPickerRef, () => setPageIconPickerOpen(false), pageIconPickerOpen);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   const commands: SlashCommand[] = [
     { label: "H1", description: "Große Überschrift", html: "<h1><br></h1><p><br></p>", keywords: ["heading", "überschrift"], section: "basis" },
@@ -826,6 +975,50 @@ export function SlashRichTextEditor({
     { id: "basis", label: "Basis" },
     { id: "medien", label: "Medien" }
   ] as const;
+
+  function renderCrdtHtml(html: string, preserveCaret: boolean) {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    const caretOffset = preserveCaret && editor.contains(document.activeElement) ? getCaretTextOffset(editor) : null;
+    yApplyingEditorRef.current = true;
+    editor.innerHTML = normalizeNoteHtml(html);
+    normalizeEditorStructure(editor);
+    ensureEditorBlockIds(editor);
+    latestEditorHtmlRef.current = sanitizeEditorHtml(editor);
+    setIsEmpty(isEditorBlank(editor));
+    if (caretOffset !== null) {
+      restoreCaretTextOffset(editor, caretOffset);
+    }
+    requestAnimationFrame(() => {
+      refreshBlockHandles(editor);
+      updateTableControls();
+      yApplyingEditorRef.current = false;
+    });
+  }
+
+  function applyHtmlToCrdt(html: string) {
+    const yText = yTextRef.current;
+    if (!yText) {
+      return;
+    }
+    replaceYTextValue(yText, html, yLocalOriginRef.current);
+  }
+
+  function sendYjsPayload(payload: YjsEditorPayload) {
+    if (!channelReadyRef.current || !liveTypingChannelRef.current) {
+      pendingYjsPayloadsRef.current.push(payload);
+      return;
+    }
+
+    void liveTypingChannelRef.current.send({
+      type: "broadcast",
+      event: "yjs-update",
+      payload
+    });
+  }
 
   useEffect(() => {
     setSelectedCommandIndex(0);
@@ -874,6 +1067,17 @@ export function SlashRichTextEditor({
     }
 
     const nextHtml = normalizeNoteHtml(value);
+    const yText = yTextRef.current;
+    if (yText && yDocumentKeyRef.current === realtimeKey) {
+      const crdtHtml = yReadyRef.current ? yText.toString() : yText.toString() || nextHtml;
+      if (!editor.contains(document.activeElement) && editor.innerHTML !== crdtHtml) {
+        renderCrdtHtml(crdtHtml, false);
+      } else {
+        refreshBlockHandles(editor);
+      }
+      return;
+    }
+
     if (editor.contains(document.activeElement) && latestEditorHtmlRef.current !== nextHtml) {
       refreshBlockHandles(editor);
       return;
@@ -882,27 +1086,220 @@ export function SlashRichTextEditor({
     if (editor.innerHTML !== nextHtml) {
       editor.innerHTML = nextHtml;
     }
-    latestEditorHtmlRef.current = nextHtml;
+    normalizeEditorStructure(editor);
+    ensureEditorBlockIds(editor);
+    latestEditorHtmlRef.current = sanitizeEditorHtml(editor);
     setIsEmpty(isEditorBlank(editor));
     refreshBlockHandles(editor);
   }, [value]);
 
+  useEffect(() => {
+    if (!realtimeKey || !hasSupabaseConfig || !supabase) {
+      return;
+    }
+
+    const supabaseClient = supabase;
+    const yDoc = new Y.Doc();
+    const yText = yDoc.getText("html");
+    let cancelled = false;
+
+    yDocRef.current = yDoc;
+    yTextRef.current = yText;
+    yDocumentKeyRef.current = realtimeKey;
+    yReadyRef.current = false;
+
+    const persistCrdtState = () => {
+      if (ySaveTimerRef.current) {
+        clearTimeout(ySaveTimerRef.current);
+      }
+      ySaveTimerRef.current = setTimeout(() => {
+        const currentDoc = yDocRef.current;
+        const currentKey = yDocumentKeyRef.current;
+        if (!currentDoc || !currentKey || currentKey !== realtimeKey) {
+          return;
+        }
+        void saveEditorCrdtState(currentKey, uint8ArrayToBase64(Y.encodeStateAsUpdate(currentDoc)));
+      }, 650);
+    };
+
+    const observeText = (event: Y.YTextEvent, transaction: Y.Transaction) => {
+      if (!yReadyRef.current || transaction.origin === yLocalOriginRef.current) {
+        return;
+      }
+
+      const nextHtml = yText.toString();
+      renderCrdtHtml(nextHtml, true);
+      onChangeRef.current(nextHtml);
+    };
+
+    const sendUpdate = (update: Uint8Array, origin: unknown) => {
+      if (!yReadyRef.current) {
+        return;
+      }
+
+      persistCrdtState();
+      if (origin === yRemoteOriginRef.current) {
+        return;
+      }
+
+      sendYjsPayload({
+        clientId: clientIdRef.current,
+        documentKey: realtimeKey,
+        update: uint8ArrayToBase64(update)
+      });
+    };
+
+    yText.observe(observeText);
+    yDoc.on("update", sendUpdate);
+
+    void loadEditorCrdtState(realtimeKey).then((storedState) => {
+      if (cancelled) {
+        return;
+      }
+
+      if (storedState) {
+        Y.applyUpdate(yDoc, base64ToUint8Array(storedState), yRemoteOriginRef.current);
+      }
+
+      if (!storedState && !yText.length) {
+        const initialHtml = normalizeNoteHtml(value);
+        if (initialHtml) {
+          replaceYTextValue(yText, initialHtml, yRemoteOriginRef.current);
+          void saveEditorCrdtState(realtimeKey, uint8ArrayToBase64(Y.encodeStateAsUpdate(yDoc)));
+        }
+      }
+
+      yReadyRef.current = true;
+      renderCrdtHtml(yText.toString(), false);
+    });
+
+    const channel = supabaseClient
+      .channel(`ak-motion-editor-${realtimeKey}`)
+      .on("broadcast", { event: "yjs-update" }, ({ payload }) => {
+        const yPayload = payload as YjsEditorPayload;
+        if (!yPayload || yPayload.clientId === clientIdRef.current || yPayload.documentKey !== realtimeKey || !yPayload.update) {
+          return;
+        }
+
+        try {
+          Y.applyUpdate(yDoc, base64ToUint8Array(yPayload.update), yRemoteOriginRef.current);
+        } catch (error) {
+          console.error("Yjs-Update konnte nicht angewendet werden:", error);
+        }
+      })
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        const typing = payload as LiveTypingState & { documentKey?: string };
+        if (!typing || typing.clientId === clientIdRef.current || typing.documentKey !== realtimeKey) {
+          return;
+        }
+
+        const editor = editorRef.current;
+        if (editor) {
+          refreshBlockHandles(editor);
+        }
+
+        if (liveTypingTimersRef.current.has(typing.clientId)) {
+          clearTimeout(liveTypingTimersRef.current.get(typing.clientId));
+        }
+        setLiveTypers((current) => ({ ...current, [typing.clientId]: typing }));
+        liveTypingTimersRef.current.set(
+          typing.clientId,
+          setTimeout(() => {
+            setLiveTypers((current) => {
+              const next = { ...current };
+              delete next[typing.clientId];
+              return next;
+            });
+            liveTypingTimersRef.current.delete(typing.clientId);
+          }, 1800)
+        );
+      })
+      .subscribe((status) => {
+        channelReadyRef.current = status === "SUBSCRIBED";
+        if (channelReadyRef.current && pendingTypingPayloadRef.current) {
+          void channel.send({
+            type: "broadcast",
+            event: "typing",
+            payload: pendingTypingPayloadRef.current
+          });
+          pendingTypingPayloadRef.current = null;
+        }
+        if (channelReadyRef.current && pendingYjsPayloadsRef.current.length) {
+          const payloads = pendingYjsPayloadsRef.current;
+          pendingYjsPayloadsRef.current = [];
+          payloads.forEach((payload) => sendYjsPayload(payload));
+        }
+      });
+    liveTypingChannelRef.current = channel;
+
+    return () => {
+      cancelled = true;
+      yText.unobserve(observeText);
+      yDoc.off("update", sendUpdate);
+      if (ySaveTimerRef.current) {
+        clearTimeout(ySaveTimerRef.current);
+        ySaveTimerRef.current = null;
+        void saveEditorCrdtState(realtimeKey, uint8ArrayToBase64(Y.encodeStateAsUpdate(yDoc)));
+      }
+      yDoc.destroy();
+      liveTypingTimersRef.current.forEach((timer) => clearTimeout(timer));
+      liveTypingTimersRef.current.clear();
+      setLiveTypers({});
+      channelReadyRef.current = false;
+      yReadyRef.current = false;
+      yDocRef.current = null;
+      yTextRef.current = null;
+      yDocumentKeyRef.current = null;
+      liveTypingChannelRef.current = null;
+      pendingTypingPayloadRef.current = null;
+      pendingYjsPayloadsRef.current = [];
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [realtimeKey]);
+
   function syncEditor(openSlashMenu = true) {
     const editor = editorRef.current;
-    if (!editor) {
+    if (!editor || applyingRemoteHtmlRef.current || yApplyingEditorRef.current) {
       return;
     }
 
     const blank = isEditorBlank(editor);
-    const nextHtml = blank ? "" : editor.innerHTML;
+    normalizeEditorStructure(editor, true);
+    ensureEditorBlockIds(editor);
+    const nextHtml = blank ? "" : sanitizeEditorHtml(editor);
+    lastLocalEditAtRef.current = Date.now();
     setIsEmpty(blank);
     latestEditorHtmlRef.current = nextHtml;
+    applyHtmlToCrdt(nextHtml);
     onChange(nextHtml);
+    broadcastTyping(nextHtml);
     const slashState = getSlashState(editor);
     setSlashOpen(openSlashMenu && slashState.active);
     setSlashQuery(slashState.query);
     refreshBlockHandles(editor);
     updateTableControls();
+  }
+
+  function forkActiveBlockDuringConcurrentEdit(editor: HTMLElement) {
+    if (!Object.keys(liveTypers).length) {
+      return;
+    }
+
+    const activeBlock = getActiveBlock(editor);
+    if (!activeBlock || activeBlock.dataset.clientFork === clientIdRef.current) {
+      return;
+    }
+
+    const currentId = activeBlock.dataset.liveBlockId;
+    if (!currentId || currentId.startsWith(`local-${clientIdRef.current}-`)) {
+      return;
+    }
+
+    const forkId = `local-${clientIdRef.current}-${currentId}`;
+    activeBlock.dataset.liveBlockId = forkId;
+    activeBlock.dataset.clientFork = clientIdRef.current;
+    activeBlock.dataset.forkedFromBlockId = currentId;
+    blockIdsRef.current.set(activeBlock, forkId);
   }
 
   function insertCommand(command: SlashCommand) {
@@ -926,10 +1323,14 @@ export function SlashRichTextEditor({
       insertBlockHtmlAtSelection(editor, command.html);
     }
 
-    const nextHtml = editor.innerHTML;
+    ensureEditorBlockIds(editor);
+    const nextHtml = sanitizeEditorHtml(editor);
+    lastLocalEditAtRef.current = Date.now();
     setIsEmpty(isEditorBlank(editor));
     latestEditorHtmlRef.current = nextHtml;
+    applyHtmlToCrdt(nextHtml);
     onChange(nextHtml);
+    broadcastTyping(nextHtml);
     setSlashOpen(false);
     refreshBlockHandles(editor);
     updateTableControls();
@@ -1003,9 +1404,13 @@ export function SlashRichTextEditor({
 
       const html = mediaFileToHtml(command.action!, source, file.name);
       insertBlockHtmlAtSelection(editor, html);
-      const nextHtml = editor.innerHTML;
+      ensureEditorBlockIds(editor);
+      const nextHtml = sanitizeEditorHtml(editor);
+      lastLocalEditAtRef.current = Date.now();
       latestEditorHtmlRef.current = nextHtml;
+      applyHtmlToCrdt(nextHtml);
       onChange(nextHtml);
+      broadcastTyping(nextHtml);
       setIsEmpty(isEditorBlank(editor));
       refreshBlockHandles(editor);
     };
@@ -1246,17 +1651,25 @@ export function SlashRichTextEditor({
   }
 
   function getBlockId(element: HTMLElement) {
+    const existingAttribute = element.dataset.liveBlockId;
+    if (existingAttribute) {
+      blockIdsRef.current.set(element, existingAttribute);
+      return existingAttribute;
+    }
+
     const existing = blockIdsRef.current.get(element);
     if (existing) {
+      element.dataset.liveBlockId = existing;
       return existing;
     }
 
     const id = `block-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     blockIdsRef.current.set(element, id);
+    element.dataset.liveBlockId = id;
     return id;
   }
 
-  function refreshBlockHandles(editor = editorRef.current) {
+  function refreshBlockHandles(editor: HTMLElement | null = editorRef.current) {
     const shell = shellRef.current;
     if (!editor || !shell) {
       return;
@@ -1264,19 +1677,21 @@ export function SlashRichTextEditor({
 
     const shellRect = shell.getBoundingClientRect();
     const blockMap = new Map<string, HTMLElement>();
-    const blocks = Array.from(
-      editor.querySelectorAll<HTMLElement>(
-        ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > details, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > .notion-page-link, li"
-      )
-    );
+    ensureEditorBlockIds(editor);
+    const blocks = getEditorHandleBlocks(editor);
 
     const nextHandles = blocks
-      .filter((block) => !block.closest(".notion-page-link") || block.classList.contains("notion-page-link"))
       .map((block) => {
         const rect = block.getBoundingClientRect();
         const id = getBlockId(block);
         blockMap.set(id, block);
-        return { id, top: rect.top - shellRect.top, height: rect.height };
+        return {
+          id,
+          top: rect.top - shellRect.top,
+          height: rect.height,
+          authorName: undefined,
+          authorAvatar: undefined
+        };
       })
       .filter((handle) => handle.height > 0);
 
@@ -1414,39 +1829,91 @@ export function SlashRichTextEditor({
     }
   }
 
+  function broadcastTyping(html: string) {
+    if (!realtimeKey || !currentUser || !hasSupabaseConfig || !supabase) {
+      return;
+    }
+
+    const activeBlock = getActiveBlock(editorRef.current);
+    const blockId = activeBlock ? getBlockId(activeBlock) : "";
+    const payload = {
+      avatarUrl: currentUser.avatarUrl,
+      blockHtml: activeBlock?.outerHTML ?? "",
+      blockId,
+      caretTop: activeBlock ? getCaretTopWithinBlock(activeBlock) : undefined,
+      clientId: clientIdRef.current,
+      documentKey: realtimeKey,
+      html,
+      name: currentUser.name
+    };
+
+    if (!channelReadyRef.current || !liveTypingChannelRef.current) {
+      pendingTypingPayloadRef.current = payload;
+      return;
+    }
+
+    void liveTypingChannelRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload
+    });
+  }
+
+  const liveTypingBadges = Object.values(liveTypers)
+    .map((typing) => {
+      return {
+        typing,
+        handle: blockHandles.find((handle) => handle.id === typing.blockId)
+      };
+    })
+    .filter((item): item is { typing: LiveTypingState; handle: BlockHandle } => Boolean(item.handle));
+
   return (
     <div className="slash-editor" ref={shellRef}>
       <div className="block-handle-layer" aria-hidden="true">
+        {liveTypingBadges.map(({ typing, handle }) => {
+          return (
+            <span
+              className="block-author-avatar is-live"
+              key={typing.clientId}
+              style={{ top: handle.top + Math.min(Math.max(typing.caretTop ?? Math.max(0, handle.height - 26) / 2, 0), Math.max(0, handle.height - 26)) }}
+              title={`${typing.name} tippt gerade`}
+            >
+              {typing.avatarUrl ? <img src={typing.avatarUrl} alt="" /> : initials(typing.name)}
+            </span>
+          );
+        })}
         {blockHandles.map((handle) => (
-          <button
-            className={[
-              "block-handle",
-              handle.id === hoveredBlockId || draggingBlockId ? "is-visible" : "",
-              handle.id === draggingBlockId ? "is-dragging" : ""
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            key={handle.id}
-            type="button"
-            draggable
-            style={{ top: handle.top + Math.max(0, handle.height - 26) / 2 }}
-            onDragStart={(dragEvent) => handleBlockDragStart(handle.id, dragEvent)}
-            onDragEnd={() => {
-              dragBlockIdRef.current = null;
-              setDraggingBlockId(null);
-            }}
-            onDragOver={(dragEvent) => dragEvent.preventDefault()}
-            onDrop={(dragEvent) => handleBlockDrop(handle.id, dragEvent)}
-            onContextMenu={(mouseEvent) => {
-              mouseEvent.preventDefault();
-              mouseEvent.stopPropagation();
-              setBlockContextMenu({ blockId: handle.id, x: mouseEvent.clientX, y: mouseEvent.clientY });
-            }}
-            onMouseEnter={() => setHoveredBlockId(handle.id)}
-            tabIndex={-1}
-          >
-            ⋮⋮
-          </button>
+          <Fragment key={handle.id}>
+            <button
+              className={[
+                "block-handle",
+                handle.id === hoveredBlockId || draggingBlockId ? "is-visible" : "",
+                handle.id === draggingBlockId ? "is-dragging" : ""
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              type="button"
+              draggable
+              style={{ top: handle.top + Math.max(0, handle.height - 26) / 2 }}
+              onDragStart={(dragEvent) => handleBlockDragStart(handle.id, dragEvent)}
+              onDragEnd={() => {
+                dragBlockIdRef.current = null;
+                setDraggingBlockId(null);
+              }}
+              onDragOver={(dragEvent) => dragEvent.preventDefault()}
+              onDrop={(dragEvent) => handleBlockDrop(handle.id, dragEvent)}
+              onContextMenu={(mouseEvent) => {
+                mouseEvent.preventDefault();
+                mouseEvent.stopPropagation();
+                setBlockContextMenu({ blockId: handle.id, x: mouseEvent.clientX, y: mouseEvent.clientY });
+              }}
+              onMouseEnter={() => setHoveredBlockId(handle.id)}
+              tabIndex={-1}
+            >
+              ⋮⋮
+            </button>
+          </Fragment>
         ))}
       </div>
       {blockContextMenu ? (
@@ -1625,6 +2092,8 @@ export function SlashRichTextEditor({
               value={activePage.content}
               onChange={updateActivePageContent}
               placeholder="Schreibe etwas oder tippe / für Befehle..."
+              currentUser={currentUser}
+              realtimeKey={`${realtimeKey ?? "editor"}-page-${activePage.id}`}
             />
           </div>
         </div>
@@ -1664,7 +2133,18 @@ function normalizeNoteHtml(value: string) {
     return trimmed;
   }
 
-  return textToHtml(value);
+  return textToHtml(decodeTextLikeHtml(value));
+}
+
+function decodeTextLikeHtml(value: string) {
+  return value
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'");
 }
 
 function textToHtml(value: string) {
@@ -1777,6 +2257,300 @@ function getSlashState(editor: HTMLElement) {
   return match ? { active: true, query: match[1] } : { active: false, query: "" };
 }
 
+function sanitizeEditorHtml(editor: HTMLElement) {
+  const clone = editor.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll<HTMLElement>("[data-remote-shadow='true']").forEach((element) => element.remove());
+  clone.querySelectorAll<HTMLElement>("[data-author-id], [data-author-name], [data-author-avatar]").forEach((element) => {
+    delete element.dataset.authorId;
+    delete element.dataset.authorName;
+    delete element.dataset.authorAvatar;
+  });
+  clone.querySelectorAll<HTMLElement>("[data-remote-client-id], [data-remote-source-block-id], [data-forked-from-block-id], [data-client-fork]").forEach((element) => {
+    delete element.dataset.remoteClientId;
+    delete element.dataset.remoteSourceBlockId;
+    delete element.dataset.forkedFromBlockId;
+    delete element.dataset.clientFork;
+  });
+  return clone.innerHTML;
+}
+
+function getActiveBlock(editor: HTMLElement | null) {
+  if (!editor) {
+    return null;
+  }
+
+  const selection = window.getSelection();
+  const anchorNode = selection?.anchorNode ?? null;
+  if (!anchorNode || !editor.contains(anchorNode)) {
+    return null;
+  }
+
+  return closestEditorHandleBlock(anchorNode, editor);
+}
+
+function closestEditorHandleBlock(node: Node, editor: HTMLElement) {
+  let current = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+
+  while (current && current !== editor) {
+    const pageLink = current.closest(".notion-page-link") as HTMLElement | null;
+    if (pageLink && editor.contains(pageLink)) {
+      return pageLink;
+    }
+
+    if (current.tagName === "LI") {
+      return current;
+    }
+
+    if (current.matches("p, div, h1, h2, h3, details, ul, ol, table, figure")) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
+function getEditorHandleBlocks(editor: HTMLElement) {
+  return Array.from(
+    editor.querySelectorAll<HTMLElement>(
+      ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > details, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > .notion-page-link, li"
+    )
+  ).filter((block) => !block.closest(".notion-page-link") || block.classList.contains("notion-page-link"));
+}
+
+function normalizeEditorStructure(editor: HTMLElement, preserveCaret = false) {
+  const directTextNodes = Array.from(editor.childNodes).filter(
+    (node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").length > 0
+  );
+  if (!directTextNodes.length) {
+    return;
+  }
+
+  const caretOffset = preserveCaret ? getCaretTextOffset(editor) : null;
+  directTextNodes.forEach((node) => {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = (node.textContent ?? "").replace(/\u00a0/g, " ");
+    node.replaceWith(paragraph);
+  });
+  ensureEditorBlockIds(editor);
+  if (caretOffset !== null) {
+    restoreCaretTextOffset(editor, caretOffset);
+  }
+}
+
+function ensureEditorBlockIds(editor: HTMLElement) {
+  getEditorHandleBlocks(editor).forEach((block) => {
+    if (!block.dataset.liveBlockId) {
+      block.dataset.liveBlockId = `block-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+  });
+}
+
+function htmlToBlockElement(blockHtml: string) {
+  const template = document.createElement("template");
+  template.innerHTML = blockHtml.trim();
+  return template.content.firstElementChild as HTMLElement | null;
+}
+
+function findBlockByLiveId(editor: HTMLElement, blockId: string) {
+  return getEditorHandleBlocks(editor).find((block) => block.dataset.liveBlockId === blockId) ?? null;
+}
+
+function mergeActiveBlockText(localBlock: HTMLElement, remoteBlockHtml: string) {
+  const remoteBlock = htmlToBlockElement(remoteBlockHtml);
+  if (!remoteBlock) {
+    return;
+  }
+
+  const localText = localBlock.textContent ?? "";
+  const remoteText = remoteBlock.textContent ?? "";
+  if (!remoteText || localText === remoteText || localText.includes(remoteText)) {
+    return;
+  }
+
+  const caretOffset = getCaretTextOffset(localBlock);
+  const mergedText = mergeConcurrentText(localText, remoteText);
+  if (mergedText === localText) {
+    return;
+  }
+
+  replaceBlockText(localBlock, mergedText);
+  restoreCaretTextOffset(localBlock, Math.min(mergedText.length, caretOffset + Math.max(0, mergedText.length - localText.length)));
+}
+
+function mergeConcurrentText(localText: string, remoteText: string) {
+  if (!localText) {
+    return remoteText;
+  }
+  if (!remoteText || localText === remoteText || localText.includes(remoteText)) {
+    return localText;
+  }
+  if (remoteText.includes(localText)) {
+    return remoteText;
+  }
+
+  let prefixLength = 0;
+  while (
+    prefixLength < localText.length &&
+    prefixLength < remoteText.length &&
+    localText[prefixLength] === remoteText[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  let suffixLength = 0;
+  while (
+    suffixLength < localText.length - prefixLength &&
+    suffixLength < remoteText.length - prefixLength &&
+    localText[localText.length - 1 - suffixLength] === remoteText[remoteText.length - 1 - suffixLength]
+  ) {
+    suffixLength += 1;
+  }
+
+  const prefix = localText.slice(0, prefixLength);
+  const suffix = suffixLength ? localText.slice(localText.length - suffixLength) : "";
+  const localMiddle = localText.slice(prefixLength, suffixLength ? localText.length - suffixLength : localText.length);
+  const remoteMiddle = remoteText.slice(prefixLength, suffixLength ? remoteText.length - suffixLength : remoteText.length);
+  const middle = localMiddle.includes(remoteMiddle)
+    ? localMiddle
+    : remoteMiddle.includes(localMiddle)
+      ? remoteMiddle
+      : `${localMiddle}${remoteMiddle}`;
+
+  return `${prefix}${middle}${suffix}`;
+}
+
+function getCaretTextOffset(container: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount || !container.contains(selection.anchorNode)) {
+    return container.textContent?.length ?? 0;
+  }
+
+  const range = selection.getRangeAt(0).cloneRange();
+  range.selectNodeContents(container);
+  range.setEnd(selection.anchorNode!, selection.anchorOffset);
+  return range.toString().length;
+}
+
+function getCaretTopWithinBlock(container: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount || !container.contains(selection.anchorNode)) {
+    return Math.max(0, (container.getBoundingClientRect().height - 26) / 2);
+  }
+
+  const range = selection.getRangeAt(0).cloneRange();
+  range.collapse(true);
+  const rect = Array.from(range.getClientRects()).at(-1);
+  const blockRect = container.getBoundingClientRect();
+  if (!rect || !blockRect.height) {
+    return Math.max(0, (blockRect.height - 26) / 2);
+  }
+
+  return Math.max(0, rect.top - blockRect.top + Math.max(0, rect.height - 26) / 2);
+}
+
+function replaceBlockText(block: HTMLElement, text: string) {
+  if (block.matches("table, figure, .notion-page-link")) {
+    return;
+  }
+
+  if (block.matches("ul, ol")) {
+    const item = block.querySelector("li");
+    if (item) {
+      item.textContent = text;
+    }
+    return;
+  }
+
+  if (block.matches("details")) {
+    const summary = block.querySelector("summary");
+    if (summary) {
+      summary.textContent = text;
+    }
+    return;
+  }
+
+  if (block.classList.contains("callout-block")) {
+    const paragraph = block.querySelector("p") ?? block;
+    paragraph.textContent = text;
+    return;
+  }
+
+  block.textContent = text;
+}
+
+function restoreCaretTextOffset(container: HTMLElement, offset: number) {
+  const selection = window.getSelection();
+  if (!selection) {
+    return;
+  }
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let current = walker.nextNode();
+  let remaining = offset;
+  const range = document.createRange();
+
+  while (current) {
+    const length = current.textContent?.length ?? 0;
+    if (remaining <= length) {
+      range.setStart(current, remaining);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return;
+    }
+    remaining -= length;
+    current = walker.nextNode();
+  }
+
+  range.selectNodeContents(container);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function mergeRemoteDocumentHtml(editor: HTMLElement, remoteHtml: string) {
+  if (!remoteHtml.includes("data-live-block-id")) {
+    return;
+  }
+
+  const activeBlockId = getActiveBlock(editor)?.dataset.liveBlockId;
+  const remoteEditor = document.createElement("div");
+  remoteEditor.innerHTML = normalizeNoteHtml(remoteHtml);
+  const remoteBlocks = getEditorHandleBlocks(remoteEditor).filter((block) => block.dataset.liveBlockId);
+
+  remoteBlocks.forEach((remoteBlock, index) => {
+    const blockId = remoteBlock.dataset.liveBlockId;
+    if (!blockId || blockId === activeBlockId) {
+      return;
+    }
+
+    const existingBlock = findBlockByLiveId(editor, blockId);
+    const clonedBlock = remoteBlock.cloneNode(true) as HTMLElement;
+    if (existingBlock) {
+      existingBlock.replaceWith(clonedBlock);
+      return;
+    }
+
+    const previousRemoteId = remoteBlocks
+      .slice(0, index)
+      .reverse()
+      .find((block) => block.dataset.liveBlockId)?.dataset.liveBlockId;
+    const nextRemoteId = remoteBlocks.slice(index + 1).find((block) => block.dataset.liveBlockId)?.dataset.liveBlockId;
+    const previousLocal = previousRemoteId ? findBlockByLiveId(editor, previousRemoteId) : null;
+    const nextLocal = nextRemoteId ? findBlockByLiveId(editor, nextRemoteId) : null;
+
+    if (previousLocal) {
+      previousLocal.after(clonedBlock);
+    } else if (nextLocal) {
+      nextLocal.before(clonedBlock);
+    } else {
+      editor.append(clonedBlock);
+    }
+  });
+}
+
 function deleteSlashBeforeCaret(editor: HTMLElement) {
   const selection = window.getSelection();
   if (!selection || !selection.rangeCount || !selection.isCollapsed) {
@@ -1854,6 +2628,119 @@ function decodePageContent(content: string) {
   } catch {
     return "";
   }
+}
+
+function replaceYTextValue(yText: Y.Text, nextValue: string, origin: unknown) {
+  const currentValue = yText.toString();
+  if (currentValue === nextValue) {
+    return;
+  }
+
+  let prefixLength = 0;
+  while (
+    prefixLength < currentValue.length &&
+    prefixLength < nextValue.length &&
+    currentValue[prefixLength] === nextValue[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  let suffixLength = 0;
+  while (
+    suffixLength < currentValue.length - prefixLength &&
+    suffixLength < nextValue.length - prefixLength &&
+    currentValue[currentValue.length - 1 - suffixLength] === nextValue[nextValue.length - 1 - suffixLength]
+  ) {
+    suffixLength += 1;
+  }
+
+  const deleteLength = currentValue.length - prefixLength - suffixLength;
+  const insertValue = nextValue.slice(prefixLength, suffixLength ? nextValue.length - suffixLength : nextValue.length);
+
+  yText.doc?.transact(() => {
+    if (deleteLength > 0) {
+      yText.delete(prefixLength, deleteLength);
+    }
+    if (insertValue) {
+      yText.insert(prefixLength, insertValue);
+    }
+  }, origin);
+}
+
+async function loadEditorCrdtState(documentKey: string) {
+  if (!hasSupabaseConfig || !supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("app_options")
+    .select("color")
+    .eq("namespace", "editor-crdt-state")
+    .eq("label", documentKey)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Yjs-State konnte nicht geladen werden:", error.message);
+    return null;
+  }
+
+  return data?.color || null;
+}
+
+async function saveEditorCrdtState(documentKey: string, encodedState: string) {
+  if (!hasSupabaseConfig || !supabase || !encodedState) {
+    return;
+  }
+
+  let stateToSave = encodedState;
+  const { data: existingState } = await supabase
+    .from("app_options")
+    .select("color")
+    .eq("namespace", "editor-crdt-state")
+    .eq("label", documentKey)
+    .maybeSingle();
+
+  if (existingState?.color && existingState.color !== encodedState) {
+    try {
+      stateToSave = uint8ArrayToBase64(
+        Y.mergeUpdates([base64ToUint8Array(existingState.color), base64ToUint8Array(encodedState)])
+      );
+    } catch (error) {
+      console.error("Yjs-State konnte nicht gemerged werden:", error);
+    }
+  }
+
+  const { error } = await supabase.from("app_options").upsert(
+    {
+      namespace: "editor-crdt-state",
+      label: documentKey,
+      color: stateToSave,
+      updated_at: new Date().toISOString()
+    },
+    { onConflict: "namespace,label" }
+  );
+
+  if (error) {
+    console.error("Yjs-State konnte nicht gespeichert werden:", error.message);
+  }
+}
+
+function uint8ArrayToBase64(update: Uint8Array) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < update.length; index += chunkSize) {
+    binary += String.fromCharCode(...update.slice(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(value: string) {
+  const binary = atob(value);
+  const update = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    update[index] = binary.charCodeAt(index);
+  }
+  return update;
 }
 
 function mediaFileToHtml(kind: "audio" | "image" | "page" | "video", source: string, name: string) {

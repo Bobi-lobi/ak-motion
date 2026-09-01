@@ -5,7 +5,7 @@ import { CheckCircle2 } from "lucide-react";
 import { createPublicRequest } from "@/lib/data-store";
 import type { AttachmentFile, EventRequestInput } from "@/lib/types";
 
-const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Konzert", "Feier", "Theater", "Vortrag", "Sonstiges"];
+const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Feier", "Vortrag", "Aufführung", "Konzert", "Sonstiges"];
 
 const initialForm: EventRequestInput = {
   title: "",

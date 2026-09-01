@@ -27,7 +27,8 @@ CREATE TYPE "public"."assignment_role" AS ENUM (
     'Ton',
     'Licht',
     'Umbau',
-    'Kleine'
+    'Kleine',
+    'Angel'
 );
 
 
@@ -275,6 +276,7 @@ ALTER TABLE "public"."profiles" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."registration_requests" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "auth_user_id" "uuid",
     "name" "text" NOT NULL,
     "email" "text" NOT NULL,
     "phone" "text",

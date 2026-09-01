@@ -96,6 +96,40 @@ export default function EquipmentPage() {
   }, []);
 
   useEffect(() => {
+    if (!hasSupabaseConfig || !supabase) {
+      return;
+    }
+
+    const supabaseClient = supabase;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    function scheduleEquipmentRefresh() {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      refreshTimer = setTimeout(() => {
+        void loadRemoteEquipment().then(({ equipment, tags }) => {
+          setData(equipment);
+          setTagState(tags);
+          window.dispatchEvent(new Event("ak-motion-equipment"));
+        });
+      }, 180);
+    }
+
+    const channel = supabaseClient
+      .channel("ak-motion-equipment")
+      .on("postgres_changes", { event: "*", schema: "public", table: "equipment_items" }, scheduleEquipmentRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "equipment_tags" }, scheduleEquipmentRefresh)
+      .subscribe();
+
+    return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      void supabaseClient.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
     if (hasSupabaseConfig) {
       return;
     }

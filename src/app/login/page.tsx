@@ -22,6 +22,7 @@ export default function LoginPage() {
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [pending, setPending] = useState(false);
@@ -174,12 +175,14 @@ export default function LoginPage() {
         name: registerName,
         email: registerEmail,
         phone: registerPhone,
+        password: registerPassword,
         motivation: ""
       });
-      setSuccess("Deine Bewerbung ist angekommen. Die Teamleitung prüft sie und richtet deinen Zugang ein.");
+      setSuccess("Deine Bewerbung ist angekommen. Nach der Freischaltung kannst du dich mit deinem gewählten Passwort anmelden.");
       setRegisterName("");
       setRegisterEmail("");
       setRegisterPhone("");
+      setRegisterPassword("");
     } catch (registerError) {
       setError(registerError instanceof Error ? registerError.message : "Registrierung fehlgeschlagen.");
     } finally {
@@ -233,6 +236,10 @@ export default function LoginPage() {
                 Telefonnummer <span className="optional-label">(optional)</span>
                 <input value={registerPhone} onChange={(event) => setRegisterPhone(event.target.value)} inputMode="tel" />
               </label>
+              <label>
+                Passwort
+                <input value={registerPassword} onChange={(event) => setRegisterPassword(event.target.value)} minLength={6} type="password" required />
+              </label>
               {error ? <p className="error-text">{error}</p> : null}
               {success ? <p className="success-text">{success}</p> : null}
               <button className="button primary full" type="submit" disabled={pending}>
@@ -263,12 +270,6 @@ export default function LoginPage() {
           <strong>{landing.brandTitle}</strong>
         </div>
         <div>
-          <a href="/impressum">
-            Impressum
-          </a>
-          <a href="/datenschutz">
-            Datenschutz
-          </a>
           <a className="landing-login-link" href="/login?panel=login">
             Login
           </a>

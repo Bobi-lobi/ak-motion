@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LogOut, Package, PanelLeftClose, PanelLeftOpen, Upload, Users, X } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LogOut, Package, PanelLeftClose, PanelLeftOpen, Trophy, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -17,6 +17,7 @@ const MOBILE_OPENED_PAGE_KEY = "ak-motion-mobile-opened-page";
 const navItems = [
   { href: "/calendar", label: "Veranstaltungskalender", icon: CalendarDays, admin: false },
   { href: "/analytics", label: "Statistik", icon: BarChart3, admin: false },
+  { href: "/rankings", label: "Level", icon: Trophy, admin: false },
   ...knowledgePages.map((page) => ({ href: page.href, label: page.title, icon: page.icon, admin: false })),
   { href: "/equipment", label: "Equipment", icon: Package, admin: false }
 ];

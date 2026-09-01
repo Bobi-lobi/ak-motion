@@ -22,6 +22,75 @@ import { knowledgePages } from "@/lib/knowledge";
 const DATA_KEY = "ak-motion-data";
 const SESSION_KEY = "ak-motion-session";
 const PASSWORDS_KEY = "ak-motion-passwords";
+const PENDING_KNOWLEDGE_KEY = "ak-motion-pending-knowledge";
+const PENDING_EVENTS_KEY = "ak-motion-pending-events";
+
+type PendingKnowledgeWrite = { content: string; pageId: KnowledgePageId; title: string; updatedAt: string; updatedBy?: string };
+type PendingEventWrite = { eventId: string; patch: Partial<CalendarEvent>; updatedAt: string };
+
+function loadPendingKnowledgeWrites(): Record<string, PendingKnowledgeWrite> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    return JSON.parse(window.localStorage.getItem(PENDING_KNOWLEDGE_KEY) ?? "{}") as Record<string, PendingKnowledgeWrite>;
+  } catch {
+    return {};
+  }
+}
+
+function savePendingKnowledgeWrites(writes: Record<string, PendingKnowledgeWrite>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(PENDING_KNOWLEDGE_KEY, JSON.stringify(writes));
+}
+
+function loadPendingEventWrites(): Record<string, PendingEventWrite> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    return JSON.parse(window.localStorage.getItem(PENDING_EVENTS_KEY) ?? "{}") as Record<string, PendingEventWrite>;
+  } catch {
+    return {};
+  }
+}
+
+function savePendingEventWrites(writes: Record<string, PendingEventWrite>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(PENDING_EVENTS_KEY, JSON.stringify(writes));
+}
+
+function rememberPendingKnowledgeWrite(write: PendingKnowledgeWrite) {
+  const writes = loadPendingKnowledgeWrites();
+  writes[write.pageId] = write;
+  savePendingKnowledgeWrites(writes);
+}
+
+function forgetPendingKnowledgeWrite(pageId: KnowledgePageId) {
+  const writes = loadPendingKnowledgeWrites();
+  delete writes[pageId];
+  savePendingKnowledgeWrites(writes);
+}
+
+function rememberPendingEventWrite(eventId: string, patch: Partial<CalendarEvent>) {
+  const writes = loadPendingEventWrites();
+  writes[eventId] = {
+    eventId,
+    patch: { ...(writes[eventId]?.patch ?? {}), ...patch },
+    updatedAt: now()
+  };
+  savePendingEventWrites(writes);
+}
+
+function forgetPendingEventWrite(eventId: string) {
+  const writes = loadPendingEventWrites();
+  delete writes[eventId];
+  savePendingEventWrites(writes);
+}
 
 function cloneData(data: AppData): AppData {
   return JSON.parse(JSON.stringify(data)) as AppData;
@@ -169,7 +238,7 @@ export async function loadRemoteData(): Promise<AppData> {
     supabase.from("event_availability").select("id, event_id, profile_id, status, updated_at"),
     supabase.from("event_assignments").select("id, event_id, profile_id, role, created_at"),
     supabase.from("event_attendance").select("id, event_id, profile_id, role, attended, created_at"),
-    supabase.from("registration_requests").select("id, name, email, phone, motivation, status, created_at").order("created_at", { ascending: false }),
+    supabase.from("registration_requests").select("id, auth_user_id, name, email, phone, motivation, status, created_at").order("created_at", { ascending: false }),
     supabase.from("knowledge_pages").select("id, title, content, updated_at, updated_by"),
     supabase.from("knowledge_suggestions").select("id, page_id, content, author_id, author_name, created_at").order("created_at", { ascending: false }),
     supabase
@@ -245,6 +314,7 @@ export async function loadRemoteData(): Promise<AppData> {
     })) ?? fallback.attendance,
     registrationRequests: registrationsResult.data?.map((request) => ({
       id: request.id,
+      authUserId: request.auth_user_id ?? undefined,
       name: request.name,
       email: request.email,
       phone: request.phone ?? "",
@@ -282,8 +352,66 @@ export async function loadRemoteData(): Promise<AppData> {
       : fallback.landingContent
   });
 
+  const pendingKnowledge = loadPendingKnowledgeWrites();
+  Object.values(pendingKnowledge).forEach((write) => {
+    const page = remote.knowledgePages.find((item) => item.id === write.pageId);
+    if (page) {
+      page.content = write.content;
+      page.updatedAt = write.updatedAt;
+      page.updatedBy = write.updatedBy;
+    } else {
+      remote.knowledgePages.push({
+        id: write.pageId,
+        title: write.title,
+        content: write.content,
+        updatedAt: write.updatedAt,
+        updatedBy: write.updatedBy
+      });
+    }
+  });
+
+  const pendingEvents = loadPendingEventWrites();
+  Object.values(pendingEvents).forEach((write) => {
+    const event = remote.events.find((item) => item.id === write.eventId);
+    if (event) {
+      Object.assign(event, write.patch);
+    }
+  });
+
+  const optimisticEvents = fallback.events.filter((event) => event.id.startsWith("optimistic-event-"));
+  optimisticEvents.forEach((event) => {
+    const remoteHasCreatedEvent = remote.events.some(
+      (remoteEvent) =>
+        remoteEvent.title === event.title &&
+        remoteEvent.startsAt === event.startsAt &&
+        remoteEvent.endsAt === event.endsAt &&
+        remoteEvent.location === event.location
+    );
+    if (!remoteHasCreatedEvent && !remote.events.some((remoteEvent) => remoteEvent.id === event.id)) {
+      remote.events.unshift(event);
+    }
+  });
+
+  const optimisticAssignments = fallback.assignments.filter((assignment) =>
+    assignment.id.startsWith("optimistic-assignment-")
+  );
+  optimisticAssignments.forEach((assignment) => {
+    const remoteHasAssignment = remote.assignments.some(
+      (remoteAssignment) =>
+        remoteAssignment.eventId === assignment.eventId &&
+        remoteAssignment.profileId === assignment.profileId &&
+        remoteAssignment.role === assignment.role
+    );
+    if (!remoteHasAssignment) {
+      remote.assignments.push(assignment);
+    }
+  });
+
   if (typeof window !== "undefined") {
     window.localStorage.setItem(DATA_KEY, JSON.stringify(remote));
+    if (Object.keys(pendingKnowledge).length || Object.keys(pendingEvents).length) {
+      void flushPendingRemoteWrites();
+    }
   }
 
   return remote;
@@ -362,6 +490,234 @@ async function readApiError(response: Response, fallback: string) {
   }
 }
 
+function eventPatchToRemotePatch(patch: Partial<CalendarEvent>) {
+  const remotePatch: Record<string, unknown> = {};
+  if (patch.title !== undefined) remotePatch.title = patch.title;
+  if (patch.startsAt !== undefined) remotePatch.starts_at = patch.startsAt;
+  if (patch.endsAt !== undefined) remotePatch.ends_at = patch.endsAt;
+  if (patch.location !== undefined) remotePatch.location = patch.location;
+  if (patch.eventType !== undefined) remotePatch.event_type = patch.eventType;
+  if (patch.status !== undefined) remotePatch.status = patch.status;
+  if (patch.contactName !== undefined) remotePatch.contact_name = patch.contactName;
+  if (patch.contactEmail !== undefined) remotePatch.contact_email = patch.contactEmail;
+  if (patch.microphoneCount !== undefined) remotePatch.microphone_count = patch.microphoneCount;
+  if (patch.techNeeds !== undefined) remotePatch.tech_needs = patch.techNeeds;
+  if (patch.notes !== undefined) remotePatch.notes = patch.notes;
+  if (patch.presentationFiles !== undefined) remotePatch.presentation_files = patch.presentationFiles;
+  if (patch.requestId !== undefined) remotePatch.request_id = patch.requestId;
+  return remotePatch;
+}
+
+const editorBlockSelector =
+  ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > details, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > .notion-page-link, li";
+
+function editorMergeBlocks(root: HTMLElement) {
+  return Array.from(root.querySelectorAll<HTMLElement>(editorBlockSelector)).filter(
+    (block) => !block.closest(".notion-page-link") || block.classList.contains("notion-page-link")
+  );
+}
+
+function mergeEditorHtml(remoteHtml: string, localHtml: string) {
+  if (typeof document === "undefined") {
+    return localHtml;
+  }
+
+  const trimmedLocal = localHtml.trim();
+  if (!trimmedLocal) {
+    return localHtml;
+  }
+
+  const remoteRoot = document.createElement("div");
+  const localRoot = document.createElement("div");
+  remoteRoot.innerHTML = remoteHtml.trim();
+  localRoot.innerHTML = trimmedLocal;
+
+  const localBlocks = editorMergeBlocks(localRoot).filter((block) => block.dataset.liveBlockId);
+  const remoteBlocks = editorMergeBlocks(remoteRoot).filter((block) => block.dataset.liveBlockId);
+  if (!localBlocks.length || !remoteBlocks.length) {
+    return localHtml;
+  }
+
+  localBlocks.forEach((localBlock, index) => {
+    const blockId = localBlock.dataset.liveBlockId;
+    if (!blockId) {
+      return;
+    }
+
+    const existingRemoteBlock = editorMergeBlocks(remoteRoot).find((block) => block.dataset.liveBlockId === blockId);
+    const clonedLocalBlock = localBlock.cloneNode(true) as HTMLElement;
+    if (existingRemoteBlock) {
+      if (existingRemoteBlock.outerHTML !== clonedLocalBlock.outerHTML) {
+        const mergedBlock = mergeEditorBlock(existingRemoteBlock, clonedLocalBlock);
+        existingRemoteBlock.replaceWith(mergedBlock);
+      }
+      return;
+    }
+
+    const previousLocalId = localBlocks
+      .slice(0, index)
+      .reverse()
+      .find((block) => block.dataset.liveBlockId)?.dataset.liveBlockId;
+    const nextLocalId = localBlocks.slice(index + 1).find((block) => block.dataset.liveBlockId)?.dataset.liveBlockId;
+    const previousRemote = previousLocalId
+      ? editorMergeBlocks(remoteRoot).find((block) => block.dataset.liveBlockId === previousLocalId)
+      : null;
+    const nextRemote = nextLocalId
+      ? editorMergeBlocks(remoteRoot).find((block) => block.dataset.liveBlockId === nextLocalId)
+      : null;
+
+    if (previousRemote) {
+      previousRemote.after(clonedLocalBlock);
+    } else if (nextRemote) {
+      nextRemote.before(clonedLocalBlock);
+    } else {
+      remoteRoot.append(clonedLocalBlock);
+    }
+  });
+
+  return remoteRoot.innerHTML;
+}
+
+function mergeEditorBlock(remoteBlock: HTMLElement, localBlock: HTMLElement) {
+  if (remoteBlock.tagName !== localBlock.tagName || remoteBlock.querySelector("table, figure, img, video, audio")) {
+    return localBlock;
+  }
+
+  const remoteText = remoteBlock.textContent ?? "";
+  const localText = localBlock.textContent ?? "";
+  if (!remoteText || !localText || remoteText === localText) {
+    return localBlock;
+  }
+
+  const mergedText = mergeConcurrentPlainText(remoteText, localText);
+  if (mergedText === localText) {
+    return localBlock;
+  }
+
+  const mergedBlock = localBlock.cloneNode(true) as HTMLElement;
+  replaceMergeBlockText(mergedBlock, mergedText);
+  return mergedBlock;
+}
+
+function mergeConcurrentPlainText(remoteText: string, localText: string) {
+  if (remoteText.includes(localText)) {
+    return remoteText;
+  }
+  if (localText.includes(remoteText)) {
+    return localText;
+  }
+
+  let prefixLength = 0;
+  while (
+    prefixLength < remoteText.length &&
+    prefixLength < localText.length &&
+    remoteText[prefixLength] === localText[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  let suffixLength = 0;
+  while (
+    suffixLength < remoteText.length - prefixLength &&
+    suffixLength < localText.length - prefixLength &&
+    remoteText[remoteText.length - 1 - suffixLength] === localText[localText.length - 1 - suffixLength]
+  ) {
+    suffixLength += 1;
+  }
+
+  const prefix = localText.slice(0, prefixLength);
+  const suffix = suffixLength ? localText.slice(localText.length - suffixLength) : "";
+  const remoteMiddle = remoteText.slice(prefixLength, suffixLength ? remoteText.length - suffixLength : remoteText.length);
+  const localMiddle = localText.slice(prefixLength, suffixLength ? localText.length - suffixLength : localText.length);
+  const middle = localMiddle.includes(remoteMiddle)
+    ? localMiddle
+    : remoteMiddle.includes(localMiddle)
+      ? remoteMiddle
+      : `${remoteMiddle}${localMiddle}`;
+
+  return `${prefix}${middle}${suffix}`;
+}
+
+function replaceMergeBlockText(block: HTMLElement, text: string) {
+  if (block.matches("ul, ol")) {
+    const item = block.querySelector("li");
+    if (item) {
+      item.textContent = text;
+    }
+    return;
+  }
+
+  if (block.matches("details")) {
+    const summary = block.querySelector("summary");
+    if (summary) {
+      summary.textContent = text;
+    }
+    return;
+  }
+
+  const paragraph = block.classList.contains("callout-block") ? block.querySelector("p") : null;
+  if (paragraph) {
+    paragraph.textContent = text;
+    return;
+  }
+
+  block.textContent = text;
+}
+
+function updateLocalKnowledgePage(pageId: KnowledgePageId, title: string, content: string, updatedAt: string, updatedBy?: string) {
+  const localData = loadData();
+  const localPage = localData.knowledgePages.find((item) => item.id === pageId);
+  if (localPage) {
+    localPage.content = content;
+    localPage.updatedAt = updatedAt;
+    localPage.updatedBy = updatedBy;
+  } else {
+    localData.knowledgePages.push({ id: pageId, title, content, updatedAt, updatedBy });
+  }
+  saveData(localData);
+}
+
+function updateLocalEvent(eventId: string, patch: Partial<CalendarEvent>) {
+  const data = loadData();
+  const event = data.events.find((item) => item.id === eventId);
+  if (event) {
+    Object.assign(event, patch);
+    saveData(data);
+  }
+}
+
+async function flushPendingRemoteWrites() {
+  if (!hasSupabaseConfig || !supabase) {
+    return;
+  }
+
+  const knowledgeWrites = loadPendingKnowledgeWrites();
+  await Promise.all(
+    Object.values(knowledgeWrites).map(async (write) => {
+      const { error } = await supabase!.from("knowledge_pages").upsert({
+        id: write.pageId,
+        title: write.title,
+        content: write.content,
+        updated_at: write.updatedAt,
+        updated_by: write.updatedBy ?? null
+      });
+      if (!error) {
+        forgetPendingKnowledgeWrite(write.pageId);
+      }
+    })
+  );
+
+  const eventWrites = loadPendingEventWrites();
+  await Promise.all(
+    Object.values(eventWrites).map(async (write) => {
+      const { error } = await supabase!.from("events").update(eventPatchToRemotePatch(write.patch)).eq("id", write.eventId);
+      if (!error) {
+        forgetPendingEventWrite(write.eventId);
+      }
+    })
+  );
+}
+
 export async function login(email: string, password: string): Promise<SessionUser> {
   if (hasSupabaseConfig && supabase) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -371,15 +727,23 @@ export async function login(email: string, password: string): Promise<SessionUse
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id, name, email, role")
+      .select("id, name, email, avatar_url, phone, role")
       .eq("id", data.user.id)
       .single();
 
     if (!profile) {
+      await supabase.auth.signOut();
       throw new Error("Kein Profil für diesen Account gefunden.");
     }
 
-    const profileWithDetails = profile as Profile;
+    const profileWithDetails = {
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      avatarUrl: profile.avatar_url ?? "",
+      phone: profile.phone ?? "",
+      role: profile.role
+    } satisfies SessionUser;
     const sessionUser: SessionUser = {
       id: profileWithDetails.id,
       email: profileWithDetails.email,
@@ -471,15 +835,19 @@ export async function createPublicRequest(input: EventRequestInput) {
 
 export async function createRegistrationRequest(input: RegistrationRequestInput) {
   if (hasSupabaseConfig && supabase) {
-    const { error } = await supabase.from("registration_requests").insert({
-      name: input.name.trim(),
-      email: input.email.trim().toLowerCase(),
-      phone: input.phone?.trim() ?? "",
-      motivation: input.motivation.trim(),
-      status: "pending"
+    const response = await fetch("/api/registration-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        password: input.password,
+        motivation: input.motivation
+      })
     });
-    if (error) {
-      throw new Error(error.message);
+    if (!response.ok) {
+      throw new Error(await readApiError(response, "Account konnte nicht erstellt werden."));
     }
     window.dispatchEvent(new Event("ak-motion-data"));
     return;
@@ -507,6 +875,9 @@ export async function createRegistrationRequest(input: RegistrationRequestInput)
     createdAt: now()
   };
   data.registrationRequests.unshift(request);
+  if (input.password) {
+    savePassword(email, input.password);
+  }
   saveData(data);
   return request;
 }
@@ -520,9 +891,8 @@ export async function approveRegistrationRequest(requestId: string) {
     if (!response.ok) {
       throw new Error(await readApiError(response, "Anfrage konnte nicht angenommen werden."));
     }
-    const result = (await response.json().catch(() => ({}))) as { temporaryPassword?: string };
     window.dispatchEvent(new Event("ak-motion-data"));
-    return result;
+    return;
   }
 
   const data = loadData();
@@ -545,11 +915,8 @@ export async function approveRegistrationRequest(requestId: string) {
     };
     data.profiles.push(profile);
   }
-  const temporaryPassword = `motion-${Math.random().toString(36).slice(2, 10)}`;
-  savePassword(request.email, temporaryPassword);
   data.registrationRequests = data.registrationRequests.filter((item) => item.id !== requestId);
   saveData(data);
-  return { temporaryPassword };
 }
 
 export async function rejectRegistrationRequest(requestId: string) {
@@ -693,7 +1060,6 @@ export async function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">
     if (error || !data) {
       throw new Error(error?.message ?? "Veranstaltung konnte nicht erstellt werden.");
     }
-    window.dispatchEvent(new Event("ak-motion-data"));
     return {
       id: data.id,
       title: data.title,
@@ -726,6 +1092,20 @@ export async function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">
 
 export async function deleteEvent(eventId: string) {
   if (hasSupabaseConfig && supabase) {
+    const [{ error: availabilityError }, { error: assignmentError }, { error: attendanceError }] = await Promise.all([
+      supabase.from("event_availability").delete().eq("event_id", eventId),
+      supabase.from("event_assignments").delete().eq("event_id", eventId),
+      supabase.from("event_attendance").delete().eq("event_id", eventId)
+    ]);
+    if (availabilityError || assignmentError || attendanceError) {
+      throw new Error(
+        availabilityError?.message ??
+          assignmentError?.message ??
+          attendanceError?.message ??
+          "Veranstaltungsdaten konnten nicht entfernt werden."
+      );
+    }
+
     const { error } = await supabase.from("events").delete().eq("id", eventId);
     if (error) {
       throw new Error(error.message);
@@ -894,52 +1274,38 @@ export async function markAttendance(eventId: string, profileId: string, role: A
 }
 
 export async function updateEventNotes(eventId: string, notes: string) {
+  if (hasSupabaseConfig) {
+    rememberPendingEventWrite(eventId, { notes });
+  }
+
+  updateLocalEvent(eventId, { notes });
+
   if (hasSupabaseConfig && supabase) {
     const { error } = await supabase.from("events").update({ notes }).eq("id", eventId);
     if (error) {
       throw new Error(error.message);
     }
+    forgetPendingEventWrite(eventId);
     window.dispatchEvent(new Event("ak-motion-data"));
     return;
-  }
-
-  const data = loadData();
-  const event = data.events.find((item) => item.id === eventId);
-  if (event) {
-    event.notes = notes;
-    saveData(data);
   }
 }
 
 export async function updateEvent(eventId: string, patch: Partial<CalendarEvent>) {
+  if (hasSupabaseConfig) {
+    rememberPendingEventWrite(eventId, patch);
+  }
+
+  updateLocalEvent(eventId, patch);
+
   if (hasSupabaseConfig && supabase) {
-    const remotePatch: Record<string, unknown> = {};
-    if (patch.title !== undefined) remotePatch.title = patch.title;
-    if (patch.startsAt !== undefined) remotePatch.starts_at = patch.startsAt;
-    if (patch.endsAt !== undefined) remotePatch.ends_at = patch.endsAt;
-    if (patch.location !== undefined) remotePatch.location = patch.location;
-    if (patch.eventType !== undefined) remotePatch.event_type = patch.eventType;
-    if (patch.status !== undefined) remotePatch.status = patch.status;
-    if (patch.contactName !== undefined) remotePatch.contact_name = patch.contactName;
-    if (patch.contactEmail !== undefined) remotePatch.contact_email = patch.contactEmail;
-    if (patch.microphoneCount !== undefined) remotePatch.microphone_count = patch.microphoneCount;
-    if (patch.techNeeds !== undefined) remotePatch.tech_needs = patch.techNeeds;
-    if (patch.notes !== undefined) remotePatch.notes = patch.notes;
-    if (patch.presentationFiles !== undefined) remotePatch.presentation_files = patch.presentationFiles;
-    if (patch.requestId !== undefined) remotePatch.request_id = patch.requestId;
-    const { error } = await supabase.from("events").update(remotePatch).eq("id", eventId);
+    const { error } = await supabase.from("events").update(eventPatchToRemotePatch(patch)).eq("id", eventId);
     if (error) {
       throw new Error(error.message);
     }
+    forgetPendingEventWrite(eventId);
     window.dispatchEvent(new Event("ak-motion-data"));
     return;
-  }
-
-  const data = loadData();
-  const event = data.events.find((item) => item.id === eventId);
-  if (event) {
-    Object.assign(event, patch);
-    saveData(data);
   }
 }
 
@@ -979,31 +1345,30 @@ export async function updateProfile(profileId: string, patch: Partial<Pick<Profi
 }
 
 export async function updateKnowledgePage(pageId: KnowledgePageId, content: string, user?: SessionUser | null) {
+  const title = knowledgePages.find((page) => page.id === pageId)?.title ?? pageId;
+  const updatedAt = now();
+  const updatedBy = user?.name;
+  if (hasSupabaseConfig) {
+    rememberPendingKnowledgeWrite({ pageId, title, content, updatedAt, updatedBy });
+  }
+
+  updateLocalKnowledgePage(pageId, title, content, updatedAt, updatedBy);
+
   if (hasSupabaseConfig && supabase) {
     const { error } = await supabase.from("knowledge_pages").upsert({
       id: pageId,
-      title: knowledgePages.find((page) => page.id === pageId)?.title ?? pageId,
+      title,
       content,
-      updated_at: now(),
-      updated_by: user?.name ?? null
+      updated_at: updatedAt,
+      updated_by: updatedBy ?? null
     });
     if (error) {
       throw new Error(error.message);
     }
+    forgetPendingKnowledgeWrite(pageId);
     window.dispatchEvent(new Event("ak-motion-data"));
     return;
   }
-
-  const data = loadData();
-  const page = data.knowledgePages.find((item) => item.id === pageId);
-  if (!page) {
-    return;
-  }
-
-  page.content = content;
-  page.updatedAt = now();
-  page.updatedBy = user?.name;
-  saveData(data);
 }
 
 export async function createKnowledgeSuggestion(pageId: KnowledgePageId, content: string, user: SessionUser) {

@@ -1,26 +1,33 @@
 "use client";
 
 import { CheckCircle2, Clock, MapPin, UserCheck } from "lucide-react";
-import type { MouseEvent } from "react";
+import type { DragEvent, MouseEvent, PointerEvent } from "react";
 import { addAssignment, markAttendance, setAvailability } from "@/lib/data-store";
 import { formatDateTime, formatTimeRange } from "@/lib/date-utils";
 import type { AssignmentRole, Event } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
-
-const assignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Umbau", "Kleine"];
+import { assignmentRolesForEventType } from "@/lib/gamification";
 
 export function EventCard({
   event,
   compact = false,
   staffingComplete,
   onOpen,
-  onContextMenu
+  onContextMenu,
+  onDragEnd,
+  onDragStart,
+  onLongPress,
+  onLongPressCancel
 }: {
   event: Event;
   compact?: boolean;
   staffingComplete?: boolean;
   onOpen?: () => void;
   onContextMenu?: (event: MouseEvent) => void;
+  onDragEnd?: (event: DragEvent<HTMLButtonElement>) => void;
+  onDragStart?: (event: DragEvent<HTMLButtonElement>) => void;
+  onLongPress?: (event: PointerEvent<HTMLButtonElement>) => void;
+  onLongPressCancel?: () => void;
 }) {
   const { data, session, refresh, updateData } = useApp();
   const canManageCalendar = Boolean(session);
@@ -29,6 +36,7 @@ export function EventCard({
   const assignments = data.assignments.filter((item) => item.eventId === event.id);
   const attendance = data.attendance.filter((item) => item.eventId === event.id && item.attended);
   const currentAvailability = availability.find((item) => item.profileId === session?.id);
+  const assignmentRoles = assignmentRolesForEventType(event.eventType);
 
   if (compact) {
     return (
@@ -40,11 +48,18 @@ export function EventCard({
           .filter(Boolean)
           .join(" ")}
         type="button"
+        draggable
         onClick={(clickEvent) => {
           clickEvent.stopPropagation();
           onOpen?.();
         }}
         onContextMenu={onContextMenu}
+        onDragEnd={onDragEnd}
+        onDragStart={onDragStart}
+        onPointerDown={(pointerEvent) => onLongPress?.(pointerEvent)}
+        onPointerUp={onLongPressCancel}
+        onPointerCancel={onLongPressCancel}
+        onPointerLeave={onLongPressCancel}
       >
         <span className="calendar-event-time">{formatTimeRange(event.startsAt, event.endsAt)}</span>
         <span className="calendar-event-title">{event.title}</span>

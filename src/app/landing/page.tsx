@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
 import { updateLandingContent } from "@/lib/data-store";
+import { migrateLandingImage, uploadLandingImage } from "@/lib/landing-storage";
 import type { LandingContent, LandingImpression } from "@/lib/types";
 
 type ToolbarState = { x: number; y: number } | null;
@@ -14,13 +15,16 @@ export default function LandingEditorPage() {
   const { data, refresh } = useApp();
   const [content, setContent] = useState<LandingContent>(data.landingContent);
   const [saveError, setSaveError] = useState("");
+  const [uploadingImages, setUploadingImages] = useState(0);
   const [toolbar, setToolbar] = useState<ToolbarState>(null);
   const [selectedImpressionId, setSelectedImpressionId] = useState(data.landingContent.impressions[0]?.id ?? "");
   const [editingImpressionId, setEditingImpressionId] = useState<string | null>(null);
   const savedRange = useRef<Range | null>(null);
+  const contentRef = useRef(content);
 
   useEffect(() => {
     setContent(data.landingContent);
+    contentRef.current = data.landingContent;
     setSelectedImpressionId((current) => current || data.landingContent.impressions[0]?.id || "");
   }, [data.landingContent]);
 
@@ -30,14 +34,38 @@ export default function LandingEditorPage() {
     content.impressions.find((impression) => impression.id === editingImpressionId) ?? null;
 
   function patchContent(patch: Partial<LandingContent>) {
-    setContent((current) => ({ ...current, ...patch }));
+    setContent((current) => {
+      const next = { ...current, ...patch };
+      contentRef.current = next;
+      return next;
+    });
   }
 
   function updateImpression(id: string, patch: Partial<LandingImpression>) {
-    setContent((current) => ({
-      ...current,
-      impressions: current.impressions.map((impression) => (impression.id === id ? { ...impression, ...patch } : impression))
-    }));
+    setContent((current) => {
+      const next = {
+        ...current,
+        impressions: current.impressions.map((impression) => (impression.id === id ? { ...impression, ...patch } : impression))
+      };
+      contentRef.current = next;
+      return next;
+    });
+  }
+
+  function appendImpressionImages(id: string, images: string[]) {
+    if (!images.length) {
+      return;
+    }
+    setContent((current) => {
+      const next = {
+        ...current,
+        impressions: current.impressions.map((impression) =>
+          impression.id === id ? { ...impression, images: [...impression.images.filter(Boolean), ...images] } : impression
+        )
+      };
+      contentRef.current = next;
+      return next;
+    });
   }
 
   function addImpression() {
@@ -102,13 +130,21 @@ export default function LandingEditorPage() {
     patchContent({ teamNames: content.teamNames.filter((_, nameIndex) => nameIndex !== index) });
   }
 
-  function readImages(fileList: FileList | null, callback: (images: string[]) => void) {
+  async function readImages(fileList: FileList | null, callback: (images: string[]) => void) {
     const files = Array.from(fileList ?? []).filter((file) => file.type.startsWith("image/"));
     if (!files.length) {
       return;
     }
 
-    Promise.all(files.map((file) => compressImage(file))).then(callback);
+    setSaveError("");
+    setUploadingImages((current) => current + files.length);
+    try {
+      callback(await Promise.all(files.map((file) => uploadLandingImage(file))));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Bilder konnten nicht hochgeladen werden.");
+    } finally {
+      setUploadingImages((current) => Math.max(0, current - files.length));
+    }
   }
 
   function syncEditable(field: keyof LandingContent, value: string) {
@@ -146,7 +182,7 @@ export default function LandingEditorPage() {
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaveError("");
-    const nextContent = { ...content };
+    const nextContent = { ...contentRef.current };
     event.currentTarget.querySelectorAll<HTMLElement>("[data-landing-field]").forEach((element) => {
       const field = element.dataset.landingField as keyof LandingContent | undefined;
       if (field) {
@@ -155,6 +191,14 @@ export default function LandingEditorPage() {
     });
 
     try {
+      const migratedEventImages = await Promise.all(nextContent.eventImages.map(migrateLandingImage));
+      const migratedTeamImage = nextContent.teamImage ? await migrateLandingImage(nextContent.teamImage) : "";
+      const migratedImpressions = await Promise.all(
+        nextContent.impressions.map(async (impression) => ({
+          ...impression,
+          images: await Promise.all(impression.images.map(migrateLandingImage))
+        }))
+      );
       await updateLandingContent({
         ...nextContent,
         heroTitle: nextContent.heroTitle.trim(),
@@ -173,10 +217,10 @@ export default function LandingEditorPage() {
         requestCta: nextContent.requestCta.trim(),
         joinTitle: nextContent.joinTitle.trim(),
         joinText: nextContent.joinText.trim(),
-        eventImages: nextContent.eventImages.map((item) => item.trim()).filter(Boolean),
-        teamImage: nextContent.teamImage.trim(),
+        eventImages: migratedEventImages.map((item) => item.trim()).filter(Boolean),
+        teamImage: migratedTeamImage.trim(),
         teamNames: nextContent.teamNames.map((item) => item.trim()).filter(Boolean),
-        impressions: nextContent.impressions.map((impression) => ({
+        impressions: migratedImpressions.map((impression) => ({
           ...impression,
           title: impression.title.trim(),
           text: impression.text.trim(),
@@ -570,7 +614,7 @@ export default function LandingEditorPage() {
                         multiple
                         onChange={(event) =>
                           readImages(event.target.files, (uploaded) =>
-                            updateImpression(editingImpression.id, { images: [...editingImpression.images.filter(Boolean), ...uploaded] })
+                            appendImpressionImages(editingImpression.id, uploaded)
                           )
                         }
                       />
@@ -606,42 +650,13 @@ export default function LandingEditorPage() {
 
           <div className="landing-editor-savebar">
             {saveError ? <p className="error-text">{saveError}</p> : null}
-            <button className="button primary" type="submit">
+            <button className="button primary" type="submit" disabled={uploadingImages > 0}>
               <Save size={16} />
-              Startseite speichern
+              {uploadingImages > 0 ? `${uploadingImages} Bild${uploadingImages === 1 ? "" : "er"} werden hochgeladen` : "Startseite speichern"}
             </button>
           </div>
         </form>
       </AppShell>
     </RouteGuard>
   );
-}
-
-function compressImage(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const image = new Image();
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      image.onload = () => {
-        const maxSide = 1400;
-        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(image.width * scale));
-        canvas.height = Math.max(1, Math.round(image.height * scale));
-        const context = canvas.getContext("2d");
-        if (!context) {
-          reject(new Error("Bild konnte nicht verarbeitet werden."));
-          return;
-        }
-
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.78));
-      };
-      image.onerror = () => reject(new Error("Bild konnte nicht geladen werden."));
-      image.src = String(reader.result ?? "");
-    };
-    reader.onerror = () => reject(new Error("Bild konnte nicht gelesen werden."));
-    reader.readAsDataURL(file);
-  });
 }

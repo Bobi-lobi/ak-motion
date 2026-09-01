@@ -32,7 +32,7 @@ export default function AnalyticsPage() {
   const technicianStats = useMemo(
     () =>
       data.profiles
-        .filter((profile) => profile.role === "technician")
+        .filter((profile) => profile.role === "technician" || profile.role === "admin")
         .map((profile) => ({
           name: profile.name,
           einsaetze: data.assignments.filter((assignment) => {
@@ -40,6 +40,7 @@ export default function AnalyticsPage() {
             return (
               assignment.profileId === profile.id &&
               event?.status === "Abgeschlossen" &&
+              event.eventType.toLowerCase() !== "probe" &&
               new Date(event.startsAt).getFullYear() === year
             );
           }).length
@@ -78,13 +79,13 @@ export default function AnalyticsPage() {
         <section className="analytics-grid">
           <article className="panel chart-panel">
             <h2>Betreute Veranstaltungen pro Techniker</h2>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={technicianStats}>
+            <ResponsiveContainer width="100%" height={Math.max(280, technicianStats.length * 36)}>
+              <BarChart data={technicianStats} layout="vertical" margin={{ left: 18, right: 20 }}>
                 <CartesianGrid stroke="#333333" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={axisStyle} tickLine={false} axisLine={{ stroke: "#464646" }} />
-                <YAxis allowDecimals={false} tick={axisStyle} tickLine={false} axisLine={{ stroke: "#464646" }} />
+                <XAxis allowDecimals={false} type="number" tick={axisStyle} tickLine={false} axisLine={{ stroke: "#464646" }} />
+                <YAxis dataKey="name" type="category" width={140} interval={0} tick={axisStyle} tickLine={false} axisLine={{ stroke: "#464646" }} />
                 <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(91, 140, 255, 0.08)" }} />
-                <Bar dataKey="einsaetze" fill="#5b8cff" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="einsaetze" fill="#5b8cff" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </article>

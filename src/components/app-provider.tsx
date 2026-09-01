@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login as loginAction, getSession, loadData, loadRemoteData, saveSession } from "@/lib/data-store";
+import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import type { AppData, SessionUser } from "@/lib/types";
 
 type AppContextValue = {
@@ -23,6 +24,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData>(() => loadData());
   const [session, setSession] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
+  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(() => {
     setData(loadData());
@@ -39,6 +41,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
+  const updateData = useCallback((updater: (current: AppData) => AppData) => {
+    setData((current) => {
+      const next = updater(current);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("ak-motion-data", JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     void refresh();
     window.addEventListener("ak-motion-data", refresh);
@@ -51,6 +63,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    if (!hasSupabaseConfig || !supabase) {
+      return;
+    }
+
+    const supabaseClient = supabase;
+    const tables = [
+      "profiles",
+      "event_requests",
+      "events",
+      "event_availability",
+      "event_assignments",
+      "event_attendance",
+      "registration_requests",
+      "knowledge_pages",
+      "knowledge_suggestions",
+      "landing_content"
+    ];
+
+    function scheduleRefresh() {
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      realtimeRefreshTimerRef.current = setTimeout(() => {
+        void refresh();
+      }, 180);
+    }
+
+    const channel = supabaseClient.channel("ak-motion-app-data");
+    tables.forEach((table) => {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, scheduleRefresh);
+    });
+    channel.subscribe();
+
+    return () => {
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [refresh]);
+
   const value = useMemo<AppContextValue>(
     () => ({
       data,
@@ -58,7 +112,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ready,
       isAdmin: session?.role === "admin",
       refresh,
-      updateData: (updater) => setData((current) => updater(current)),
+      updateData,
       login: async (email, password) => {
         const user = await loginAction(email, password);
         setSession(user);
@@ -70,7 +124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         router.push("/login");
       }
     }),
-    [data, ready, refresh, router, session]
+    [data, ready, refresh, router, session, updateData]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

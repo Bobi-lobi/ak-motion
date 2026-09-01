@@ -8,141 +8,196 @@ export default function DatenschutzPage() {
         <span className="eyebrow">Rechtliches</span>
         <h1>Datenschutzerklärung</h1>
 
-        <section className="legal-warning">
-          <strong>Wichtiger Hinweis vor Veröffentlichung</strong>
+        <section>
+          <h2>1. Verantwortlicher</h2>
+          <p>Verantwortlich für die Verarbeitung personenbezogener Daten im Rahmen dieser Webanwendung ist:</p>
           <p>
-            Diese Datenschutzerklärung beschreibt die aktuelle technische Umsetzung der App. Die Kontaktdaten der oder des
-            Datenschutzbeauftragten der Schule müssen vor einer öffentlichen Veröffentlichung durch die Schule ergänzt und geprüft werden.
+            Hubert Moorheimer
+            <br />
+            Flachwinklweg 1
+            <br />
+            83999 Breixbrunn
+          </p>
+          <p>
+            E-Mail: <a href="mailto:info@moorheimer.de">info@moorheimer.de</a>
           </p>
         </section>
 
         <section>
-          <h2>Verantwortlicher</h2>
+          <h2>2. Zweck der Verarbeitung</h2>
           <p>
-            Karlsgymnasium Bad Reichenhall
-            <br />
-            Salzburger Straße 28
-            <br />
-            83435 Bad Reichenhall
-            <br />
-            Telefon: +49 (0) 8651 7167 - 0
-            <br />
-            Fax: +49 (0) 8651 7167 - 128
-            <br />
-            E-Mail: <a href="mailto:info@karlsgymnasium-bgl.de">info@karlsgymnasium-bgl.de</a>
+            AK Motion ist eine Webanwendung zur Organisation des AK Technik am Karlsgymnasium Bad Reichenhall. Die Verarbeitung
+            personenbezogener Daten erfolgt ausschließlich zur Durchführung und Organisation schulischer Veranstaltungen und der internen
+            Zusammenarbeit des AK Technik.
           </p>
-          <p>Vertreten durch: OStD Rainer Dieckmann, Schulleiter</p>
-        </section>
-
-        <section>
-          <h2>Datenschutzbeauftragte Stelle</h2>
-          <p>
-            Die Kontaktdaten der zuständigen Datenschutzbeauftragten oder des zuständigen Datenschutzbeauftragten werden vor Veröffentlichung
-            durch die Schule ergänzt. Bis dahin können Datenschutzanfragen an die oben genannte E-Mail-Adresse gerichtet werden.
-          </p>
-        </section>
-
-        <section>
-          <h2>Zwecke der Verarbeitung</h2>
-          <p>Die App wird zur Organisation des AK-Technik und zur Planung schulischer Veranstaltungen genutzt. Verarbeitet werden Daten für:</p>
+          <p>Insbesondere werden Daten verarbeitet für:</p>
           <ul>
-            <li>Login, Rollenverwaltung und Profile von Teammitgliedern.</li>
-            <li>Bewerbungen neuer Mitglieder und Freischaltung durch Admins.</li>
-            <li>Anfragen für Veranstaltungen über das öffentliche Formular.</li>
-            <li>Kalender, technische Aufgabenverteilung, Verfügbarkeit und Anwesenheit.</li>
-            <li>Interne Wissensseiten, Vorschläge, Equipment-Verwaltung und Startseiteninhalte.</li>
-            <li>Technische Sicherheit, Fehleranalyse und Betrieb der Web-App.</li>
+            <li>Benutzerverwaltung und Anmeldung</li>
+            <li>Rollen- und Rechteverwaltung</li>
+            <li>Verwaltung von Teammitgliedern</li>
+            <li>Bewerbungen neuer Mitglieder</li>
+            <li>Planung und Organisation von Veranstaltungen</li>
+            <li>Verwaltung von Verfügbarkeiten und Diensteinteilungen</li>
+            <li>Equipmentverwaltung</li>
+            <li>interne Wissensseiten</li>
+            <li>Bearbeitung von Veranstaltungsanfragen</li>
+            <li>Gewährleistung eines sicheren und stabilen Betriebs der Anwendung</li>
           </ul>
         </section>
 
         <section>
-          <h2>Verarbeitete Daten</h2>
+          <h2>3. Verarbeitete personenbezogene Daten</h2>
+
+          <h3>Benutzerkonten</h3>
           <ul>
-            <li>Accountdaten: Name, E-Mail-Adresse, Rolle, optional Telefonnummer und Profilbild.</li>
-            <li>Bewerbungen: Name, E-Mail-Adresse, optional Telefonnummer, Status und Zeitstempel. Bewerbungs-Passwörter werden nicht gespeichert.</li>
-            <li>
-              Veranstaltungsdaten: Titel, Zeitraum, Ort, Art, Status, Kontaktperson, Kontakt-E-Mail, technische Hinweise, Notizen und optionale
-              Präsentationsdateien.
-            </li>
-            <li>Teamplanung: zugewiesene Personen, Bereiche wie Ton, Licht, Umbau oder Kleine, Verfügbarkeit und Teilnahme.</li>
-            <li>Inhalte: Wissensseiten, Vorschläge, Equipment-Einträge, Kommentare, Startseitentexte, Bilder und Teamnamen.</li>
-            <li>Browserdaten: Session-Informationen, lokale Einstellungen wie Seitenleistenbreite und technische Zwischenspeicher im Browser.</li>
-            <li>Server- und Logdaten: IP-Adresse, Zeitpunkt, User-Agent, angefragte URLs und technische Fehlerdaten beim Hostinganbieter.</li>
+            <li>Vor- und Nachname</li>
+            <li>E-Mail-Adresse</li>
+            <li>Benutzerrolle</li>
+            <li>optional Telefonnummer</li>
+            <li>optional Profilbild</li>
+          </ul>
+          <p>Passwörter werden nicht im Klartext gespeichert. Die Authentifizierung erfolgt über Supabase Authentication.</p>
+
+          <h3>Bewerbungen</h3>
+          <ul>
+            <li>Name</li>
+            <li>E-Mail-Adresse</li>
+            <li>optional Telefonnummer</li>
+            <li>Zeitpunkt der Bewerbung</li>
+            <li>Bewerbungsstatus</li>
+          </ul>
+
+          <h3>Veranstaltungsdaten</h3>
+          <ul>
+            <li>Veranstaltungstitel</li>
+            <li>Ort</li>
+            <li>Zeitraum</li>
+            <li>Art der Veranstaltung</li>
+            <li>Ansprechpartner</li>
+            <li>Kontakt-E-Mail</li>
+            <li>technische Anforderungen</li>
+            <li>interne Notizen</li>
+            <li>hochgeladene Dateien (optional)</li>
+          </ul>
+
+          <h3>Teamplanung</h3>
+          <ul>
+            <li>Verfügbarkeiten</li>
+            <li>Anwesenheit</li>
+            <li>Aufgabenbereiche</li>
+            <li>Diensteinteilungen</li>
+          </ul>
+
+          <h3>Inhalte</h3>
+          <ul>
+            <li>Wissensseiten</li>
+            <li>Vorschläge</li>
+            <li>Kommentare</li>
+            <li>Equipmenteinträge</li>
+            <li>Startseitentexte</li>
+            <li>Bilder</li>
           </ul>
         </section>
 
         <section>
-          <h2>Rechtsgrundlagen</h2>
+          <h2>4. Server- und Protokolldaten</h2>
+          <p>Beim Aufruf der Webanwendung werden technisch erforderliche Informationen verarbeitet. Hierzu gehören insbesondere:</p>
+          <ul>
+            <li>IP-Adresse</li>
+            <li>Datum und Uhrzeit</li>
+            <li>Browsertyp</li>
+            <li>Betriebssystem</li>
+            <li>aufgerufene Seiten</li>
+            <li>technische Fehlermeldungen</li>
+          </ul>
+          <p>Diese Daten dienen ausschließlich dem sicheren Betrieb der Anwendung.</p>
+        </section>
+
+        <section>
+          <h2>5. Rechtsgrundlagen</h2>
           <p>
-            Soweit die App für schulische Organisation und Veranstaltungsvorbereitung genutzt wird, erfolgt die Verarbeitung grundsätzlich auf
-            Basis von Art. 6 Abs. 1 lit. e DSGVO in Verbindung mit den schulischen Aufgaben. Für freiwillige Angaben, Bilder, öffentlich
-            sichtbare Inhalte und hochgeladene Dateien kann zusätzlich eine Einwilligung nach Art. 6 Abs. 1 lit. a DSGVO erforderlich sein.
-            Technisch notwendige Verarbeitungen zur Sicherheit und Bereitstellung der App können auf Art. 6 Abs. 1 lit. e oder lit. f DSGVO
-            gestützt werden, soweit dies im konkreten Betrieb zulässig ist.
+            Soweit die Webanwendung zur Organisation schulischer Veranstaltungen genutzt wird, erfolgt die Verarbeitung personenbezogener Daten
+            auf Grundlage der jeweils einschlägigen datenschutzrechtlichen Bestimmungen.
+          </p>
+          <p>Soweit erforderlich, erfolgt die Verarbeitung</p>
+          <ul>
+            <li>aufgrund einer Einwilligung gemäß Art. 6 Abs. 1 lit. a DSGVO,</li>
+            <li>zur Erfüllung berechtigter Interessen gemäß Art. 6 Abs. 1 lit. f DSGVO,</li>
+            <li>oder auf Grundlage der für den schulischen Einsatz einschlägigen gesetzlichen Vorschriften.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>6. Eingesetzte Dienstleister</h2>
+          <p>Für den Betrieb der Webanwendung werden externe Dienstleister eingesetzt.</p>
+
+          <h3>Supabase</h3>
+          <p>Supabase wird für Authentifizierung, Datenbank und Dateispeicherung eingesetzt.</p>
+
+          <h3>Vercel</h3>
+          <p>
+            Vercel wird für das Hosting der Webanwendung eingesetzt. Hierbei können technisch notwendige Server- und Protokolldaten verarbeitet
+            werden.
+          </p>
+          <p>Soweit gesetzlich erforderlich, werden mit eingesetzten Dienstleistern geeignete Vereinbarungen zur Auftragsverarbeitung abgeschlossen.</p>
+        </section>
+
+        <section>
+          <h2>7. Speicherdauer</h2>
+          <p>
+            Personenbezogene Daten werden nur so lange gespeichert, wie dies für den jeweiligen Zweck erforderlich ist. Nicht mehr benötigte
+            personenbezogene Daten werden gelöscht oder anonymisiert, sofern keine gesetzlichen Aufbewahrungspflichten bestehen. Bewerbungen
+            werden nach Abschluss des Bewerbungsverfahrens gelöscht, sofern keine weitere Speicherung erforderlich ist.
           </p>
         </section>
 
         <section>
-          <h2>Empfänger und Dienstleister</h2>
+          <h2>8. Cookies und lokale Speicherung</h2>
           <p>
-            Zugriff auf interne Daten erhalten nur berechtigte Teammitglieder und Admins entsprechend ihrer Rolle. Für Betrieb und Speicherung
-            können folgende Dienstleister eingesetzt werden:
+            AK Motion verwendet keine Werbe- oder Marketing-Cookies. Für den Betrieb der Anwendung können technisch notwendige Cookies oder
+            vergleichbare Speichertechnologien eingesetzt werden. Hierzu gehören insbesondere:
           </p>
           <ul>
-            <li>Supabase für Authentifizierung, Datenbank und gespeicherte Inhalte.</li>
-            <li>Vercel für Hosting, Auslieferung der Web-App und technische Logs.</li>
-            <li>Optional Cloudflare, falls die App später über eine eigene Domain oder einen Tunnel erreichbar gemacht wird.</li>
+            <li>Login-Sitzungen</li>
+            <li>Sicherheitstoken</li>
+            <li>lokale Benutzereinstellungen</li>
           </ul>
+          <p>Diese sind für den Betrieb der Anwendung erforderlich.</p>
+        </section>
+
+        <section>
+          <h2>9. Veröffentlichung von Bildern</h2>
           <p>
-            Mit eingesetzten Dienstleistern sind vor Veröffentlichung passende Verträge zur Auftragsverarbeitung und ein geeigneter
-            Projektstandort zu prüfen.
+            Bilder sowie personenbezogene Inhalte werden nur veröffentlicht, sofern hierfür die erforderlichen Rechte beziehungsweise
+            Einwilligungen vorliegen.
           </p>
         </section>
 
         <section>
-          <h2>Speicherdauer</h2>
+          <h2>10. Rechte betroffener Personen</h2>
+          <p>Betroffene Personen haben nach Maßgabe der Datenschutz-Grundverordnung insbesondere das Recht auf</p>
+          <ul>
+            <li>Auskunft,</li>
+            <li>Berichtigung,</li>
+            <li>Löschung,</li>
+            <li>Einschränkung der Verarbeitung,</li>
+            <li>Widerspruch,</li>
+            <li>Datenübertragbarkeit.</li>
+          </ul>
+          <p>Erteilte Einwilligungen können jederzeit mit Wirkung für die Zukunft widerrufen werden.</p>
+        </section>
+
+        <section>
+          <h2>11. Beschwerderecht</h2>
           <p>
-            Personenbezogene Daten werden nur so lange gespeichert, wie sie für die Organisation des AK-Technik, die Bearbeitung von Anfragen
-            oder gesetzliche und schulische Dokumentationspflichten erforderlich sind. Bewerbungen werden nach Entscheidung gelöscht oder nur
-            solange gespeichert, wie dies für die Freischaltung notwendig ist. Veranstaltungs- und Anwesenheitsdaten sollten spätestens nach
-            Ende des jeweiligen Schuljahres geprüft und gelöscht oder archiviert werden, wenn sie nicht mehr benötigt werden. Hochgeladene
-            Dateien und Bilder werden gelöscht, sobald sie nicht mehr erforderlich sind oder eine Einwilligung widerrufen wird.
+            Betroffene Personen haben das Recht, sich bei einer zuständigen Datenschutzaufsichtsbehörde über die Verarbeitung ihrer
+            personenbezogenen Daten zu beschweren.
           </p>
         </section>
 
         <section>
-          <h2>Veröffentlichte Bilder und Inhalte</h2>
-          <p>
-            Admins dürfen auf der Startseite nur Bilder, Namen, Texte und sonstige Inhalte veröffentlichen, für die die erforderlichen Rechte
-            und Einwilligungen vorliegen. Das gilt besonders für Fotos, auf denen Schülerinnen, Schüler oder Lehrkräfte erkennbar sind.
-          </p>
-        </section>
-
-        <section>
-          <h2>Cookies und lokale Speicherung</h2>
-          <p>
-            Die App verwendet keine Werbe- oder Tracking-Cookies. Für Login, Betrieb und Bedienkomfort können technisch notwendige
-            Informationen im Browser gespeichert werden, zum Beispiel Session-Daten, Ansichtsoptionen und lokale Zwischenspeicher. Diese Daten
-            können im Browser gelöscht werden; dadurch kann eine erneute Anmeldung erforderlich werden.
-          </p>
-        </section>
-
-        <section>
-          <h2>Betroffenenrechte</h2>
-          <p>
-            Betroffene Personen haben nach Maßgabe der DSGVO Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
-            Widerspruch und Datenübertragbarkeit. Soweit eine Verarbeitung auf Einwilligung beruht, kann diese Einwilligung jederzeit mit
-            Wirkung für die Zukunft widerrufen werden.
-          </p>
-          <p>
-            Außerdem besteht das Recht, sich bei einer Datenschutzaufsichtsbehörde zu beschweren. Für öffentliche Schulen in Bayern ist in der
-            Regel der Bayerische Landesbeauftragte für den Datenschutz zuständig.
-          </p>
-        </section>
-
-        <section>
-          <h2>Stand</h2>
-          <p>28. Juni 2026</p>
+          <h2>12. Stand</h2>
+          <p>Stand: Juni 2026</p>
         </section>
       </article>
     </main>
