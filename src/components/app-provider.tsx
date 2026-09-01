@@ -42,7 +42,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!authData.session) {
           window.localStorage.removeItem("ak-motion-session");
           setSession(null);
-          setReady(true);
+          const publicData = await loadRemoteData();
+          setData(publicData);
           return;
         }
 
