@@ -96,6 +96,38 @@ function cloneData(data: AppData): AppData {
   return JSON.parse(JSON.stringify(data)) as AppData;
 }
 
+function sameValue(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function persistData(data: AppData) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(DATA_KEY, JSON.stringify(data));
+  } catch (error) {
+    // Safari keeps a comparatively small localStorage quota. The landing page
+    // can exceed it because uploaded images are currently stored as data URLs.
+    // Keep a lightweight cache; Supabase remains the source of truth.
+    const lightweight = cloneData(data);
+    lightweight.landingContent.eventImages = [];
+    lightweight.landingContent.teamImage = "";
+    lightweight.landingContent.impressions = lightweight.landingContent.impressions.map((impression) => ({
+      ...impression,
+      images: []
+    }));
+
+    try {
+      window.localStorage.setItem(DATA_KEY, JSON.stringify(lightweight));
+    } catch {
+      window.localStorage.removeItem(DATA_KEY);
+    }
+    console.warn("Der lokale Bild-Cache war voll; die Bilder werden direkt aus Supabase geladen.", error);
+  }
+}
+
 function withoutDemoRecords(data: AppData): AppData {
   const demoProfileIds = new Set(demoData.profiles.map((item) => item.id));
   const demoRequestIds = new Set(demoData.requests.map((item) => item.id));
@@ -104,6 +136,21 @@ function withoutDemoRecords(data: AppData): AppData {
   const demoAssignmentIds = new Set(demoData.assignments.map((item) => item.id));
   const demoAttendanceIds = new Set(demoData.attendance.map((item) => item.id));
 
+  const demoLanding = demoData.landingContent;
+  const landingContent = { ...data.landingContent };
+  if (sameValue(landingContent.eventImages, demoLanding.eventImages)) {
+    landingContent.eventImages = [];
+  }
+  if (landingContent.teamImage === demoLanding.teamImage) {
+    landingContent.teamImage = "";
+  }
+  if (sameValue(landingContent.teamNames, demoLanding.teamNames)) {
+    landingContent.teamNames = [];
+  }
+  if (sameValue(landingContent.impressions, demoLanding.impressions)) {
+    landingContent.impressions = [];
+  }
+
   return {
     ...data,
     profiles: data.profiles.filter((item) => !demoProfileIds.has(item.id)),
@@ -111,7 +158,8 @@ function withoutDemoRecords(data: AppData): AppData {
     events: data.events.filter((item) => !demoEventIds.has(item.id)),
     availability: data.availability.filter((item) => !demoAvailabilityIds.has(item.id)),
     assignments: data.assignments.filter((item) => !demoAssignmentIds.has(item.id)),
-    attendance: data.attendance.filter((item) => !demoAttendanceIds.has(item.id))
+    attendance: data.attendance.filter((item) => !demoAttendanceIds.has(item.id)),
+    landingContent
   };
 }
 
@@ -123,12 +171,12 @@ function initialData(): AppData {
 function normalizeLandingContent(value?: Partial<LandingContent>): LandingContent {
   const defaults = cloneData(demoData).landingContent;
   const landing = { ...defaults, ...(value ?? {}) };
-  landing.eventImages = landing.eventImages?.length ? landing.eventImages : defaults.eventImages;
-  landing.teamImage = landing.teamImage ?? defaults.teamImage;
-  landing.teamNames = landing.teamNames?.length ? landing.teamNames : defaults.teamNames;
+  landing.eventImages = Array.isArray(value?.eventImages) ? value.eventImages : defaults.eventImages;
+  landing.teamImage = typeof value?.teamImage === "string" ? value.teamImage : defaults.teamImage;
+  landing.teamNames = Array.isArray(value?.teamNames) ? value.teamNames : defaults.teamNames;
   landing.teamNames = landing.teamNames.map((name) => (name === "Teamleitung" ? "Max" : name));
-  landing.impressions = landing.impressions?.length ? landing.impressions : defaults.impressions;
-  landing.stats = landing.stats?.length ? landing.stats : defaults.stats;
+  landing.impressions = Array.isArray(value?.impressions) ? value.impressions : defaults.impressions;
+  landing.stats = Array.isArray(value?.stats) && value.stats.length ? value.stats : defaults.stats;
 
   if (landing.joinText.includes("Keine Vorerfahrung nötig") && !landing.joinText.includes("Freitag um 13:00 Uhr")) {
     landing.joinText =
@@ -218,24 +266,24 @@ export function loadData(): AppData {
   const existing = window.localStorage.getItem(DATA_KEY);
   if (!existing) {
     const seeded = initialData();
-    window.localStorage.setItem(DATA_KEY, JSON.stringify(seeded));
+    persistData(seeded);
     return seeded;
   }
 
   try {
     const normalized = normalizeData(JSON.parse(existing) as AppData);
     const parsed = hasSupabaseConfig ? withoutDemoRecords(normalized) : normalized;
-    window.localStorage.setItem(DATA_KEY, JSON.stringify(parsed));
+    persistData(parsed);
     return parsed;
   } catch {
     const seeded = initialData();
-    window.localStorage.setItem(DATA_KEY, JSON.stringify(seeded));
+    persistData(seeded);
     return seeded;
   }
 }
 
 export function saveData(data: AppData) {
-  window.localStorage.setItem(DATA_KEY, JSON.stringify(data));
+  persistData(data);
   window.dispatchEvent(new Event("ak-motion-data"));
 }
 
@@ -439,7 +487,7 @@ export async function loadRemoteData(): Promise<AppData> {
   });
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(DATA_KEY, JSON.stringify(remote));
+    persistData(remote);
     if (Object.keys(pendingKnowledge).length || Object.keys(pendingEvents).length) {
       void flushPendingRemoteWrites();
     }

@@ -25,10 +25,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initializedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    setData(loadData());
-    setSession(hasSupabaseConfig ? null : getSession());
+    if (!initializedRef.current) {
+      setData(loadData());
+    }
+    if (!hasSupabaseConfig) {
+      setSession(getSession());
+    }
 
     try {
       // Supabase restores the persisted JWT asynchronously. Waiting here avoids
@@ -45,6 +50,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const publicData = await loadRemoteData();
           setData(publicData);
           return;
+        }
+
+        const cachedSession = getSession();
+        if (cachedSession?.id === authData.session.user.id) {
+          setSession(cachedSession);
         }
 
         const { data: profile, error: profileError } = await supabase
@@ -74,6 +84,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Supabase-Daten konnten nicht geladen werden:", error);
     } finally {
+      initializedRef.current = true;
       setReady(true);
     }
   }, []);

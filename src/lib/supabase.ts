@@ -7,5 +7,11 @@ const forceDemoMode = process.env.NEXT_PUBLIC_FORCE_DEMO_MODE === "true";
 export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey && !forceDemoMode);
 
 export const supabase = hasSupabaseConfig
-  ? createClient(supabaseUrl as string, supabaseAnonKey as string)
+  ? createClient(supabaseUrl as string, supabaseAnonKey as string, {
+      auth: {
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        persistSession: true
+      }
+    })
   : null;
