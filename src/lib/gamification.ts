@@ -1,4 +1,5 @@
 import type { AssignmentRole, Event as CalendarEvent, EventAssignment, EventAttendance, Profile } from "@/lib/types";
+import { isDateInSchoolYear } from "@/lib/school-year";
 
 export const rankLadder = [
   { name: "Rookie", min: 0 },
@@ -266,7 +267,7 @@ export function calculatePlayerScores(
   events: CalendarEvent[],
   assignments: EventAssignment[],
   attendance: EventAttendance[],
-  year: number,
+  schoolYear: number,
   claimedQuestIdsByProfile: Record<string, string[]> = {}
 ) {
   const eventById = new Map(events.map((event) => [event.id, event]));
@@ -291,7 +292,7 @@ export function calculatePlayerScores(
           !event ||
           isEventType(event, "Termin") ||
           event.status !== "Abgeschlossen" ||
-          new Date(event.startsAt).getFullYear() !== year
+          !isDateInSchoolYear(event.startsAt, schoolYear)
         ) {
           return;
         }

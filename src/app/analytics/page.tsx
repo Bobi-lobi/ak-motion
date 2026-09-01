@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { Lightbulb } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
+import { SchoolYearSelect } from "@/components/school-year-select";
 import { useApp } from "@/components/app-provider";
+import { isDateInSchoolYear, monthInBerlin, schoolYearForDate, schoolYearMonths, schoolYearOptions } from "@/lib/school-year";
+import { isPlaceholderProfile } from "@/lib/gamification";
 
-const monthNames = ["Jan", "Feb", "März", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const axisStyle = { fill: "#a9a9a3", fontSize: 12 };
 const tooltipStyle = {
   background: "#2b2b2b",
@@ -18,62 +20,57 @@ const tooltipStyle = {
 
 export default function AnalyticsPage() {
   const { data } = useApp();
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [schoolYear, setSchoolYear] = useState(() => schoolYearForDate());
 
-  const years = useMemo(() => {
-    const allYears = new Set([
-      currentYear,
-      ...data.events.map((event) => new Date(event.startsAt).getFullYear())
-    ]);
-    return Array.from(allYears).sort((a, b) => b - a);
-  }, [currentYear, data.events]);
+  const schoolYears = useMemo(() => schoolYearOptions(data.events), [data.events]);
+  const countedEvents = useMemo(
+    () =>
+      data.events.filter(
+        (event) =>
+          event.eventType.trim().toLowerCase() !== "termin" &&
+          event.status === "Abgeschlossen" &&
+          isDateInSchoolYear(event.startsAt, schoolYear)
+      ),
+    [data.events, schoolYear]
+  );
+  const countedEventById = useMemo(() => new Map(countedEvents.map((event) => [event.id, event])), [countedEvents]);
 
   const technicianStats = useMemo(
     () =>
       data.profiles
-        .filter((profile) => profile.role === "technician" || profile.role === "admin")
+        .filter(
+          (profile) =>
+            (profile.role === "technician" || profile.role === "admin") && !isPlaceholderProfile(profile)
+        )
         .map((profile) => ({
           name: profile.name,
-          einsaetze: data.assignments.filter((assignment) => {
-            const event = data.events.find((eventItem) => eventItem.id === assignment.eventId);
-            return (
-              assignment.profileId === profile.id &&
-              event?.status === "Abgeschlossen" &&
-              event.eventType.toLowerCase() !== "probe" &&
-              new Date(event.startsAt).getFullYear() === year
-            );
-          }).length
-        })),
-    [data.assignments, data.events, data.profiles, year]
+          einsaetze: new Set(
+            data.assignments
+              .filter((assignment) => {
+                const event = countedEventById.get(assignment.eventId);
+                return assignment.profileId === profile.id && event?.eventType.trim().toLowerCase() !== "probe";
+              })
+              .map((assignment) => assignment.eventId)
+          ).size
+        }))
+        .sort((a, b) => b.einsaetze - a.einsaetze),
+    [countedEventById, data.assignments, data.profiles]
   );
 
   const eventStats = useMemo(
     () =>
-      monthNames.map((name, index) => ({
-        monat: name,
-        veranstaltungen: data.events.filter((event) => {
-          const date = new Date(event.startsAt);
-          return event.status === "Abgeschlossen" && date.getFullYear() === year && date.getMonth() === index;
-        }).length
+      schoolYearMonths.map(({ label, month }) => ({
+        monat: label,
+        veranstaltungen: countedEvents.filter((event) => monthInBerlin(event.startsAt) === month).length
       })),
-    [data.events, year]
+    [countedEvents]
   );
 
   return (
     <RouteGuard>
-      <AppShell title="Statistik" eyebrow="Jahresauswertung">
+      <AppShell title="Statistik" eyebrow="Schuljahresauswertung">
         <section className="toolbar">
-          <label className="select-label">
-            Jahr
-            <select value={year} onChange={(event) => setYear(Number(event.target.value))}>
-              {years.map((yearItem) => (
-                <option key={yearItem} value={yearItem}>
-                  {yearItem}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SchoolYearSelect value={schoolYear} options={schoolYears} onChange={setSchoolYear} />
         </section>
 
         <section className="analytics-grid">
@@ -82,9 +79,23 @@ export default function AnalyticsPage() {
             <ResponsiveContainer width="100%" height={Math.max(280, technicianStats.length * 36)}>
               <BarChart data={technicianStats} layout="vertical" margin={{ left: 18, right: 20 }}>
                 <CartesianGrid stroke="#333333" strokeDasharray="3 3" vertical={false} />
-                <XAxis allowDecimals={false} type="number" tick={axisStyle} tickLine={false} axisLine={{ stroke: "#464646" }} />
+                <XAxis
+                  allowDecimals={false}
+                  type="number"
+                  domain={[0, (dataMax: number) => Math.max(3, dataMax)]}
+                  tick={axisStyle}
+                  tickLine={false}
+                  axisLine={{ stroke: "#464646" }}
+                />
                 <YAxis dataKey="name" type="category" width={140} interval={0} tick={axisStyle} tickLine={false} axisLine={{ stroke: "#464646" }} />
                 <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(91, 140, 255, 0.08)" }} />
+                <ReferenceLine
+                  x={3}
+                  stroke="#f0b35a"
+                  strokeDasharray="5 5"
+                  strokeWidth={2}
+                  label={{ value: "Zertifikat + Pizza", position: "insideTopRight", fill: "#f0b35a", fontSize: 11 }}
+                />
                 <Bar dataKey="einsaetze" fill="#5b8cff" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -106,7 +117,7 @@ export default function AnalyticsPage() {
 
         <aside className="analytics-info-callout">
           <Lightbulb size={26} />
-          <p>Nur wer mehr als zwei Veranstaltungen im Jahr betreut, bekommt am Ende des Jahres ein Zertifikat und darf mit zum Pizza Essen gehen!</p>
+          <p>Ab drei betreuten Veranstaltungen im Schuljahr gibt es ein Zertifikat und Pizza. Termine und Proben zählen dafür nicht.</p>
         </aside>
       </AppShell>
     </RouteGuard>

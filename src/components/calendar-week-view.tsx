@@ -4,7 +4,7 @@ import FullCalendar from "@fullcalendar/react";
 import interactionPlugin from "@fullcalendar/interaction";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import deLocale from "@fullcalendar/core/locales/de";
-import type { DateSelectArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
+import type { DateSelectArg, EventClickArg, EventDropArg, EventMountArg } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import type { Event } from "@/lib/types";
 
@@ -13,12 +13,14 @@ export function CalendarWeekView({
   events,
   onCreate,
   onOpen,
+  onContextMenu,
   onTimeChange
 }: {
   date: Date;
   events: Event[];
   onCreate: (start: Date, end: Date) => void;
   onOpen: (eventId: string) => void;
+  onContextMenu: (eventId: string, x: number, y: number) => void;
   onTimeChange: (eventId: string, startsAt: string, endsAt: string, revert: () => void) => void;
 }) {
   function handleDrop(info: EventDropArg | EventResizeDoneArg) {
@@ -54,6 +56,7 @@ export function CalendarWeekView({
         slotMaxTime="23:00:00"
         scrollTime="11:00:00"
         slotDuration="00:15:00"
+        slotLabelInterval="01:00:00"
         snapDuration="00:15:00"
         height="auto"
         expandRows
@@ -66,6 +69,16 @@ export function CalendarWeekView({
         }))}
         select={(info: DateSelectArg) => onCreate(info.start, info.end)}
         eventClick={(info: EventClickArg) => onOpen(info.event.id)}
+        eventDidMount={(info: EventMountArg) => {
+          info.el.oncontextmenu = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onContextMenu(info.event.id, event.clientX, event.clientY);
+          };
+        }}
+        eventWillUnmount={(info: EventMountArg) => {
+          info.el.oncontextmenu = null;
+        }}
         eventDrop={handleDrop}
         eventResize={handleDrop}
         eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}

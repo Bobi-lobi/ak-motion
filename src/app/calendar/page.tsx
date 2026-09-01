@@ -335,6 +335,7 @@ export default function CalendarPage() {
               events={uniqueEvents(data.events)}
               onCreate={(start, end) => void createEventAt(start, end)}
               onOpen={setSelectedEventId}
+              onContextMenu={(eventId, x, y) => setContextMenu({ eventId, x, y })}
               onTimeChange={(eventId, startsAt, endsAt, revert) => void changeEventTimes(eventId, startsAt, endsAt, revert)}
             />
           )}

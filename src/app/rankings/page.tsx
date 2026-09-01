@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CircleHelp, Clock, Flag, Lock, Medal, Sparkles, Trophy, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
+import { SchoolYearSelect } from "@/components/school-year-select";
 import { useApp } from "@/components/app-provider";
 import {
   calculatePlayerScores,
@@ -14,17 +15,17 @@ import {
   type PlayerScore,
   type QuestProgress
 } from "@/lib/gamification";
+import { schoolYearForDate, schoolYearLabel, schoolYearOptions } from "@/lib/school-year";
 
 export default function RankingsPage() {
   const { data, session } = useApp();
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [schoolYear, setSchoolYear] = useState(() => schoolYearForDate());
   const [helpOpen, setHelpOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [claimedQuestIds, setClaimedQuestIds] = useState<string[]>([]);
   const [claimAnimation, setClaimAnimation] = useState<{ id: string; xp: number } | null>(null);
 
-  const claimStorageKey = session?.id ? `ak-motion-claimed-quests:${session.id}:${year}` : "";
+  const claimStorageKey = session?.id ? `ak-motion-claimed-quests:${session.id}:${schoolYear}` : "";
 
   useEffect(() => {
     if (!claimStorageKey) {
@@ -52,19 +53,16 @@ export default function RankingsPage() {
     window.setTimeout(() => setClaimAnimation(null), 950);
   }
 
-  const years = useMemo(() => {
-    const allYears = new Set([currentYear, ...data.events.map((event) => new Date(event.startsAt).getFullYear())]);
-    return Array.from(allYears).sort((a, b) => b - a);
-  }, [currentYear, data.events]);
+  const schoolYears = useMemo(() => schoolYearOptions(data.events), [data.events]);
 
-  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, year, session?.id ? { [session.id]: claimedQuestIds } : {}), [
+  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, schoolYear, session?.id ? { [session.id]: claimedQuestIds } : {}), [
     data.assignments,
     data.attendance,
     data.events,
     data.profiles,
     claimedQuestIds,
     session?.id,
-    year
+    schoolYear
   ]);
 
   const currentPlayer = scores.find((score) => score.profile.id === session?.id) ?? scores[0] ?? null;
@@ -75,7 +73,7 @@ export default function RankingsPage() {
       <AppShell title="Level" eyebrow="Dein Fortschritt" contentClassName="ranking-page" titleIcon={<Trophy size={30} />}>
         <section className="ranking-hero">
           <div className="ranking-hero-copy">
-            <span className="eyebrow">Saison {year}</span>
+            <span className="eyebrow">Schuljahr {schoolYearLabel(schoolYear)}</span>
             <h2>Jeder Einsatz bringt dich weiter.</h2>
             <p>
               Sieh deinen nächsten Titel, nimm eine Quest mit und vergleiche dich freundlich mit dem Team.
@@ -85,16 +83,7 @@ export default function RankingsPage() {
             <CircleHelp size={20} />
           </button>
           <div className="ranking-hero-actions">
-            <label className="select-label ranking-year-select">
-              Jahr
-              <select value={year} onChange={(event) => setYear(Number(event.target.value))}>
-                {years.map((yearItem) => (
-                  <option key={yearItem} value={yearItem}>
-                    {yearItem}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SchoolYearSelect value={schoolYear} options={schoolYears} onChange={setSchoolYear} />
           </div>
         </section>
 
