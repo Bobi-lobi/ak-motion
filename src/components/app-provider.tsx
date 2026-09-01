@@ -28,7 +28,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     setData(loadData());
-    setSession(getSession());
+    setSession(hasSupabaseConfig ? null : getSession());
 
     try {
       // Supabase restores the persisted JWT asynchronously. Waiting here avoids

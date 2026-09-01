@@ -96,6 +96,30 @@ function cloneData(data: AppData): AppData {
   return JSON.parse(JSON.stringify(data)) as AppData;
 }
 
+function withoutDemoRecords(data: AppData): AppData {
+  const demoProfileIds = new Set(demoData.profiles.map((item) => item.id));
+  const demoRequestIds = new Set(demoData.requests.map((item) => item.id));
+  const demoEventIds = new Set(demoData.events.map((item) => item.id));
+  const demoAvailabilityIds = new Set(demoData.availability.map((item) => item.id));
+  const demoAssignmentIds = new Set(demoData.assignments.map((item) => item.id));
+  const demoAttendanceIds = new Set(demoData.attendance.map((item) => item.id));
+
+  return {
+    ...data,
+    profiles: data.profiles.filter((item) => !demoProfileIds.has(item.id)),
+    requests: data.requests.filter((item) => !demoRequestIds.has(item.id)),
+    events: data.events.filter((item) => !demoEventIds.has(item.id)),
+    availability: data.availability.filter((item) => !demoAvailabilityIds.has(item.id)),
+    assignments: data.assignments.filter((item) => !demoAssignmentIds.has(item.id)),
+    attendance: data.attendance.filter((item) => !demoAttendanceIds.has(item.id))
+  };
+}
+
+function initialData(): AppData {
+  const seeded = normalizeData(cloneData(demoData));
+  return hasSupabaseConfig ? withoutDemoRecords(seeded) : seeded;
+}
+
 function normalizeLandingContent(value?: Partial<LandingContent>): LandingContent {
   const defaults = cloneData(demoData).landingContent;
   const landing = { ...defaults, ...(value ?? {}) };
@@ -193,17 +217,18 @@ export function loadData(): AppData {
 
   const existing = window.localStorage.getItem(DATA_KEY);
   if (!existing) {
-    const seeded = normalizeData(cloneData(demoData));
+    const seeded = initialData();
     window.localStorage.setItem(DATA_KEY, JSON.stringify(seeded));
     return seeded;
   }
 
   try {
-    const parsed = normalizeData(JSON.parse(existing) as AppData);
+    const normalized = normalizeData(JSON.parse(existing) as AppData);
+    const parsed = hasSupabaseConfig ? withoutDemoRecords(normalized) : normalized;
     window.localStorage.setItem(DATA_KEY, JSON.stringify(parsed));
     return parsed;
   } catch {
-    const seeded = normalizeData(cloneData(demoData));
+    const seeded = initialData();
     window.localStorage.setItem(DATA_KEY, JSON.stringify(seeded));
     return seeded;
   }
