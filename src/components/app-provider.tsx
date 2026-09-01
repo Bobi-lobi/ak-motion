@@ -14,7 +14,7 @@ type AppContextValue = {
   refresh: () => void;
   updateData: (updater: (current: AppData) => AppData) => void;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AppContext = React.createContext<AppContextValue | null>(null);
@@ -26,19 +26,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     setData(loadData());
     setSession(getSession());
-    return loadRemoteData()
-      .then((remoteData) => {
-        setData(remoteData);
-        setSession(getSession());
-        setReady(true);
-      })
-      .catch((error) => {
-        console.error("Supabase-Daten konnten nicht geladen werden:", error);
-        setReady(true);
-      });
+
+    try {
+      // Supabase restores the persisted JWT asynchronously. Waiting here avoids
+      // an anonymous RLS query winning the race after a reload or direct link.
+      if (hasSupabaseConfig && supabase) {
+        const { data: authData, error: authError } = await supabase.auth.getSession();
+        if (authError) {
+          throw authError;
+        }
+
+        if (!authData.session) {
+          setSession(null);
+        }
+      }
+
+      const remoteData = await loadRemoteData();
+      setData(remoteData);
+      setSession(getSession());
+    } catch (error) {
+      console.error("Supabase-Daten konnten nicht geladen werden:", error);
+    } finally {
+      setReady(true);
+    }
   }, []);
 
   const updateData = useCallback((updater: (current: AppData) => AppData) => {
@@ -97,10 +110,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     channel.subscribe();
 
+    const { data: authListener } = supabaseClient.auth.onAuthStateChange(() => {
+      // Do not await Supabase calls inside the auth callback itself.
+      window.setTimeout(() => {
+        void refresh();
+      }, 0);
+    });
+
     return () => {
       if (realtimeRefreshTimerRef.current) {
         clearTimeout(realtimeRefreshTimerRef.current);
       }
+      authListener.subscription.unsubscribe();
       void supabaseClient.removeChannel(channel);
     };
   }, [refresh]);
@@ -116,9 +137,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login: async (email, password) => {
         const user = await loginAction(email, password);
         setSession(user);
+        await refresh();
         router.push("/calendar");
       },
-      logout: () => {
+      logout: async () => {
+        if (hasSupabaseConfig && supabase) {
+          await supabase.auth.signOut();
+        }
         saveSession(null);
         setSession(null);
         router.push("/login");
