@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login as loginAction, getSession, loadData, loadRemoteData, saveSession } from "@/lib/data-store";
+import { cacheData, login as loginAction, getSession, loadData, loadRemoteData, saveSession } from "@/lib/data-store";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import type { AppData, SessionUser } from "@/lib/types";
 
@@ -92,9 +92,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateData = useCallback((updater: (current: AppData) => AppData) => {
     setData((current) => {
       const next = updater(current);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("ak-motion-data", JSON.stringify(next));
-      }
+      cacheData(next);
       return next;
     });
   }, []);

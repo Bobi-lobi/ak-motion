@@ -43,7 +43,11 @@ function savePendingKnowledgeWrites(writes: Record<string, PendingKnowledgeWrite
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(PENDING_KNOWLEDGE_KEY, JSON.stringify(writes));
+  try {
+    window.localStorage.setItem(PENDING_KNOWLEDGE_KEY, JSON.stringify(writes));
+  } catch (error) {
+    console.warn("Die ausstehende Dokumentänderung konnte nicht lokal zwischengespeichert werden.", error);
+  }
 }
 
 function loadPendingEventWrites(): Record<string, PendingEventWrite> {
@@ -61,7 +65,11 @@ function savePendingEventWrites(writes: Record<string, PendingEventWrite>) {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(PENDING_EVENTS_KEY, JSON.stringify(writes));
+  try {
+    window.localStorage.setItem(PENDING_EVENTS_KEY, JSON.stringify(writes));
+  } catch (error) {
+    console.warn("Die ausstehende Veranstaltungsänderung konnte nicht lokal zwischengespeichert werden.", error);
+  }
 }
 
 function rememberPendingKnowledgeWrite(write: PendingKnowledgeWrite) {
@@ -100,7 +108,7 @@ function sameValue(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function persistData(data: AppData) {
+export function cacheData(data: AppData) {
   if (typeof window === "undefined") {
     return;
   }
@@ -111,18 +119,23 @@ function persistData(data: AppData) {
     // Safari keeps a comparatively small localStorage quota. The landing page
     // can exceed it because uploaded images are currently stored as data URLs.
     // Keep a lightweight cache; Supabase remains the source of truth.
-    const lightweight = cloneData(data);
-    lightweight.landingContent.eventImages = [];
-    lightweight.landingContent.teamImage = "";
-    lightweight.landingContent.impressions = lightweight.landingContent.impressions.map((impression) => ({
-      ...impression,
-      images: []
-    }));
-
     try {
-      window.localStorage.setItem(DATA_KEY, JSON.stringify(lightweight));
-    } catch {
+      const lightweight = cloneData(data);
+      lightweight.landingContent.eventImages = [];
+      lightweight.landingContent.teamImage = "";
+      lightweight.landingContent.impressions = lightweight.landingContent.impressions.map((impression) => ({
+        ...impression,
+        images: []
+      }));
       window.localStorage.removeItem(DATA_KEY);
+      window.localStorage.setItem(DATA_KEY, JSON.stringify(lightweight));
+    } catch (fallbackError) {
+      try {
+        window.localStorage.removeItem(DATA_KEY);
+      } catch {
+        // Storage can be unavailable entirely in restrictive Safari contexts.
+      }
+      console.warn("Auch der reduzierte lokale Cache konnte nicht gespeichert werden.", fallbackError);
     }
     console.warn("Der lokale Bild-Cache war voll; die Bilder werden direkt aus Supabase geladen.", error);
   }
@@ -266,24 +279,24 @@ export function loadData(): AppData {
   const existing = window.localStorage.getItem(DATA_KEY);
   if (!existing) {
     const seeded = initialData();
-    persistData(seeded);
+    cacheData(seeded);
     return seeded;
   }
 
   try {
     const normalized = normalizeData(JSON.parse(existing) as AppData);
     const parsed = hasSupabaseConfig ? withoutDemoRecords(normalized) : normalized;
-    persistData(parsed);
+    cacheData(parsed);
     return parsed;
   } catch {
     const seeded = initialData();
-    persistData(seeded);
+    cacheData(seeded);
     return seeded;
   }
 }
 
 export function saveData(data: AppData) {
-  persistData(data);
+  cacheData(data);
   window.dispatchEvent(new Event("ak-motion-data"));
 }
 
@@ -487,7 +500,7 @@ export async function loadRemoteData(): Promise<AppData> {
   });
 
   if (typeof window !== "undefined") {
-    persistData(remote);
+    cacheData(remote);
     if (Object.keys(pendingKnowledge).length || Object.keys(pendingEvents).length) {
       void flushPendingRemoteWrites();
     }
