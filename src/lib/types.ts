@@ -2,7 +2,7 @@ export type UserRole = "admin" | "technician";
 
 export type AvailabilityStatus = "committed" | "backup";
 
-export type AssignmentRole = "Ton" | "Licht" | "Angel" | "Umbau" | "Kleine";
+export type AssignmentRole = "Ton" | "Licht" | "Angel" | "Umbau" | "Kleine" | "Teilnehmer";
 
 export type RequestStatus = "pending" | "approved" | "rejected";
 export type RegistrationStatus = "pending" | "approved" | "rejected";

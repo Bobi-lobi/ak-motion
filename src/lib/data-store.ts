@@ -1152,6 +1152,7 @@ export async function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">
     if (error || !data) {
       throw new Error(error?.message ?? "Veranstaltung konnte nicht erstellt werden.");
     }
+    void broadcastRemoteDataChange("event-created");
     return {
       id: data.id,
       title: data.title,
@@ -1180,6 +1181,22 @@ export async function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">
   data.events.unshift(event);
   saveData(data);
   return event;
+}
+
+async function broadcastRemoteDataChange(reason: string) {
+  if (!supabase) {
+    return;
+  }
+  const supabaseClient = supabase;
+  const channel = supabaseClient.channel("ak-motion-app-data");
+  channel.subscribe((status) => {
+    if (status !== "SUBSCRIBED") {
+      return;
+    }
+    void channel
+      .send({ type: "broadcast", event: "data_changed", payload: { reason, at: Date.now() } })
+      .finally(() => supabaseClient.removeChannel(channel));
+  });
 }
 
 export async function deleteEvent(eventId: string) {

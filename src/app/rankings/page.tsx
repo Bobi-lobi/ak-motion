@@ -72,13 +72,13 @@ export default function RankingsPage() {
 
   return (
     <RouteGuard>
-      <AppShell title="Level" eyebrow="Technik-Liga" contentClassName="ranking-page" titleIcon={<Trophy size={30} />}>
+      <AppShell title="Level" eyebrow="Dein Fortschritt" contentClassName="ranking-page" titleIcon={<Trophy size={30} />}>
         <section className="ranking-hero">
           <div className="ranking-hero-copy">
             <span className="eyebrow">Saison {year}</span>
-            <h2>XP sammeln, Titel freischalten, Einsatz zeigen.</h2>
+            <h2>Jeder Einsatz bringt dich weiter.</h2>
             <p>
-              XP entstehen aus abgeschlossenen Veranstaltungen. Titel zeigen, wer zuverlässig dabei ist und Verantwortung übernimmt.
+              Sieh deinen nächsten Titel, nimm eine Quest mit und vergleiche dich freundlich mit dem Team.
             </p>
           </div>
           <button className="icon-button ranking-help-button" type="button" aria-label="XP-Regeln anzeigen" onClick={() => setHelpOpen(true)}>
@@ -110,7 +110,7 @@ export default function RankingsPage() {
             <div className="ranking-section-head">
               <div>
                 <span className="eyebrow">Rangliste</span>
-                <h2>Technik-Liga</h2>
+                <h2>Team-Rangliste</h2>
               </div>
               <span className="ranking-count">{scores.length} Spieler</span>
             </div>
@@ -242,8 +242,8 @@ function QuestPanel({ onClaim, onShowCompleted, quests }: { onClaim: (quest: Que
       <div className="quest-stage-header">
         <div>
           <span className="eyebrow">Aktive Quests</span>
-          <h2>Nächste Aufgaben</h2>
-          <p>Erfüllte Quests kannst du abholen. Danach verschwindet die Quest und die nächste schwerere Aufgabe rückt nach.</p>
+          <h2>Deine nächste Mission</h2>
+          <p>Erfüllen, XP abholen, nächste Mission freischalten. Mehr musst du nicht im Kopf behalten.</p>
         </div>
       </div>
 

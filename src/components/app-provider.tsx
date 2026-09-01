@@ -141,7 +141,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     tables.forEach((table) => {
       channel.on("postgres_changes", { event: "*", schema: "public", table }, scheduleRefresh);
     });
-    channel.subscribe();
+    channel.on("broadcast", { event: "data_changed" }, scheduleRefresh);
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        scheduleRefresh();
+      }
+    });
+
+    // A short visible-page fallback also covers home routers or browsers that
+    // temporarily suspend the realtime websocket.
+    const fallbackTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refresh();
+      }
+    }, 10000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refresh();
+      }
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     const { data: authListener } = supabaseClient.auth.onAuthStateChange(() => {
       // Do not await Supabase calls inside the auth callback itself.
@@ -155,6 +175,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(realtimeRefreshTimerRef.current);
       }
       authListener.subscription.unsubscribe();
+      window.clearInterval(fallbackTimer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
       void supabaseClient.removeChannel(channel);
     };
   }, [refresh]);

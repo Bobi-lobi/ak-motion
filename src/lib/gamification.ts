@@ -20,7 +20,8 @@ export const roleXp: Record<AssignmentRole, number> = {
   Licht: 50,
   Umbau: 50,
   Angel: 25,
-  Kleine: 20
+  Kleine: 20,
+  Teilnehmer: 0
 };
 
 export const eventTypeXpLimits = [
@@ -29,7 +30,8 @@ export const eventTypeXpLimits = [
   { type: "Feier", xp: 150 },
   { type: "Vortrag", xp: 100 },
   { type: "Aufführung", xp: 200 },
-  { type: "Konzert", xp: 300 }
+  { type: "Konzert", xp: 300 },
+  { type: "Termin", xp: 0 }
 ];
 
 const allAssignmentRoles: AssignmentRole[] = ["Ton", "Licht", "Angel", "Umbau", "Kleine"];
@@ -216,6 +218,9 @@ export function eventMaxXp(event: CalendarEvent) {
 }
 
 export function assignmentXp(event: CalendarEvent, role: AssignmentRole, attended: boolean) {
+  if (isEventType(event, "Termin") || role === "Teilnehmer") {
+    return 0;
+  }
   const rawXp = eventBaseXp(event) + durationXp(event) + afterSchoolXp(event) + roleXp[role] + (attended ? 20 : 0);
   const typeLimit = eventTypeXpLimit(event);
   return typeLimit === null ? rawXp : Math.min(typeLimit, rawXp);
@@ -245,6 +250,9 @@ export function isRehearsal(event: CalendarEvent) {
 }
 
 export function assignmentRolesForEventType(eventType: string): AssignmentRole[] {
+  if (normalizeEventType(eventType) === normalizeEventType("Termin")) {
+    return ["Teilnehmer"];
+  }
   return normalizeEventType(eventType) === normalizeEventType("Schulische Veranstaltung") ? ["Ton"] : allAssignmentRoles;
 }
 
@@ -279,7 +287,12 @@ export function calculatePlayerScores(
 
       playerAssignments.forEach((assignment) => {
         const event = eventById.get(assignment.eventId);
-        if (!event || event.status !== "Abgeschlossen" || new Date(event.startsAt).getFullYear() !== year) {
+        if (
+          !event ||
+          isEventType(event, "Termin") ||
+          event.status !== "Abgeschlossen" ||
+          new Date(event.startsAt).getFullYear() !== year
+        ) {
           return;
         }
 

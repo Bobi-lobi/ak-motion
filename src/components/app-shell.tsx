@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
 import { updateProfile } from "@/lib/data-store";
+import { uploadAppMedia } from "@/lib/media-storage";
 import { knowledgePages } from "@/lib/knowledge";
 
 const SIDEBAR_WIDTH_KEY = "ak-motion-sidebar-width";
@@ -105,15 +106,18 @@ export function AppShell({
     setProfileOpen(false);
   }
 
-  function updateAvatar(fileList: FileList | null) {
+  async function updateAvatar(fileList: FileList | null) {
     const file = fileList?.[0];
     if (!file) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => setProfileAvatar(String(reader.result ?? ""));
-    reader.readAsDataURL(file);
+    try {
+      setProfileAvatar(await uploadAppMedia(file, "profile"));
+    } catch (error) {
+      console.error("Profilbild konnte nicht hochgeladen werden:", error);
+      window.alert(error instanceof Error ? error.message : "Profilbild konnte nicht hochgeladen werden.");
+    }
   }
 
   function openPageOnMobile(clickEvent: React.MouseEvent<HTMLAnchorElement>, href: string) {

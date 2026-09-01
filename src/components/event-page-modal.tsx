@@ -10,6 +10,10 @@ import {
   MapPin,
   Paperclip,
   Trophy,
+  Bold,
+  Italic,
+  Strikethrough,
+  Type,
   UsersRound,
   X
 } from "lucide-react";
@@ -22,6 +26,7 @@ import type { AssignmentRole, Event, Profile, SessionUser } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import { assignmentRolesForEventType, eventMaxXp } from "@/lib/gamification";
+import { uploadAppMedia } from "@/lib/media-storage";
 
 const statusDefaults = ["Nicht begonnen", "In Planung", "Bereit", "Abgeschlossen"];
 const typePalette = ["#9b6a64", "#7d609a", "#5f7fa3", "#6f8f72", "#a18452", "#8b6f93"];
@@ -88,6 +93,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
       "Vortrag",
       "Aufführung",
       "Konzert",
+      "Termin",
       ...data.events.map((item) => item.eventType).filter(Boolean)
     ])
   );
@@ -263,10 +269,17 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
         <header className="page-modal-actions">
-          <div className="event-xp-badge" title="Maximale XP für eine Person bei bester Rolle und markierter Anwesenheit">
-            <Trophy size={17} />
-            <span>Max {eventMaxXp(draftEvent)} XP</span>
-          </div>
+          {draftEvent.eventType.trim().toLowerCase() === "termin" ? (
+            <div className="event-xp-badge is-neutral" title="Termine geben keine XP">
+              <UsersRound size={17} />
+              <span>Gemeinsamer Termin</span>
+            </div>
+          ) : (
+            <div className="event-xp-badge" title="Maximale XP für eine Person bei bester Rolle und markierter Anwesenheit">
+              <Trophy size={17} />
+              <span>Max {eventMaxXp(draftEvent)} XP</span>
+            </div>
+          )}
           <button className="icon-button ghost" type="button" aria-label="Fenster schließen" onClick={onClose}>
             <X size={18} />
           </button>
@@ -892,6 +905,7 @@ export function SlashRichTextEditor({
   const selectedListItemRef = useRef<HTMLLIElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const pendingMediaCommandRef = useRef<SlashCommand | null>(null);
+  const selectedFormatRangeRef = useRef<Range | null>(null);
   const applyingRemoteHtmlRef = useRef(false);
   const blockIdsRef = useRef<WeakMap<HTMLElement, string>>(new WeakMap());
   const blockElementsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -926,12 +940,53 @@ export function SlashRichTextEditor({
   const [tableControls, setTableControls] = useState<TableControlsPosition | null>(null);
   const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenu | null>(null);
   const [liveTypers, setLiveTypers] = useState<Record<string, LiveTypingState>>({});
+  const [formatToolbar, setFormatToolbar] = useState<{ left: number; top: number } | null>(null);
   useCloseOnOutside(shellRef, () => setSlashOpen(false), slashOpen);
   useCloseOnOutside(pageIconPickerRef, () => setPageIconPickerOpen(false), pageIconPickerOpen);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    function syncFormatToolbar() {
+      const editor = editorRef.current;
+      const selection = window.getSelection();
+      if (!editor || !selection || !selection.rangeCount || selection.isCollapsed || !editor.contains(selection.anchorNode)) {
+        setFormatToolbar(null);
+        return;
+      }
+      const range = selection.getRangeAt(0).cloneRange();
+      const rect = range.getBoundingClientRect();
+      if (!rect.width && !rect.height) {
+        setFormatToolbar(null);
+        return;
+      }
+      selectedFormatRangeRef.current = range;
+      setFormatToolbar({ left: Math.max(12, Math.min(window.innerWidth - 430, rect.left + rect.width / 2 - 210)), top: Math.max(12, rect.top - 52) });
+    }
+    document.addEventListener("selectionchange", syncFormatToolbar);
+    window.addEventListener("resize", syncFormatToolbar);
+    return () => {
+      document.removeEventListener("selectionchange", syncFormatToolbar);
+      window.removeEventListener("resize", syncFormatToolbar);
+    };
+  }, []);
+
+  function formatSelectedText(command: string, value?: string) {
+    const editor = editorRef.current;
+    const range = selectedFormatRangeRef.current;
+    if (!editor || !range) {
+      return;
+    }
+    editor.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.execCommand(command, false, value);
+    syncEditor(false);
+    selectedFormatRangeRef.current = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : range;
+  }
 
   const commands: SlashCommand[] = [
     { label: "H1", description: "Große Überschrift", html: "<h1><br></h1><p><br></p>", keywords: ["heading", "überschrift"], section: "basis" },
@@ -1385,7 +1440,7 @@ export function SlashRichTextEditor({
     }
   }
 
-  function handleMediaSelected(fileList: FileList | null) {
+  async function handleMediaSelected(fileList: FileList | null) {
     const file = fileList?.[0];
     const command = pendingMediaCommandRef.current;
     pendingMediaCommandRef.current = null;
@@ -1395,9 +1450,8 @@ export function SlashRichTextEditor({
     }
 
     const editor = editorRef.current;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const source = String(reader.result ?? "");
+    try {
+      const source = await uploadAppMedia(file, "editor");
       if (!editor || !source) {
         return;
       }
@@ -1413,8 +1467,10 @@ export function SlashRichTextEditor({
       broadcastTyping(nextHtml);
       setIsEmpty(isEditorBlank(editor));
       refreshBlockHandles(editor);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Medium konnte nicht hochgeladen werden:", error);
+      window.alert(error instanceof Error ? error.message : "Medium konnte nicht hochgeladen werden.");
+    }
   }
 
   function handleEditorClick(mouseEvent: ReactMouseEvent<HTMLDivElement>) {
@@ -1870,6 +1926,32 @@ export function SlashRichTextEditor({
 
   return (
     <div className="slash-editor" ref={shellRef}>
+      {formatToolbar ? (
+        <div className="rich-format-toolbar" style={{ left: formatToolbar.left, top: formatToolbar.top }}>
+          <button type="button" aria-label="Fett" title="Fett" onMouseDown={(event) => event.preventDefault()} onClick={() => formatSelectedText("bold")}><Bold size={15} /></button>
+          <button type="button" aria-label="Kursiv" title="Kursiv" onMouseDown={(event) => event.preventDefault()} onClick={() => formatSelectedText("italic")}><Italic size={15} /></button>
+          <button type="button" aria-label="Durchgestrichen" title="Durchgestrichen" onMouseDown={(event) => event.preventDefault()} onClick={() => formatSelectedText("strikeThrough")}><Strikethrough size={15} /></button>
+          <label title="Schriftart">
+            <Type size={14} />
+            <select aria-label="Schriftart" defaultValue="Inter" onChange={(event) => formatSelectedText("fontName", event.target.value)}>
+              <option value="Inter">Inter</option>
+              <option value="Arial">Arial</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Courier New">Mono</option>
+            </select>
+          </label>
+          <select aria-label="Schriftgröße" title="Schriftgröße" defaultValue="3" onChange={(event) => formatSelectedText("fontSize", event.target.value)}>
+            <option value="2">Klein</option>
+            <option value="3">Normal</option>
+            <option value="4">Groß</option>
+            <option value="5">Sehr groß</option>
+          </select>
+          <label className="rich-color-control" title="Textfarbe">
+            <span aria-hidden="true" />
+            <input type="color" aria-label="Textfarbe" defaultValue="#f2f2f2" onChange={(event) => formatSelectedText("foreColor", event.target.value)} />
+          </label>
+        </div>
+      ) : null}
       <div className="block-handle-layer" aria-hidden="true">
         {liveTypingBadges.map(({ typing, handle }) => {
           return (

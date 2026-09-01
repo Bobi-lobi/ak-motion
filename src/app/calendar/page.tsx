@@ -1,11 +1,13 @@
 "use client";
 
-import { Bell, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { Bell, CalendarDays, ChevronLeft, ChevronRight, Columns3, Plus, Trash2 } from "lucide-react";
+import { addWeeks, endOfWeek, startOfWeek, subWeeks } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { EventCard } from "@/components/event-card";
 import { EventPageModal } from "@/components/event-page-modal";
+import { CalendarWeekView } from "@/components/calendar-week-view";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
 import { createEvent, deleteEvent, updateEvent } from "@/lib/data-store";
@@ -26,6 +28,7 @@ const weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 export default function CalendarPage() {
   const { data, refresh, updateData } = useApp();
   const [month, setMonth] = useState(() => new Date());
+  const [view, setView] = useState<"month" | "week">("month");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; eventId: string } | null>(null);
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
@@ -64,16 +67,12 @@ export default function CalendarPage() {
     }, 650);
   }
 
-  async function createEventOnDay(day: Date) {
-    const dayKey = format(day, "yyyy-MM-dd");
+  async function createEventAt(startsAt: Date, endsAt: Date) {
+    const dayKey = `${format(startsAt, "yyyy-MM-dd-HH-mm")}-${format(endsAt, "HH-mm")}`;
     if (creatingDayRef.current.has(dayKey)) {
       return;
     }
     creatingDayRef.current.add(dayKey);
-    const startsAt = new Date(day);
-    startsAt.setHours(13, 0, 0, 0);
-    const endsAt = new Date(day);
-    endsAt.setHours(16, 0, 0, 0);
     const optimisticEvent: Event = {
       id: `optimistic-event-${Date.now()}`,
       title: "Neue Veranstaltung",
@@ -128,6 +127,14 @@ export default function CalendarPage() {
     }
   }
 
+  function createEventOnDay(day: Date) {
+    const startsAt = new Date(day);
+    startsAt.setHours(13, 0, 0, 0);
+    const endsAt = new Date(day);
+    endsAt.setHours(16, 0, 0, 0);
+    return createEventAt(startsAt, endsAt);
+  }
+
   async function moveEventToDay(eventId: string, targetDay: Date) {
     const event = data.events.find((item) => item.id === eventId);
     if (!event || event.id.startsWith("optimistic-event-")) {
@@ -157,26 +164,67 @@ export default function CalendarPage() {
     }
   }
 
+  async function changeEventTimes(eventId: string, startsAt: string, endsAt: string, revert: () => void) {
+    const previous = data.events.find((item) => item.id === eventId);
+    if (!previous) {
+      revert();
+      return;
+    }
+    const patch = { startsAt, endsAt };
+    updateData((current) => ({
+      ...current,
+      events: current.events.map((item) => (item.id === eventId ? { ...item, ...patch } : item))
+    }));
+    try {
+      await updateEvent(eventId, patch);
+    } catch (error) {
+      revert();
+      updateData((current) => ({
+        ...current,
+        events: current.events.map((item) =>
+          item.id === eventId ? { ...item, startsAt: previous.startsAt, endsAt: previous.endsAt } : item
+        )
+      }));
+      console.error("Zeit konnte nicht geändert werden:", error);
+    }
+  }
+
+  const weekStart = startOfWeek(month, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(month, { weekStartsOn: 1 });
+  const calendarLabel = view === "month"
+    ? monthLabel(month)
+    : `${format(weekStart, "dd.MM.")} - ${format(weekEnd, "dd.MM.yyyy")}`;
+
   return (
     <RouteGuard>
       <AppShell title="Veranstaltungskalender" contentClassName="calendar-content" titleIcon={<Bell size={30} />}>
         <section className="calendar-board-wrap">
           <div className="calendar-board-toolbar">
-            <div className="calendar-month-label">{monthLabel(month)}</div>
+            <div className="calendar-toolbar-leading">
+              <div className="calendar-month-label">{calendarLabel}</div>
+              <div className="calendar-view-switch" aria-label="Kalenderansicht">
+                <button className={view === "month" ? "is-active" : ""} type="button" onClick={() => setView("month")}>
+                  <CalendarDays size={15} /> Monat
+                </button>
+                <button className={view === "week" ? "is-active" : ""} type="button" onClick={() => setView("week")}>
+                  <Columns3 size={15} /> Woche
+                </button>
+              </div>
+            </div>
             <div className="calendar-actions">
               <button className="button compact" type="button" onClick={() => setMonth(new Date())}>
                 Heute
               </button>
-              <button className="icon-button" type="button" aria-label="Vorheriger Monat" onClick={() => setMonth(subMonths(month, 1))}>
+              <button className="icon-button" type="button" aria-label="Vorheriger Zeitraum" onClick={() => setMonth(view === "month" ? subMonths(month, 1) : subWeeks(month, 1))}>
                 <ChevronLeft size={18} />
               </button>
-              <button className="icon-button" type="button" aria-label="Nächster Monat" onClick={() => setMonth(addMonths(month, 1))}>
+              <button className="icon-button" type="button" aria-label="Nächster Zeitraum" onClick={() => setMonth(view === "month" ? addMonths(month, 1) : addWeeks(month, 1))}>
                 <ChevronRight size={18} />
               </button>
             </div>
           </div>
 
-          <div className="calendar-board" aria-label="Monatskalender">
+          {view === "month" ? <div className="calendar-board" aria-label="Monatskalender">
             {weekdays.map((weekday) => (
               <div className="calendar-weekday" key={weekday}>
                 {weekday}
@@ -281,7 +329,15 @@ export default function CalendarPage() {
                 </div>
               );
             })}
-          </div>
+          </div> : (
+            <CalendarWeekView
+              date={month}
+              events={uniqueEvents(data.events)}
+              onCreate={(start, end) => void createEventAt(start, end)}
+              onOpen={setSelectedEventId}
+              onTimeChange={(eventId, startsAt, endsAt, revert) => void changeEventTimes(eventId, startsAt, endsAt, revert)}
+            />
+          )}
         </section>
 
         {selectedEvent ? (
@@ -336,6 +392,9 @@ export default function CalendarPage() {
 }
 
 function isEventStaffed(event: Event, assignments: Array<{ eventId: string; role: AssignmentRole }>) {
+  if (event.eventType.trim().toLowerCase() === "termin") {
+    return assignments.some((assignment) => assignment.eventId === event.id && assignment.role === "Teilnehmer");
+  }
   const requiredRoles = assignmentRolesForEventType(event.eventType).filter((role) => role === "Ton" || role === "Licht");
   return requiredRoles.every((role) => assignments.some((assignment) => assignment.eventId === event.id && assignment.role === role));
 }
