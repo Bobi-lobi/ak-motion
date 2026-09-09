@@ -5,6 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "AK-Motion",
   description: "Kalender und Einsatzplanung für Schultechnikteams",
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       { url: "/favicon.ico" },

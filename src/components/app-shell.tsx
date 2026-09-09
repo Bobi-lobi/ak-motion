@@ -1,12 +1,13 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LogOut, Package, PanelLeftClose, PanelLeftOpen, Trophy, Upload, Users, X } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LogOut, Package, PanelLeftClose, PanelLeftOpen, Settings, Trophy, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
+import { NotificationCenter } from "@/components/notification-center";
 import { updateProfile } from "@/lib/data-store";
 import { uploadAppMedia } from "@/lib/media-storage";
 import { knowledgePages } from "@/lib/knowledge";
@@ -20,7 +21,8 @@ const navItems = [
   { href: "/analytics", label: "Statistik", icon: BarChart3, admin: false },
   { href: "/rankings", label: "Level", icon: Trophy, admin: false },
   ...knowledgePages.map((page) => ({ href: page.href, label: page.title, icon: page.icon, admin: false })),
-  { href: "/equipment", label: "Equipment", icon: Package, admin: false }
+  { href: "/equipment", label: "Equipment", icon: Package, admin: false },
+  { href: "/settings", label: "Einstellungen", icon: Settings, admin: false }
 ];
 
 const adminNavItems = [
@@ -43,7 +45,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { session, isAdmin, logout, refresh } = useApp();
+  const { data, session, isAdmin, logout, refresh } = useApp();
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getInitialSidebarCollapsed());
   const [profileOpen, setProfileOpen] = useState(false);
@@ -236,6 +238,9 @@ export function AppShell({
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
+              const badge = item.href === "/rules"
+                ? data.knowledgeSuggestions.filter((suggestion) => suggestion.pageId === "rules").length
+                : 0;
 
               return (
                 <Link
@@ -245,7 +250,8 @@ export function AppShell({
                   onClick={(clickEvent) => openPageOnMobile(clickEvent, item.href)}
                 >
                   <Icon size={18} />
-                  {item.label}
+                  <span>{item.label}</span>
+                  {isAdmin && badge ? <span className="nav-notification-badge">{formatBadgeCount(badge)}</span> : null}
                 </Link>
               );
             })}
@@ -255,6 +261,11 @@ export function AppShell({
               {adminNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href;
+                const badge = item.href === "/requests"
+                  ? data.requests.filter((request) => request.status === "pending").length
+                  : item.href === "/team"
+                    ? data.registrationRequests.filter((request) => request.status === "pending").length
+                    : 0;
 
                 return (
                   <Link
@@ -264,7 +275,8 @@ export function AppShell({
                     onClick={(clickEvent) => openPageOnMobile(clickEvent, item.href)}
                   >
                     <Icon size={18} />
-                    {item.label}
+                    <span>{item.label}</span>
+                    {badge ? <span className="nav-notification-badge">{formatBadgeCount(badge)}</span> : null}
                   </Link>
                 );
               })}
@@ -308,6 +320,7 @@ export function AppShell({
             {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
             <h1>{title}</h1>
           </div>
+          <NotificationCenter />
         </header>
         {children}
       </main>
@@ -324,6 +337,10 @@ function initials(name?: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+}
+
+function formatBadgeCount(count: number) {
+  return count > 99 ? "99+" : count;
 }
 
 function getInitialSidebarCollapsed() {

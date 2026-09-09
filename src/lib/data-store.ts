@@ -4,6 +4,7 @@ import { demoData, demoPasswords } from "@/lib/demo-data";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 import type {
   AppData,
+  Announcement,
   AssignmentRole,
   AvailabilityStatus,
   Event as CalendarEvent,
@@ -226,6 +227,7 @@ function landingContentSettings(content: LandingContent) {
 
 function normalizeData(data: AppData): AppData {
   const normalized = data as AppData;
+  normalized.announcements = normalized.announcements ?? [];
   normalized.registrationRequests = normalized.registrationRequests ?? [];
   normalized.landingContent = normalizeLandingContent(normalized.landingContent);
   normalized.knowledgePages = normalized.knowledgePages ?? [];
@@ -312,6 +314,43 @@ export async function loadRemoteData(): Promise<AppData> {
   }
   const isAuthenticated = Boolean(authData.session);
 
+  if (!isAuthenticated) {
+    const { data: landing } = await supabase
+      .from("landing_content")
+      .select("hero_title, hero_text, join_title, join_text, event_images, team_image, team_names, impressions, content_settings")
+      .maybeSingle();
+    const publicData = normalizeData({
+      ...fallback,
+      announcements: [],
+      assignments: [],
+      attendance: [],
+      availability: [],
+      events: [],
+      knowledgePages: [],
+      knowledgeSuggestions: [],
+      profiles: [],
+      registrationRequests: [],
+      requests: [],
+      landingContent: landing
+        ? normalizeLandingContent({
+            ...landingSettings(landing.content_settings),
+            eventImages: Array.isArray(landing.event_images) ? landing.event_images : fallback.landingContent.eventImages,
+            heroText: landing.hero_text,
+            heroTitle: landing.hero_title,
+            impressions: Array.isArray(landing.impressions) ? landing.impressions : fallback.landingContent.impressions,
+            joinText: landing.join_text,
+            joinTitle: landing.join_title,
+            teamImage: landing.team_image,
+            teamNames: Array.isArray(landing.team_names) ? landing.team_names : fallback.landingContent.teamNames
+          })
+        : fallback.landingContent
+    });
+    if (typeof window !== "undefined") {
+      cacheData(publicData);
+    }
+    return publicData;
+  }
+
   const [
     profilesResult,
     requestsResult,
@@ -322,6 +361,7 @@ export async function loadRemoteData(): Promise<AppData> {
     registrationsResult,
     knowledgePagesResult,
     knowledgeSuggestionsResult,
+    announcementsResult,
     landingResult
   ] = await Promise.all([
     supabase.from("profiles").select("id, name, email, avatar_url, phone, role, created_at").order("created_at", { ascending: true }),
@@ -333,6 +373,7 @@ export async function loadRemoteData(): Promise<AppData> {
     supabase.from("registration_requests").select("id, auth_user_id, name, email, phone, motivation, status, created_at").order("created_at", { ascending: false }),
     supabase.from("knowledge_pages").select("id, title, content, updated_at, updated_by"),
     supabase.from("knowledge_suggestions").select("id, page_id, content, author_id, author_name, created_at").order("created_at", { ascending: false }),
+    supabase.from("announcements").select("id, title, body, created_by, created_at, expires_at").order("created_at", { ascending: false }),
     supabase
       .from("landing_content")
       .select("hero_title, hero_text, join_title, join_text, event_images, team_image, team_names, impressions, content_settings")
@@ -341,7 +382,7 @@ export async function loadRemoteData(): Promise<AppData> {
 
   const remote: AppData = normalizeData({
     ...fallback,
-    profiles: isAuthenticated && profilesResult.data ? profilesResult.data.map((profile) => ({
+    profiles: profilesResult.data ? profilesResult.data.map((profile) => ({
       id: profile.id,
       name: profile.name,
       email: profile.email,
@@ -350,7 +391,7 @@ export async function loadRemoteData(): Promise<AppData> {
       role: profile.role,
       createdAt: profile.created_at
     })) : fallback.profiles,
-    requests: isAuthenticated && requestsResult.data ? requestsResult.data.map((request) => ({
+    requests: requestsResult.data ? requestsResult.data.map((request) => ({
       id: request.id,
       title: request.title,
       startsAt: request.starts_at,
@@ -365,7 +406,7 @@ export async function loadRemoteData(): Promise<AppData> {
       status: request.status,
       createdAt: request.created_at
     })) : fallback.requests,
-    events: isAuthenticated && eventsResult.data ? eventsResult.data.map((event) => ({
+    events: eventsResult.data ? eventsResult.data.map((event) => ({
       id: event.id,
       title: event.title,
       startsAt: event.starts_at,
@@ -382,21 +423,21 @@ export async function loadRemoteData(): Promise<AppData> {
       requestId: event.request_id ?? undefined,
       createdAt: event.created_at
     })) : fallback.events,
-    availability: isAuthenticated && availabilityResult.data ? availabilityResult.data.map((availability) => ({
+    availability: availabilityResult.data ? availabilityResult.data.map((availability) => ({
       id: availability.id,
       eventId: availability.event_id,
       profileId: availability.profile_id,
       status: availability.status,
       updatedAt: availability.updated_at
     })) : fallback.availability,
-    assignments: isAuthenticated && assignmentsResult.data ? assignmentsResult.data.map((assignment) => ({
+    assignments: assignmentsResult.data ? assignmentsResult.data.map((assignment) => ({
       id: assignment.id,
       eventId: assignment.event_id,
       profileId: assignment.profile_id,
       role: assignment.role,
       createdAt: assignment.created_at
     })) : fallback.assignments,
-    attendance: isAuthenticated && attendanceResult.data ? attendanceResult.data.map((attendance) => ({
+    attendance: attendanceResult.data ? attendanceResult.data.map((attendance) => ({
       id: attendance.id,
       eventId: attendance.event_id,
       profileId: attendance.profile_id,
@@ -404,7 +445,7 @@ export async function loadRemoteData(): Promise<AppData> {
       attended: attendance.attended,
       createdAt: attendance.created_at
     })) : fallback.attendance,
-    registrationRequests: isAuthenticated && registrationsResult.data ? registrationsResult.data.map((request) => ({
+    registrationRequests: registrationsResult.data ? registrationsResult.data.map((request) => ({
       id: request.id,
       authUserId: request.auth_user_id ?? undefined,
       name: request.name,
@@ -414,14 +455,14 @@ export async function loadRemoteData(): Promise<AppData> {
       status: request.status,
       createdAt: request.created_at
     })) : fallback.registrationRequests,
-    knowledgePages: isAuthenticated && knowledgePagesResult.data ? knowledgePagesResult.data.map((page) => ({
+    knowledgePages: knowledgePagesResult.data ? knowledgePagesResult.data.map((page) => ({
       id: page.id,
       title: page.title,
       content: page.content,
       updatedAt: page.updated_at,
       updatedBy: page.updated_by ?? undefined
     })) : fallback.knowledgePages,
-    knowledgeSuggestions: isAuthenticated && knowledgeSuggestionsResult.data ? knowledgeSuggestionsResult.data.map((suggestion) => ({
+    knowledgeSuggestions: knowledgeSuggestionsResult.data ? knowledgeSuggestionsResult.data.map((suggestion) => ({
       id: suggestion.id,
       pageId: suggestion.page_id,
       content: suggestion.content,
@@ -429,6 +470,14 @@ export async function loadRemoteData(): Promise<AppData> {
       authorName: suggestion.author_name,
       createdAt: suggestion.created_at
     })) : fallback.knowledgeSuggestions,
+    announcements: announcementsResult.data ? announcementsResult.data.map((announcement) => ({
+      id: announcement.id,
+      title: announcement.title,
+      body: announcement.body,
+      createdBy: announcement.created_by ?? undefined,
+      createdAt: announcement.created_at,
+      expiresAt: announcement.expires_at ?? undefined
+    })) : fallback.announcements,
     landingContent: landingResult.data
       ? normalizeLandingContent({
           ...landingSettings(landingResult.data.content_settings),
@@ -1609,6 +1658,49 @@ export async function createProfile(name: string, email: string, role: UserRole 
   savePassword(profile.email, "technik123");
   saveData(data);
   return profile;
+}
+
+export async function createAnnouncement(title: string, body: string, user: SessionUser) {
+  if (hasSupabaseConfig && supabase) {
+    const { error } = await supabase.from("announcements").insert({
+      body: body.trim(),
+      created_by: user.id,
+      title: title.trim()
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+    await broadcastRemoteDataChange("announcement-created");
+    window.dispatchEvent(new Event("ak-motion-data"));
+    return;
+  }
+
+  const data = loadData();
+  const announcement: Announcement = {
+    body: body.trim(),
+    createdAt: now(),
+    createdBy: user.id,
+    id: id("announcement"),
+    title: title.trim()
+  };
+  data.announcements.unshift(announcement);
+  saveData(data);
+}
+
+export async function deleteAnnouncement(announcementId: string) {
+  if (hasSupabaseConfig && supabase) {
+    const { error } = await supabase.from("announcements").delete().eq("id", announcementId);
+    if (error) {
+      throw new Error(error.message);
+    }
+    await broadcastRemoteDataChange("announcement-deleted");
+    window.dispatchEvent(new Event("ak-motion-data"));
+    return;
+  }
+
+  const data = loadData();
+  data.announcements = data.announcements.filter((announcement) => announcement.id !== announcementId);
+  saveData(data);
 }
 
 export async function updateLandingContent(patch: LandingContent) {

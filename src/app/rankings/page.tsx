@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CircleHelp, Clock, Flag, Lock, Medal, Sparkles, Trophy, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
-import { SchoolYearSelect } from "@/components/school-year-select";
 import { useApp } from "@/components/app-provider";
 import {
   calculatePlayerScores,
@@ -15,17 +14,15 @@ import {
   type PlayerScore,
   type QuestProgress
 } from "@/lib/gamification";
-import { schoolYearForDate, schoolYearLabel, schoolYearOptions } from "@/lib/school-year";
 
 export default function RankingsPage() {
   const { data, session } = useApp();
-  const [schoolYear, setSchoolYear] = useState(() => schoolYearForDate());
   const [helpOpen, setHelpOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [claimedQuestIds, setClaimedQuestIds] = useState<string[]>([]);
   const [claimAnimation, setClaimAnimation] = useState<{ id: string; xp: number } | null>(null);
 
-  const claimStorageKey = session?.id ? `ak-motion-claimed-quests:${session.id}:${schoolYear}` : "";
+  const claimStorageKey = session?.id ? `ak-motion-claimed-quests:${session.id}:lifetime` : "";
 
   useEffect(() => {
     if (!claimStorageKey) {
@@ -33,12 +30,31 @@ export default function RankingsPage() {
       return;
     }
     try {
-      const parsed = JSON.parse(window.localStorage.getItem(claimStorageKey) ?? "[]");
-      setClaimedQuestIds(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []);
+      const stored = window.localStorage.getItem(claimStorageKey);
+      const parsed = stored ? JSON.parse(stored) : [];
+      const historical = stored || !session?.id
+        ? []
+        : Object.keys(window.localStorage)
+            .filter((key) => key.startsWith(`ak-motion-claimed-quests:${session.id}:`))
+            .flatMap((key) => {
+              try {
+                const value = JSON.parse(window.localStorage.getItem(key) ?? "[]");
+                return Array.isArray(value) ? value : [];
+              } catch {
+                return [];
+              }
+            });
+      const claimed = Array.from(new Set([...parsed, ...historical])).filter(
+        (item): item is string => typeof item === "string"
+      );
+      setClaimedQuestIds(claimed);
+      if (!stored && claimed.length) {
+        window.localStorage.setItem(claimStorageKey, JSON.stringify(claimed));
+      }
     } catch {
       setClaimedQuestIds([]);
     }
-  }, [claimStorageKey]);
+  }, [claimStorageKey, session?.id]);
 
   function claimQuest(quest: QuestProgress) {
     if (!session || quest.current < quest.goal || claimedQuestIds.includes(quest.id)) {
@@ -53,16 +69,13 @@ export default function RankingsPage() {
     window.setTimeout(() => setClaimAnimation(null), 950);
   }
 
-  const schoolYears = useMemo(() => schoolYearOptions(data.events), [data.events]);
-
-  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, schoolYear, session?.id ? { [session.id]: claimedQuestIds } : {}), [
+  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, session?.id ? { [session.id]: claimedQuestIds } : {}), [
     data.assignments,
     data.attendance,
     data.events,
     data.profiles,
     claimedQuestIds,
-    session?.id,
-    schoolYear
+    session?.id
   ]);
 
   const currentPlayer = scores.find((score) => score.profile.id === session?.id) ?? scores[0] ?? null;
@@ -73,7 +86,7 @@ export default function RankingsPage() {
       <AppShell title="Level" eyebrow="Dein Fortschritt" contentClassName="ranking-page" titleIcon={<Trophy size={30} />}>
         <section className="ranking-hero">
           <div className="ranking-hero-copy">
-            <span className="eyebrow">Schuljahr {schoolYearLabel(schoolYear)}</span>
+            <span className="eyebrow">Dein gesamter Fortschritt</span>
             <h2>Jeder Einsatz bringt dich weiter.</h2>
             <p>
               Sieh deinen nächsten Titel, nimm eine Quest mit und vergleiche dich freundlich mit dem Team.
@@ -82,9 +95,6 @@ export default function RankingsPage() {
           <button className="icon-button ranking-help-button" type="button" aria-label="XP-Regeln anzeigen" onClick={() => setHelpOpen(true)}>
             <CircleHelp size={20} />
           </button>
-          <div className="ranking-hero-actions">
-            <SchoolYearSelect value={schoolYear} options={schoolYears} onChange={setSchoolYear} />
-          </div>
         </section>
 
         <section className="ranking-arena">
@@ -109,7 +119,7 @@ export default function RankingsPage() {
                 <div className="ranking-row" key={score.profile.id}>
                   <span className="ranking-position">{index + 1}</span>
                   <span className="profile-avatar">
-                    <PizzaHatAvatar score={score} />
+                    <PlayerAvatar score={score} />
                   </span>
                   <div className="ranking-person">
                     <strong>{score.profile.name}</strong>
@@ -157,7 +167,7 @@ function PlayerStatus({ score }: { score: PlayerScore | null }) {
     <article className="player-rank-panel">
       <div className="player-rank-topline">
         <span className="profile-avatar podium-avatar">
-          <PizzaHatAvatar score={score} />
+          <PlayerAvatar score={score} />
         </span>
         <div>
           <span className="eyebrow">Dein Titel</span>
@@ -188,7 +198,6 @@ function PlayerStatus({ score }: { score: PlayerScore | null }) {
       <div className="player-stat-strip">
         <span>{score.completedEvents} Einsätze</span>
         <span>{score.realEvents} Events</span>
-        {score.hasPizzaHat ? <span>Pizza Essen frei</span> : null}
         <span>+{score.questBonus} Quest-XP</span>
       </div>
     </article>
@@ -300,7 +309,7 @@ function Podium({ scores }: { scores: PlayerScore[] }) {
           <div className="podium-player-card">
             <span className="podium-medal">#{place}</span>
             <span className="profile-avatar podium-avatar">
-              <PizzaHatAvatar score={score} />
+              <PlayerAvatar score={score} />
             </span>
             <h3>{score.profile.name}</h3>
             <strong>{score.points} XP</strong>
@@ -424,13 +433,8 @@ function XpHelpModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function PizzaHatAvatar({ score }: { score: PlayerScore }) {
-  return (
-    <>
-      {score.profile.avatarUrl ? <img src={score.profile.avatarUrl} alt="" /> : initials(score.profile.name)}
-      {score.hasPizzaHat ? <span className="pizza-hat" aria-label="Pizza Essen freigeschaltet">🍕</span> : null}
-    </>
-  );
+function PlayerAvatar({ score }: { score: PlayerScore }) {
+  return score.profile.avatarUrl ? <img src={score.profile.avatarUrl} alt="" /> : initials(score.profile.name);
 }
 
 function initials(name: string) {

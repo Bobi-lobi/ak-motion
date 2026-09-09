@@ -48,7 +48,9 @@ export default function AnalyticsPage() {
             data.assignments
               .filter((assignment) => {
                 const event = countedEventById.get(assignment.eventId);
-                return assignment.profileId === profile.id && event?.eventType.trim().toLowerCase() !== "probe";
+                return Boolean(
+                  assignment.profileId === profile.id && event && event.eventType.trim().toLowerCase() !== "probe"
+                );
               })
               .map((assignment) => assignment.eventId)
           ).size
@@ -94,11 +96,15 @@ export default function AnalyticsPage() {
                   stroke="#f0b35a"
                   strokeDasharray="5 5"
                   strokeWidth={2}
-                  label={{ value: "Zertifikat + Pizza", position: "insideTopRight", fill: "#f0b35a", fontSize: 11 }}
                 />
                 <Bar dataKey="einsaetze" fill="#5b8cff" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            <div className="analytics-threshold-legend">
+              <span className="analytics-threshold-mark" aria-hidden="true" />
+              <strong>Ab 3 Veranstaltungen</strong>
+              <span>Zertifikat und gemeinsames Pizzaessen</span>
+            </div>
           </article>
 
           <article className="panel chart-panel">

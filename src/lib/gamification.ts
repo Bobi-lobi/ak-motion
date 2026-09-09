@@ -1,5 +1,4 @@
 import type { AssignmentRole, Event as CalendarEvent, EventAssignment, EventAttendance, Profile } from "@/lib/types";
-import { isDateInSchoolYear } from "@/lib/school-year";
 
 export const rankLadder = [
   { name: "Rookie", min: 0 },
@@ -42,7 +41,6 @@ export type QuestMetric = "events" | "afterSchool" | "baseXp" | "roles";
 export type QuestDefinition = {
   bonusXp: number;
   description: string;
-  grantsPizzaHat?: boolean;
   goal: number;
   id: string;
   metric: QuestMetric;
@@ -66,7 +64,6 @@ export type PlayerScore = {
   basePoints: number;
   completedQuests: CompletedQuest[];
   completedEvents: number;
-  hasPizzaHat: boolean;
   level: number;
   nextProgress: number;
   nextRank?: (typeof rankLadder)[number];
@@ -80,16 +77,6 @@ export type PlayerScore = {
 };
 
 export const questDefinitions = [
-  {
-    id: "pizza-2",
-    metric: "events",
-    title: "Pizza Essen freischalten",
-    description: "Betreue zwei abgeschlossene Veranstaltungen. Danach bekommt dein Profilbild den Pizza-Hut.",
-    goal: 2,
-    unit: "Einsätze",
-    bonusXp: 30,
-    grantsPizzaHat: true
-  },
   {
     id: "after-school-2",
     metric: "afterSchool",
@@ -267,7 +254,6 @@ export function calculatePlayerScores(
   events: CalendarEvent[],
   assignments: EventAssignment[],
   attendance: EventAttendance[],
-  schoolYear: number,
   claimedQuestIdsByProfile: Record<string, string[]> = {}
 ) {
   const eventById = new Map(events.map((event) => [event.id, event]));
@@ -291,8 +277,7 @@ export function calculatePlayerScores(
         if (
           !event ||
           isEventType(event, "Termin") ||
-          event.status !== "Abgeschlossen" ||
-          !isDateInSchoolYear(event.startsAt, schoolYear)
+          event.status !== "Abgeschlossen"
         ) {
           return;
         }
@@ -341,8 +326,7 @@ export function calculatePlayerScores(
         realEventIds.size >= 3 ? "Zertifikat" : "",
         roles.size >= 3 ? "Allrounder" : "",
         points >= 1150 ? "Captain" : "",
-        questResult.completedQuests.length ? "Quest-Serie" : "",
-        questResult.hasPizzaHat ? "Pizza Essen" : ""
+        questResult.completedQuests.length ? "Quest-Serie" : ""
       ].filter(Boolean);
 
       return {
@@ -361,7 +345,6 @@ export function calculatePlayerScores(
         attendedCount,
         activeQuests: questResult.activeQuests,
         completedQuests: questResult.completedQuests,
-        hasPizzaHat: questResult.hasPizzaHat,
         badges
       };
     })
@@ -370,7 +353,6 @@ export function calculatePlayerScores(
 
 export function createQuestProgress(stats: Record<QuestMetric, number>, claimedQuestIds: string[] = []) {
   let questBonus = 0;
-  let hasPizzaHat = false;
   const completedQuests: CompletedQuest[] = [];
   const activeQuests: QuestProgress[] = [];
   const claimed = new Set(claimedQuestIds);
@@ -387,7 +369,6 @@ export function createQuestProgress(stats: Record<QuestMetric, number>, claimedQ
 
     if (completed && isClaimed) {
       questBonus += quest.bonusXp;
-      hasPizzaHat ||= Boolean(quest.grantsPizzaHat);
       completedQuests.push({
         ...questProgress,
         completedAtLabel: "Quest abgeschlossen"
@@ -403,7 +384,6 @@ export function createQuestProgress(stats: Record<QuestMetric, number>, claimedQ
   return {
     activeQuests,
     completedQuests,
-    hasPizzaHat,
     questBonus
   };
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import { Bell, CalendarDays, ChevronLeft, ChevronRight, Columns3, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Columns3, Plus, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { addWeeks, endOfWeek, startOfWeek, subWeeks } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { EventCard } from "@/components/event-card";
 import { EventPageModal } from "@/components/event-page-modal";
-import { CalendarWeekView } from "@/components/calendar-week-view";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
 import { createEvent, deleteEvent, updateEvent } from "@/lib/data-store";
@@ -22,13 +22,19 @@ import {
 } from "@/lib/date-utils";
 import type { AssignmentRole, Event } from "@/lib/types";
 import { assignmentRolesForEventType } from "@/lib/gamification";
+import { loadPreferences } from "@/lib/preferences";
+
+const CalendarWeekView = dynamic(
+  () => import("@/components/calendar-week-view").then((module) => module.CalendarWeekView),
+  { ssr: false, loading: () => <div className="calendar-week-loading">Wochenansicht wird geladen...</div> }
+);
 
 const weekdays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 export default function CalendarPage() {
   const { data, refresh, updateData } = useApp();
   const [month, setMonth] = useState(() => new Date());
-  const [view, setView] = useState<"month" | "week">("month");
+  const [view, setView] = useState<"month" | "week">(() => loadPreferences().defaultCalendarView);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; eventId: string } | null>(null);
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
@@ -197,7 +203,7 @@ export default function CalendarPage() {
 
   return (
     <RouteGuard>
-      <AppShell title="Veranstaltungskalender" contentClassName="calendar-content" titleIcon={<Bell size={30} />}>
+      <AppShell title="Veranstaltungskalender" contentClassName="calendar-content" titleIcon={<CalendarDays size={30} />}>
         <section className="calendar-board-wrap">
           <div className="calendar-board-toolbar">
             <div className="calendar-toolbar-leading">

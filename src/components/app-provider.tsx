@@ -11,7 +11,7 @@ type AppContextValue = {
   session: SessionUser | null;
   ready: boolean;
   isAdmin: boolean;
-  refresh: () => void;
+  refresh: () => Promise<void>;
   updateData: (updater: (current: AppData) => AppData) => void;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -25,68 +25,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionUser | null>(null);
   const [ready, setReady] = useState(false);
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const initializedRef = useRef(false);
 
-  const refresh = useCallback(async () => {
-    if (!initializedRef.current) {
-      setData(loadData());
+  const refresh = useCallback(() => {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
-    if (!hasSupabaseConfig) {
-      setSession(getSession());
-    }
-
-    try {
-      // Supabase restores the persisted JWT asynchronously. Waiting here avoids
-      // an anonymous RLS query winning the race after a reload or direct link.
-      if (hasSupabaseConfig && supabase) {
-        const { data: authData, error: authError } = await supabase.auth.getSession();
-        if (authError) {
-          throw authError;
-        }
-
-        if (!authData.session) {
-          window.localStorage.removeItem("ak-motion-session");
-          setSession(null);
-          const publicData = await loadRemoteData();
-          setData(publicData);
-          return;
-        }
-
-        const cachedSession = getSession();
-        if (cachedSession?.id === authData.session.user.id) {
-          setSession(cachedSession);
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, name, email, avatar_url, phone, role")
-          .eq("id", authData.session.user.id)
-          .single();
-
-        if (profileError || !profile) {
-          throw profileError ?? new Error("Kein Profil für die aktive Sitzung gefunden.");
-        }
-
-        const authenticatedUser: SessionUser = {
-          id: profile.id,
-          name: profile.name,
-          email: profile.email,
-          avatarUrl: profile.avatar_url ?? "",
-          phone: profile.phone ?? "",
-          role: profile.role
-        };
-        window.localStorage.setItem("ak-motion-session", JSON.stringify(authenticatedUser));
-        setSession(authenticatedUser);
+    const task = (async () => {
+      if (!initializedRef.current) {
+        setData(loadData());
+      }
+      if (!hasSupabaseConfig) {
+        setSession(getSession());
       }
 
-      const remoteData = await loadRemoteData();
-      setData(remoteData);
-    } catch (error) {
-      console.error("Supabase-Daten konnten nicht geladen werden:", error);
-    } finally {
-      initializedRef.current = true;
-      setReady(true);
-    }
+      try {
+        // Supabase restores the persisted JWT asynchronously. Waiting here avoids
+        // an anonymous RLS query winning the race after a reload or direct link.
+        if (hasSupabaseConfig && supabase) {
+          const { data: authData, error: authError } = await supabase.auth.getSession();
+          if (authError) {
+            throw authError;
+          }
+
+          if (!authData.session) {
+            window.localStorage.removeItem("ak-motion-session");
+            setSession(null);
+            const publicData = await loadRemoteData();
+            setData(publicData);
+            return;
+          }
+
+          const cachedSession = getSession();
+          if (cachedSession?.id === authData.session.user.id) {
+            setSession(cachedSession);
+          }
+
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id, name, email, avatar_url, phone, role")
+            .eq("id", authData.session.user.id)
+            .single();
+
+          if (profileError || !profile) {
+            throw profileError ?? new Error("Kein Profil für die aktive Sitzung gefunden.");
+          }
+
+          const authenticatedUser: SessionUser = {
+            id: profile.id,
+            name: profile.name,
+            email: profile.email,
+            avatarUrl: profile.avatar_url ?? "",
+            phone: profile.phone ?? "",
+            role: profile.role
+          };
+          window.localStorage.setItem("ak-motion-session", JSON.stringify(authenticatedUser));
+          setSession(authenticatedUser);
+        }
+
+        const remoteData = await loadRemoteData();
+        setData(remoteData);
+      } catch (error) {
+        console.error("Supabase-Daten konnten nicht geladen werden:", error);
+      } finally {
+        initializedRef.current = true;
+        setReady(true);
+      }
+    })();
+    refreshInFlightRef.current = task;
+    void task.finally(() => {
+      if (refreshInFlightRef.current === task) {
+        refreshInFlightRef.current = null;
+      }
+    });
+    return task;
   }, []);
 
   const updateData = useCallback((updater: (current: AppData) => AppData) => {
@@ -154,7 +167,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (document.visibilityState === "visible") {
         void refresh();
       }
-    }, 10000);
+    }, 30000);
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") {
         void refresh();
