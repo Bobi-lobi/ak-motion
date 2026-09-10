@@ -1,17 +1,9 @@
 export type AppPreferences = {
-  browserNotifications: boolean;
   defaultCalendarView: "month" | "week";
-  notifyAssignments: boolean;
-  notifyUnstaffed: boolean;
-  notifyAchievements: boolean;
 };
 
 export const defaultPreferences: AppPreferences = {
-  browserNotifications: false,
-  defaultCalendarView: "month",
-  notifyAchievements: true,
-  notifyAssignments: true,
-  notifyUnstaffed: true
+  defaultCalendarView: "month"
 };
 
 const PREFERENCES_KEY = "ak-motion-preferences";

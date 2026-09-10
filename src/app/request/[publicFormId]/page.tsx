@@ -23,6 +23,7 @@ const initialForm: EventRequestInput = {
 export default function PublicRequestPage() {
   const [form, setForm] = useState(initialForm);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   function update<K extends keyof EventRequestInput>(key: K, value: EventRequestInput[K]) {
@@ -40,13 +41,21 @@ export default function PublicRequestPage() {
       return;
     }
 
-    await createPublicRequest({
-      ...form,
-      startsAt: startsAt.toISOString(),
-      endsAt: endsAt.toISOString()
-    });
-    setSubmitted(true);
-    setForm(initialForm);
+    setSubmitting(true);
+    try {
+      await createPublicRequest({
+        ...form,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString()
+      });
+      setSubmitted(true);
+      setForm(initialForm);
+    } catch (submitError) {
+      console.error("Anfrage konnte nicht gesendet werden:", submitError);
+      setError(submitError instanceof Error ? submitError.message : "Anfrage konnte nicht gesendet werden.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function readPresentationFiles(fileList: FileList | null) {
@@ -173,8 +182,8 @@ export default function PublicRequestPage() {
               <textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} />
             </label>
             {error ? <p className="error-text wide">{error}</p> : null}
-            <button className="button primary full wide" type="submit">
-              Anfrage absenden
+            <button className="button primary full wide" type="submit" disabled={submitting}>
+              {submitting ? "Wird gesendet..." : "Anfrage absenden"}
             </button>
           </form>
         )}

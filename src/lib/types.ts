@@ -113,15 +113,6 @@ export type RegistrationRequest = {
   createdAt: string;
 };
 
-export type Announcement = {
-  id: string;
-  title: string;
-  body: string;
-  createdBy?: string;
-  createdAt: string;
-  expiresAt?: string;
-};
-
 export type LandingContent = {
   brandTitle: string;
   heroKicker: string;
@@ -160,7 +151,6 @@ export type LandingImpression = {
 };
 
 export type AppData = {
-  announcements: Announcement[];
   profiles: Profile[];
   registrationRequests: RegistrationRequest[];
   landingContent: LandingContent;

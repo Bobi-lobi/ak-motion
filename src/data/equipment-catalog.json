@@ -1,0 +1,1842 @@
+[
+  {
+    "name": "MacBook Air",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal ganz oben in Hülle",
+    "comment": ""
+  },
+  {
+    "name": "POWEROWL 1,2V rechargeable Schwarz AKKU",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "Delueedow USB-C 1,5V rechargeable AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "ReCyko 1,2V Grün rechargeable AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "Cityorg 1,5V rechargeable (LED oben)",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Kaputt",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": "Nicht aufladbar"
+  },
+  {
+    "name": "LIMETA AKKU Ladegerät",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Einwandfrei",
+    "location": "Tisch",
+    "comment": ""
+  },
+  {
+    "name": "IPad Pro",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal oben",
+    "comment": ""
+  },
+  {
+    "name": "UNI LAN-USB-C Adapter",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Mac Book Tasche",
+    "comment": ""
+  },
+  {
+    "name": "YAMAHA DBR-10 Boxen",
+    "amount": 2,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal unten",
+    "comment": "1 Kaputt"
+  },
+  {
+    "name": "Sennheiser SKM 65 (Mic 3) (823.000)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser SKM-XSW (Mic 4) (821.000)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser SKM 100s G4 (Mic 1) (863.400)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser SKM 35 (Mic 2) (862.700)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser SK20 (Transmitter)",
+    "amount": 3,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack Schublade ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser SK100 G4(Transmitter)",
+    "amount": 2,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Headset",
+    "amount": 2,
+    "type": "Ton",
+    "state": "Nicht vollständig",
+    "location": "Pop Schutz fehlt",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser SKP 300 / ew 300 G3 (Transmitter)",
+    "amount": 2,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Schlüssel",
+    "amount": 1,
+    "type": "Beamer",
+    "state": "Nicht zuordbar",
+    "location": "Rack Schublade ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "Laserpointer/Fernbedienung",
+    "amount": 1,
+    "type": "Fernbedienung",
+    "state": "Einwandfrei",
+    "location": "Rack Schublade ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "Merhfachsteckdose (6)",
+    "amount": 3,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Mehrfachsteckdose (8)",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Mehrfachsteckdose(3)",
+    "amount": 6,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Mehrfachsteckdose(4)",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Mini USB Typ B - USB",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Rack Schublade ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "Kaltgerätestecker",
+    "amount": 8,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Verlängerung Kaltgerätestecker",
+    "amount": 2,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Verlängerungskabel 5m",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Verlängerungskabel 10m",
+    "amount": 3,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Verlängerungskabel 20m",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Mini Rack",
+    "comment": ""
+  },
+  {
+    "name": "dbx TestMikrofon",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "XLR-Kabel 10m",
+    "amount": 16,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "XLR Kiste",
+    "comment": ""
+  },
+  {
+    "name": "XLR-Kabel kurz",
+    "amount": 14,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "XLR Kiste",
+    "comment": ""
+  },
+  {
+    "name": "XLR-Kabel 7,5m",
+    "amount": 16,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "XLR Kiste",
+    "comment": "4 beim Klavier"
+  },
+  {
+    "name": "XLR-Kabel 15m",
+    "amount": 2,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "XLR Kiste",
+    "comment": ""
+  },
+  {
+    "name": "XLR-Kabel 20m",
+    "amount": 6,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "XLR Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Shure SM85 Handmikro",
+    "amount": 2,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Mini Rack",
+    "comment": ""
+  },
+  {
+    "name": "Shure Receiver 2 Hanmikro",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Mini Rack",
+    "comment": ""
+  },
+  {
+    "name": "AKG D5",
+    "amount": 4,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mini Rack",
+    "comment": ""
+  },
+  {
+    "name": "LAN Kabel 1m",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Mini Rack",
+    "comment": ""
+  },
+  {
+    "name": "TP-Link W-LAN Router",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Mini Rack",
+    "comment": ""
+  },
+  {
+    "name": "Lampenausrichter",
+    "amount": 1,
+    "type": "Licht",
+    "state": "Einwandfrei",
+    "location": "Hinter Rack",
+    "comment": ""
+  },
+  {
+    "name": "AKG D5 (Notfallmikro)",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Hinter Rack",
+    "comment": ""
+  },
+  {
+    "name": "EPSON Beamer Fernbedienung",
+    "amount": 1,
+    "type": "Fernbedienung",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Gitarrenständer",
+    "amount": 3,
+    "type": "Instrument",
+    "state": "Einwandfrei",
+    "location": "Kammerl (neben dem Sicherungskasten)",
+    "comment": ""
+  },
+  {
+    "name": "SONY TV Fernbedienung",
+    "amount": 1,
+    "type": "Fernbedienung",
+    "state": "Einwandfrei",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Fernbedienung",
+    "amount": 1,
+    "type": "Fernbedienung",
+    "state": "Nicht zuordbar",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "E- Bass",
+    "amount": 1,
+    "type": "Instrument",
+    "state": "Einwandfrei",
+    "location": "Kammerl(rechts neben dem Sicherungskasten)",
+    "comment": ""
+  },
+  {
+    "name": "Fernbedienung Dünn-Alu",
+    "amount": 1,
+    "type": "Fernbedienung",
+    "state": "Nicht zuordbar",
+    "location": "Rack",
+    "comment": ""
+  },
+  {
+    "name": "Schaufel und Besen",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank unten",
+    "comment": ""
+  },
+  {
+    "name": "Behringer BCF200 (Midi Pult)",
+    "amount": 1,
+    "type": "Pult",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal oben",
+    "comment": ""
+  },
+  {
+    "name": "Mikroständer",
+    "amount": 11,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Kammerl( rechts vom Sicherungskasten)",
+    "comment": "Einer beim Klavier"
+  },
+  {
+    "name": "Mikroständerarm",
+    "amount": 2,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Kammerl( rechts vom Sicherungskasten)",
+    "comment": ""
+  },
+  {
+    "name": "Boxenständer",
+    "amount": 2,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Kammerl(rechts vom Sicherungskasten)",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser E602",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "t.bone SC400",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "RODE NTG 2",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "Boxenständer Verlängerung",
+    "amount": 2,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Kammerl( rechts vom Sicherungskasten)",
+    "comment": ""
+  },
+  {
+    "name": "AKG C1000 S",
+    "amount": 2,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": "Eins Overhead beim Schlagzeug"
+  },
+  {
+    "name": "N/D 168 Snare Drum",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "Shure SM57",
+    "amount": 4,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": "Eins bei der Schlagzeug Snare"
+  },
+  {
+    "name": "RODE NT5",
+    "amount": 2,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "Mikroklemmen klein",
+    "amount": 8,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Kammerl(Mikroklemmen Kiste)",
+    "comment": ""
+  },
+  {
+    "name": "SHURE PG 81",
+    "amount": 2,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "AUDIX ADX-51",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "Laveliermikrofon",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "Pop Schutz",
+    "amount": 12,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "YAMAHA MG 12 (Tonpult)",
+    "amount": 1,
+    "type": "Pult",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal",
+    "comment": ""
+  },
+  {
+    "name": "DI-Box Q-teck Pan 02 (2 auf 1)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank",
+    "comment": ""
+  },
+  {
+    "name": "DI-Box Pan 04 (4 auf 1)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "DI-Boxen Schrank",
+    "comment": ""
+  },
+  {
+    "name": "DTI-Box",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "DI-Boxen Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Mikroklemmen mittelgroß",
+    "amount": 14,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Kammerl(Mikroklemmen Kiste)",
+    "comment": ""
+  },
+  {
+    "name": "DI Box Zdirect (1 auf 2)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "DI-Boxen Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Mikroklemmen groß",
+    "amount": 2,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Kammerl(Mikroklemmen Kiste)",
+    "comment": ""
+  },
+  {
+    "name": "Mikroklemmen SM 57",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Kammerl(Mikroklemmen Kiste)",
+    "comment": ""
+  },
+  {
+    "name": "Mikroklemmen (komisch)",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Nicht zuordbar",
+    "location": "Kammerl(Mikroklemmen Kiste)",
+    "comment": ""
+  },
+  {
+    "name": "USB-C Netzteil",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Mini-Rack",
+    "comment": ""
+  },
+  {
+    "name": "Videokonvertierungsgerät HD Connect LE",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "DI Boxen Kiste",
+    "comment": ""
+  },
+  {
+    "name": "PANO3 Passiv four Channel Passive DI Box",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Kammerl( im Schrank neben Mikroklemmen Kiste)",
+    "comment": ""
+  },
+  {
+    "name": "Fischer AMPS Hardwired In ear monitor body Pack",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "DI-Boxen Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Box mit Stiften",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Im Kammerl im Schrank",
+    "comment": ""
+  },
+  {
+    "name": "Mehrfach Halter für Boxenständer",
+    "amount": 2,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Im Kammerl im Schrank neben der Stifte Box",
+    "comment": ""
+  },
+  {
+    "name": "USB-C Kabel",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Rednerpult",
+    "comment": ""
+  },
+  {
+    "name": "Klinkenkabel normal",
+    "amount": 18,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken kiste",
+    "comment": ""
+  },
+  {
+    "name": "2-Große Klinke auf 1 mini Klinke",
+    "amount": 3,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. kiste",
+    "comment": ""
+  },
+  {
+    "name": "Folie für Verfolger ( Orange)",
+    "amount": 1,
+    "type": "Licht",
+    "state": "Einwandfrei",
+    "location": "Kammerl in der Stifte Box",
+    "comment": ""
+  },
+  {
+    "name": "2-Große Kline auf 1-Große Klinke",
+    "amount": 5,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "2-Große Klinke auf 2-Cinch",
+    "amount": 3,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Klinke auf XLR Male",
+    "amount": 4,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Fernbedienung ( Optoma)",
+    "amount": 1,
+    "type": "Fernbedienung",
+    "state": "Einwandfrei",
+    "location": "Kammerl in der Funk Box",
+    "comment": ""
+  },
+  {
+    "name": "2-XLR auf 1 Klinke",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Kurze Klinken Kabel",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Mini Klinke auf 2-Cinch",
+    "amount": 3,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf XLR",
+    "amount": 2,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt.Kiste",
+    "comment": ""
+  },
+  {
+    "name": "XLR Female auf Klinke",
+    "amount": 11,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Mini Klinke auf Mini Klinke",
+    "amount": 2,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Speakon auf Klinke",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Nicht verwenden",
+    "location": "Kammerl in der Klinke Adapter Kiste",
+    "comment": ""
+  },
+  {
+    "name": "2 Klinke auf 2 Klinke",
+    "amount": 2,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Klinke auf Mini Klinke",
+    "amount": 2,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "2 XLR Female auf 1 mini Klinke",
+    "amount": 4,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Superbat Adapter,Kabel, Antenne",
+    "amount": 2,
+    "type": "Mikrofon",
+    "state": "Voll",
+    "location": "Kammerl in der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "4 Klinke auf 4 Klinke",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Antennen Kabel",
+    "amount": 3,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Kammerl in der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "2 Klinke auf 2 XLR Male",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Antenne mit Klinke Kabel",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Kammerl in der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "LED Fernbedienung",
+    "amount": 2,
+    "type": "Fernbedienung",
+    "state": "Einwandfrei",
+    "location": "Rack unterste Schublade",
+    "comment": ""
+  },
+  {
+    "name": "Antenne auf Klinke",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "XLR Male auf mini Klinke",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Lichtwellenleiterkabel",
+    "amount": 3,
+    "type": "Licht",
+    "state": "Einwandfrei",
+    "location": "Kammerl in der Funk Box",
+    "comment": ""
+  },
+  {
+    "name": "mini Klinke auf micro Klinke",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "XLR Female auf Klinke Adapter",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Handyrekorder H4N",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Mini Klinke auf Klinke Adapter",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Richtfunkantenne",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "2 cinch auf 2 cinch",
+    "amount": 3,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Cinch Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Antenne",
+    "amount": 3,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "3 cinch auf 3 cinch",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Cinch Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser SK100 G3(Transmitter)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack Schublade ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "Steckdosen Adapter",
+    "amount": 2,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "2 female cinch auf 2 male cinch",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Cinch Kiste",
+    "comment": ""
+  },
+  {
+    "name": "1 cinch auf 1 cinch",
+    "amount": 4,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Cinch Kiste",
+    "comment": ""
+  },
+  {
+    "name": "2 XLR Female auf 2 Cinch",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Miniklinke auf LED",
+    "amount": 2,
+    "type": "Licht",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "XLR Male auf Cinch Female",
+    "amount": 2,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Stahl block",
+    "amount": 5,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Klinke auf Cinch",
+    "amount": 3,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Displayport",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Cinch Female auf Cinch Female",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser EK100 G3(Transmitter)",
+    "amount": 1,
+    "type": "Ton",
+    "state": "Einwandfrei",
+    "location": "Rack Schublade ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "Steckdose auf Gerätestecker",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Cinch Female auf Klinke",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Klinken Adpt.Kiste",
+    "comment": ""
+  },
+  {
+    "name": "7 polig S-Video auf 2-Cinch",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Woski Fragen",
+    "location": "Klinken Adpt. Kiste",
+    "comment": ""
+  },
+  {
+    "name": "ATEM Mini Pro ISO",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank",
+    "comment": ""
+  },
+  {
+    "name": "NETGEAR LAN Switch(8)",
+    "amount": 1,
+    "type": "Netzwerk",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank",
+    "comment": ""
+  },
+  {
+    "name": "Tp Link Injector",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "In der PC Zeug Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Lilliput Video Monitor",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank",
+    "comment": ""
+  },
+  {
+    "name": "HDMI auf HDMI kurz",
+    "amount": 7,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": "Eins am Rednerpult"
+  },
+  {
+    "name": "Miniaturen Transformer Blancing Adapter",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "In der PC Zeugkiste",
+    "comment": ""
+  },
+  {
+    "name": "HDMI auf Display Port",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "HDMI auf mini Display Port",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerls, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf USB-A male und USB-A Female",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC ZEug",
+    "comment": ""
+  },
+  {
+    "name": "Transformer Balancing Adapter",
+    "amount": 2,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "In der PC Zeugkiste",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf Festplattenstecker",
+    "amount": 3,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC ZEug",
+    "comment": ""
+  },
+  {
+    "name": "Koaxial Kabel",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "Einwandfrei",
+    "location": "Cinch Kiste",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf micor USB-C",
+    "amount": 3,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "HDMI auf mini HDMI",
+    "amount": 8,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "Antennen Platte",
+    "amount": 2,
+    "type": "Adapter",
+    "state": "Nicht zuordbar",
+    "location": "In der Funk Kiste",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf USB-B",
+    "amount": 7,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "mini HDMI auf HDMI female",
+    "amount": 3,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammel, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "shure lav mic mit transmitter",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Mikrokiste",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf USB-C",
+    "amount": 5,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "Notenständer",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Beim Klavier",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf micro USB",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "USB-A male auf USB-A female",
+    "amount": 3,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "KAmmerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "USB-C auf mini Klinke female",
+    "amount": 2,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Rack, ganz unten",
+    "comment": ""
+  },
+  {
+    "name": "Funkgerätekoffer",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Kammerl im Schrank rechts mitte",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf 2 USB-C",
+    "amount": 2,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "HDMI auf HDMI lang",
+    "amount": 2,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "Kleines Lichtpult",
+    "amount": 1,
+    "type": "Licht",
+    "state": "Einwandfrei",
+    "location": "Kammerl im Schrank mitte rechts neben der Funkgerät Kiste",
+    "comment": ""
+  },
+  {
+    "name": "HDMI male auf HDMI female",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "ClubPar 12/4 lampe",
+    "amount": 1,
+    "type": "Licht",
+    "state": "Kaputt",
+    "location": "Auf dem kleinem Licht pult im Kammerl",
+    "comment": ""
+  },
+  {
+    "name": "HDMI auf VGA",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "Werkzeugkasten",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Nicht vollständig",
+    "location": "Im Kammerl ganz unten rechts",
+    "comment": ""
+  },
+  {
+    "name": "Schraubenziehener set",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Über dem Werkzeugkasten",
+    "comment": ""
+  },
+  {
+    "name": "USB-C auf Lightning",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "IMac",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl",
+    "comment": ""
+  },
+  {
+    "name": "ASUS Bildschirm",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal ganz oben",
+    "comment": ""
+  },
+  {
+    "name": "Kaputtes Kabel zum Löten",
+    "amount": 8,
+    "type": "Kabel",
+    "state": "Kaputt",
+    "location": "In der Lötzeug Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Windows Laptop",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal ganz oben",
+    "comment": ""
+  },
+  {
+    "name": "Sony a7 iii",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal",
+    "comment": ""
+  },
+  {
+    "name": "Sony 28-70 f3.5-5.6",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal",
+    "comment": ""
+  },
+  {
+    "name": "Sony 70-200 f4",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser Tischmikro Fuß",
+    "amount": 3,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank",
+    "comment": ""
+  },
+  {
+    "name": "Sennheiser Tischmikro Arm",
+    "amount": 3,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank",
+    "comment": "Eins am Rednerpult"
+  },
+  {
+    "name": "Kabel Anschlüsse zum Löten",
+    "amount": 40,
+    "type": "Kabel",
+    "state": "Kaputt",
+    "location": "Bei Lötzeug",
+    "comment": ""
+  },
+  {
+    "name": "Viltrox Video Licht",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal",
+    "comment": ""
+  },
+  {
+    "name": "Kabel zum Löten",
+    "amount": 11,
+    "type": "Kabel",
+    "state": "Kaputt",
+    "location": "Bei der Lötzeug Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Starkstrom Kabel zum Löten",
+    "amount": 2,
+    "type": "Adapter",
+    "state": "Kaputt",
+    "location": "In der Lötzeug Kiste",
+    "comment": ""
+  },
+  {
+    "name": "Audio-Technica Pro 37R",
+    "amount": 3,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Vor der Bühne (Theater)",
+    "comment": ""
+  },
+  {
+    "name": "Lötkolben",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Bei Lötzeug",
+    "comment": ""
+  },
+  {
+    "name": "SHURE BETA 91A",
+    "amount": 1,
+    "type": "Mikrofon",
+    "state": "Einwandfrei",
+    "location": "Vor der Bühne (Theater)",
+    "comment": ""
+  },
+  {
+    "name": "Lötkolbenhalter",
+    "amount": 2,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "In der Lötzeugkiste",
+    "comment": ""
+  },
+  {
+    "name": "Multimeter",
+    "amount": 1,
+    "type": "Instrument",
+    "state": "Einwandfrei",
+    "location": "Bei Lötzeug",
+    "comment": ""
+  },
+  {
+    "name": "Löt Zin",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Bei Lötzeug",
+    "comment": ""
+  },
+  {
+    "name": "MacBook Air Tasche",
+    "amount": 1,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal ganz oben",
+    "comment": ""
+  },
+  {
+    "name": "Bassverstärker (Cube 100 Bass)",
+    "amount": 2,
+    "type": "Instrument",
+    "state": "Einwandfrei",
+    "location": "Beim Klavier",
+    "comment": ""
+  },
+  {
+    "name": "Klavierhocker",
+    "amount": 2,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Beim Klavier",
+    "comment": ""
+  },
+  {
+    "name": "Rednerpult",
+    "amount": 1,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Beim Klavier",
+    "comment": ""
+  },
+  {
+    "name": "USB-C auf HDMI",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Am Rednerpult",
+    "comment": ""
+  },
+  {
+    "name": "Netzteil 100-240V 0,2-4A",
+    "amount": 28,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Netzteil 110-240V 0,25A",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Netzteil 100-240V 0,8A",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Netzteil 230V 0,06A IN 12V 0,3A OUT",
+    "amount": 2,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Netzkabel 2-Polig",
+    "amount": 11,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf Holstecker",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "POWERCOM Kabel",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "Netzkabel 3 polig",
+    "amount": 1,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "stromkiste",
+    "comment": ""
+  },
+  {
+    "name": "LAN KAbel 10m",
+    "amount": 4,
+    "type": "Netzwerk",
+    "state": "Einwandfrei",
+    "location": "LAN KAbel Kiste",
+    "comment": ""
+  },
+  {
+    "name": "VGA auf VGA 20m",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeug",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf VGA",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Vdeo Zeug",
+    "comment": ""
+  },
+  {
+    "name": "VGA auf VGA kurz",
+    "amount": 6,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Vdieo Zeug",
+    "comment": ""
+  },
+  {
+    "name": "USB-A auf mini USB",
+    "amount": 2,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "Piano Pedal",
+    "amount": 1,
+    "type": "Instrument",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Schrank",
+    "comment": ""
+  },
+  {
+    "name": "Wireless Steckdose",
+    "amount": 2,
+    "type": "Strom",
+    "state": "Einwandfrei",
+    "location": "Kammerl, auf Schrank",
+    "comment": ""
+  },
+  {
+    "name": "Maus",
+    "amount": 3,
+    "type": "PC",
+    "state": "Einwandfrei",
+    "location": "Kammerl, PC Zeug",
+    "comment": ""
+  },
+  {
+    "name": "Kamera AKKU Ladegerät",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video",
+    "comment": ""
+  },
+  {
+    "name": "Displayport auf VGA",
+    "amount": 1,
+    "type": "Adapter",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "Fernbedienung Weiß",
+    "amount": 1,
+    "type": "Fernbedienung",
+    "state": "Nicht zuordbar",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "HDMI-Ethernet Kabel",
+    "amount": 1,
+    "type": "Kamera",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Video Zeugs",
+    "comment": ""
+  },
+  {
+    "name": "LAN Kabel 20m",
+    "amount": 3,
+    "type": "Netzwerk",
+    "state": "Einwandfrei",
+    "location": "LAN KABEL KISTE",
+    "comment": ""
+  },
+  {
+    "name": "LAN Kabel KURZ",
+    "amount": 4,
+    "type": "Netzwerk",
+    "state": "Einwandfrei",
+    "location": "LAN Kabel Kiste",
+    "comment": ""
+  },
+  {
+    "name": "LAN Kabel 50m",
+    "amount": 2,
+    "type": "Netzwerk",
+    "state": "Einwandfrei",
+    "location": "Unter Bühne bei Nebelmaschine",
+    "comment": ""
+  },
+  {
+    "name": "Nebel Fluid",
+    "amount": 1,
+    "type": "Licht",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Hinter Stiftebox",
+    "comment": ""
+  },
+  {
+    "name": "Eurolite LED PAR 56 RGB Spot",
+    "amount": 2,
+    "type": "Licht",
+    "state": "Einwandfrei",
+    "location": "Kammerl, Regal",
+    "comment": ""
+  },
+  {
+    "name": "AKAI APC MINI",
+    "amount": 1,
+    "type": "Pult",
+    "state": "",
+    "location": "FOH",
+    "comment": ""
+  },
+  {
+    "name": "Joystick",
+    "amount": 2,
+    "type": "Licht",
+    "state": "",
+    "location": "FOH",
+    "comment": ""
+  },
+  {
+    "name": "MOLTON Schlagzeug",
+    "amount": 1,
+    "type": "Molton",
+    "state": "Einwandfrei",
+    "location": "Unter Bühne vorne mitte",
+    "comment": ""
+  },
+  {
+    "name": "Kabelsteg Gelb",
+    "amount": 8,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Unter Bühne Monitor 3",
+    "comment": ""
+  },
+  {
+    "name": "Kabelsteg normal",
+    "amount": 20,
+    "type": "Sonstiges",
+    "state": "Einwandfrei",
+    "location": "Unter Bühne neben Starkstrom Sicherung",
+    "comment": ""
+  },
+  {
+    "name": "Molton groß",
+    "amount": 7,
+    "type": "Molton",
+    "state": "Einwandfrei",
+    "location": "unter Bühne Monitor 3",
+    "comment": ""
+  },
+  {
+    "name": "Grüner Molton",
+    "amount": 1,
+    "type": "Molton",
+    "state": "Einwandfrei",
+    "location": "Unter Bühne Monitor 3",
+    "comment": ""
+  },
+  {
+    "name": "Mini Rack",
+    "amount": 1,
+    "type": "Pult",
+    "state": "Einwandfrei",
+    "location": "Hinter Bühne",
+    "comment": ""
+  },
+  {
+    "name": "POWEROWL 1,2V rechargeable Schwarz AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "POWEROWL 1,2V rechargeable Schwarz AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "Delueedow USB-C 1,5V rechargeable AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "Delueedow USB-C 1,5V rechargeable AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "Delueedow USB-C 1,5V rechargeable AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "ReCyko 1,2V Grün rechargeable  AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "ReCyko 1,2V Grün rechargeable AKKU",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Voll",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": ""
+  },
+  {
+    "name": "Cityorg 1,5V rechargeable (LED oben)",
+    "amount": 1,
+    "type": "AKKU",
+    "state": "Kaputt",
+    "location": "In grüner Box auf dem Tisch",
+    "comment": "Nicht aufladbar"
+  },
+  {
+    "name": "Kabeltrommel",
+    "amount": 1,
+    "type": "Kabel",
+    "state": "",
+    "location": "Unter der Bühne vorne rechts",
+    "comment": ""
+  }
+]

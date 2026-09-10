@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
-import { NotificationCenter } from "@/components/notification-center";
 import { updateProfile } from "@/lib/data-store";
 import { uploadAppMedia } from "@/lib/media-storage";
 import { knowledgePages } from "@/lib/knowledge";
@@ -21,8 +20,7 @@ const navItems = [
   { href: "/analytics", label: "Statistik", icon: BarChart3, admin: false },
   { href: "/rankings", label: "Level", icon: Trophy, admin: false },
   ...knowledgePages.map((page) => ({ href: page.href, label: page.title, icon: page.icon, admin: false })),
-  { href: "/equipment", label: "Equipment", icon: Package, admin: false },
-  { href: "/settings", label: "Einstellungen", icon: Settings, admin: false }
+  { href: "/equipment", label: "Equipment", icon: Package, admin: false }
 ];
 
 const adminNavItems = [
@@ -299,9 +297,14 @@ export function AppShell({
                 <span>{session?.role === "admin" ? "Admin" : "Techniker"}</span>
               </span>
             </button>
-            <button className="icon-button" type="button" onClick={logout} aria-label="Abmelden" title="Abmelden">
-              <LogOut size={18} />
-            </button>
+            <div className="sidebar-footer-actions">
+              <Link className={clsx("icon-button", pathname === "/settings" && "is-active")} href="/settings" aria-label="Einstellungen" title="Einstellungen">
+                <Settings size={18} />
+              </Link>
+              <button className="icon-button" type="button" onClick={logout} aria-label="Abmelden" title="Abmelden">
+                <LogOut size={18} />
+              </button>
+            </div>
           </div>
         </div>
         <button
@@ -320,7 +323,6 @@ export function AppShell({
             {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
             <h1>{title}</h1>
           </div>
-          <NotificationCenter />
         </header>
         {children}
       </main>

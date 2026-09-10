@@ -5,6 +5,7 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
+import { useApp } from "@/components/app-provider";
 import { RouteGuard } from "@/components/route-guard";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 
@@ -35,6 +36,7 @@ const selectDefaults: Record<string, string[]> = {
 const tagPalette = ["#3f765c", "#765842", "#69558a", "#5f708d", "#7d6f3c", "#7d4a48", "#4a4a45"];
 
 export default function EquipmentPage() {
+  const { isAdmin } = useApp();
   const [data, setData] = useState<EquipmentData>(() => loadEquipmentData());
   const [tagState, setTagState] = useState<EquipmentTagState>(() => loadTagState());
   const [openSelect, setOpenSelect] = useState<OpenSelect>(null);
@@ -87,13 +89,26 @@ export default function EquipmentPage() {
   }, [filteredRows, groupMode]);
 
   useEffect(() => {
-    if (hasSupabaseConfig && supabase) {
-      void loadRemoteEquipment().then(({ equipment, tags }) => {
+    if (!hasSupabaseConfig || !supabase) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      if (isAdmin) {
+        await ensureNotionEquipmentCatalog();
+      }
+      const { equipment, tags } = await loadRemoteEquipment();
+      if (!cancelled) {
         setData(equipment);
         setTagState(tags);
-      });
-    }
-  }, []);
+      }
+    })().catch((error) => console.error("Equipment konnte nicht geladen werden:", error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -918,6 +933,22 @@ async function loadRemoteEquipment(): Promise<{ equipment: EquipmentData; tags: 
     }),
     tags: tagState
   };
+}
+
+async function ensureNotionEquipmentCatalog() {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (!accessToken) return;
+
+  const response = await fetch("/api/admin/equipment/import", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(result.error ?? "Notion-Equipment konnte nicht importiert werden.");
+  }
 }
 
 function fromEquipmentRecord(row: {
