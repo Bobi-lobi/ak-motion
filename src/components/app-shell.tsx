@@ -75,10 +75,14 @@ export function AppShell({
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    if (profileOpen) {
+      return;
+    }
+
     setProfileName(session?.name ?? "");
     setProfilePhone(session?.phone ?? "");
     setProfileAvatar(session?.avatarUrl ?? "");
-  }, [session]);
+  }, [profileOpen, session?.avatarUrl, session?.name, session?.phone]);
 
   function startSidebarResize(mouseEvent: React.MouseEvent<HTMLButtonElement>) {
     mouseEvent.preventDefault();
@@ -180,6 +184,9 @@ export function AppShell({
       setSidebarCollapsed(true);
     }
     setProfileError("");
+    setProfileName(session?.name ?? "");
+    setProfilePhone(session?.phone ?? "");
+    setProfileAvatar(session?.avatarUrl ?? "");
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
