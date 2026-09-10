@@ -322,6 +322,8 @@ a {
   background: var(--panel);
   box-shadow: var(--shadow);
   color: var(--ink);
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
   padding: 20px;
 }
 
@@ -349,6 +351,39 @@ a {
   align-items: center;
   gap: 16px;
   margin-bottom: 4px;
+}
+
+.profile-password-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 16px;
+}
+
+.profile-password-heading div {
+  display: grid;
+  gap: 3px;
+}
+
+.profile-password-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.profile-error {
+  color: var(--red);
+  font-size: 13px;
+  margin: 0;
+}
+
+.spin {
+  animation: spin 850ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .sidebar-resize-handle {
@@ -2309,6 +2344,24 @@ textarea {
 .setting-toggle input[role="switch"]:checked::after {
   background: #fff;
   transform: translateX(18px);
+}
+
+.setting-fixed {
+  cursor: default;
+}
+
+.setting-required {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(91, 140, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(91, 140, 255, 0.1);
+  color: #a8c0ff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 9px;
+  white-space: nowrap;
 }
 
 .settings-action-row {
@@ -5625,6 +5678,7 @@ textarea {
   border: 0;
   background: transparent;
   color: var(--ink);
+  cursor: text;
   font-size: 17px;
   line-height: 1.65;
   padding: 2px 0;

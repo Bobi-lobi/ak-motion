@@ -1,14 +1,14 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LogOut, Package, PanelLeftClose, PanelLeftOpen, Settings, Trophy, Upload, Users, X } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LoaderCircle, LockKeyhole, LogOut, Package, PanelLeftClose, PanelLeftOpen, Settings, Trophy, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
 import { NotificationDispatcher } from "@/components/notification-dispatcher";
-import { updateProfile } from "@/lib/data-store";
+import { changePassword, updateProfile } from "@/lib/data-store";
 import { uploadAppMedia } from "@/lib/media-storage";
 import { knowledgePages } from "@/lib/knowledge";
 
@@ -51,6 +51,12 @@ export function AppShell({
   const [profileName, setProfileName] = useState(session?.name ?? "");
   const [profilePhone, setProfilePhone] = useState(session?.phone ?? "");
   const [profileAvatar, setProfileAvatar] = useState(session?.avatarUrl ?? "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [profileError, setProfileError] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
@@ -94,17 +100,46 @@ export function AppShell({
   }
 
   async function saveProfile() {
-    if (!session || !profileName.trim()) {
+    if (!session || !profileName.trim() || profileSaving || avatarUploading) {
       return;
     }
 
-    await updateProfile(session.id, {
-      avatarUrl: profileAvatar,
-      name: profileName.trim(),
-      phone: profilePhone.trim()
-    });
-    refresh();
-    setProfileOpen(false);
+    setProfileError("");
+    if (currentPassword || newPassword || confirmPassword) {
+      if (!currentPassword) {
+        setProfileError("Gib zuerst dein aktuelles Passwort ein.");
+        return;
+      }
+      if (newPassword.length < 6) {
+        setProfileError("Das neue Passwort muss mindestens 6 Zeichen lang sein.");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setProfileError("Die neuen Passwörter stimmen nicht überein.");
+        return;
+      }
+    }
+
+    setProfileSaving(true);
+    try {
+      if (newPassword) {
+        await changePassword(session.email, currentPassword, newPassword);
+      }
+      await updateProfile(session.id, {
+        avatarUrl: profileAvatar,
+        name: profileName.trim(),
+        phone: profilePhone.trim()
+      });
+      await refresh();
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setProfileOpen(false);
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Das Profil konnte nicht gespeichert werden.");
+    } finally {
+      setProfileSaving(false);
+    }
   }
 
   async function updateAvatar(fileList: FileList | null) {
@@ -113,11 +148,15 @@ export function AppShell({
       return;
     }
 
+    setAvatarUploading(true);
+    setProfileError("");
     try {
       setProfileAvatar(await uploadAppMedia(file, "profile"));
     } catch (error) {
       console.error("Profilbild konnte nicht hochgeladen werden:", error);
-      window.alert(error instanceof Error ? error.message : "Profilbild konnte nicht hochgeladen werden.");
+      setProfileError(error instanceof Error ? error.message : "Profilbild konnte nicht hochgeladen werden.");
+    } finally {
+      setAvatarUploading(false);
     }
   }
 
@@ -140,6 +179,10 @@ export function AppShell({
       window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true");
       setSidebarCollapsed(true);
     }
+    setProfileError("");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
     setProfileOpen(true);
   }
 
@@ -169,9 +212,12 @@ export function AppShell({
                 {profileAvatar ? <img src={profileAvatar} alt="" /> : initials(profileName)}
               </span>
               <label className="button">
-                <Upload size={16} />
-                Bild ändern
-                <input className="visually-hidden" type="file" accept="image/*" onChange={(event) => updateAvatar(event.target.files)} />
+                {avatarUploading ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}
+                {avatarUploading ? "Wird hochgeladen..." : "Bild ändern"}
+                <input className="visually-hidden" type="file" accept="image/*" disabled={avatarUploading} onChange={(event) => {
+                  const input = event.currentTarget;
+                  void updateAvatar(input.files).finally(() => { input.value = ""; });
+                }} />
               </label>
             </div>
 
@@ -187,11 +233,25 @@ export function AppShell({
               <span>E-Mail</span>
               <input value={session?.email ?? ""} disabled />
             </label>
+            <div className="profile-password-heading"><LockKeyhole size={17} /><div><strong>Passwort ändern</strong><span>Nur ausfüllen, wenn du ein neues Passwort festlegen möchtest.</span></div></div>
+            <label>
+              <span>Aktuelles Passwort</span>
+              <input value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" type="password" />
+            </label>
+            <label>
+              <span>Neues Passwort</span>
+              <input value={newPassword} onChange={(event) => setNewPassword(event.target.value)} autoComplete="new-password" minLength={6} type="password" />
+            </label>
+            <label>
+              <span>Neues Passwort wiederholen</span>
+              <input value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={6} type="password" />
+            </label>
+            {profileError ? <p className="profile-error" role="alert">{profileError}</p> : null}
           </div>
 
           <div className="button-row">
-            <button className="button primary" type="button" onClick={saveProfile} disabled={!profileName.trim()}>
-              Speichern
+            <button className="button primary" type="button" onClick={saveProfile} disabled={!profileName.trim() || profileSaving || avatarUploading}>
+              {profileSaving ? <><LoaderCircle className="spin" size={16} /> Wird gespeichert...</> : "Speichern"}
             </button>
             <button className="button" type="button" onClick={() => setProfileOpen(false)}>
               Abbrechen

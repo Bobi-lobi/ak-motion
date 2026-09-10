@@ -57,6 +57,6 @@ function notificationEnabled(notification: AppNotification, preferences: AppPref
   if (notification.kind === "assignment") return preferences.notifyAssignments;
   if (notification.kind === "attention") return preferences.notifyUnstaffed;
   if (notification.kind === "achievement") return preferences.notifyAchievements;
-  if (notification.kind === "announcement") return preferences.notifyAnnouncements;
+  if (notification.kind === "announcement") return true;
   return preferences.notifyAdminUpdates;
 }

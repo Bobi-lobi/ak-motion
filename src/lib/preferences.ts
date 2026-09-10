@@ -33,13 +33,18 @@ export function loadPreferences(): AppPreferences {
     return defaultPreferences;
   }
   try {
-    return { ...defaultPreferences, ...JSON.parse(window.localStorage.getItem(PREFERENCES_KEY) ?? "{}") };
+    return {
+      ...defaultPreferences,
+      ...JSON.parse(window.localStorage.getItem(PREFERENCES_KEY) ?? "{}"),
+      notifyAnnouncements: true
+    };
   } catch {
     return defaultPreferences;
   }
 }
 
 export function savePreferences(preferences: AppPreferences) {
-  window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
-  window.dispatchEvent(new CustomEvent("ak-motion-preferences", { detail: preferences }));
+  const next = { ...preferences, notifyAnnouncements: true };
+  window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent("ak-motion-preferences", { detail: next }));
 }

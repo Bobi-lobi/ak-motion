@@ -19,7 +19,7 @@ import {
   UsersRound,
   X
 } from "lucide-react";
-import type { DragEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
+import type { DragEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { createProfile, addAssignment, removeAssignment, updateEvent } from "@/lib/data-store";
@@ -1096,6 +1096,8 @@ export function SlashRichTextEditor({
     yApplyingEditorRef.current = true;
     editor.innerHTML = normalizeNoteHtml(html);
     normalizeEditorStructure(editor);
+    normalizeAtomicEditorBlocks(editor);
+    ensureEditableTail(editor);
     ensureEditorBlockIds(editor);
     latestEditorHtmlRef.current = sanitizeEditorHtml(editor);
     setIsEmpty(isEditorBlank(editor));
@@ -1197,6 +1199,8 @@ export function SlashRichTextEditor({
       editor.innerHTML = nextHtml;
     }
     normalizeEditorStructure(editor);
+    normalizeAtomicEditorBlocks(editor);
+    ensureEditableTail(editor);
     ensureEditorBlockIds(editor);
     latestEditorHtmlRef.current = sanitizeEditorHtml(editor);
     setIsEmpty(isEditorBlank(editor));
@@ -1766,6 +1770,31 @@ export function SlashRichTextEditor({
     setPageIconPickerOpen(false);
   }
 
+  function closeActivePage() {
+    const pageElement = activePage?.element;
+    setActivePage(null);
+    requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const pageBlock = pageElement && editor.contains(pageElement) ? topLevelEditorChild(pageElement, editor) : null;
+      const target = pageBlock
+        ? ensureEditableBlockAfter(pageBlock)
+        : ensureEditableTail(editor);
+      editor.focus({ preventScroll: true });
+      placeCaretInInsertedBlock(target);
+      target.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function handleEditorPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    const editor = event.currentTarget;
+    if (event.target !== editor) return;
+    event.preventDefault();
+    const target = ensureEditableTail(editor);
+    editor.focus({ preventScroll: true });
+    placeCaretInInsertedBlock(target);
+  }
+
   function updateActivePageTitle(title: string) {
     setActivePage((current) => {
       if (!current) {
@@ -2196,14 +2225,7 @@ export function SlashRichTextEditor({
         contentEditable
         data-placeholder={placeholder}
         onInput={() => syncEditor()}
-        onPointerDown={(event) => {
-          if (!event.currentTarget.childNodes.length) {
-            event.preventDefault();
-            event.currentTarget.innerHTML = "<p><br></p>";
-            event.currentTarget.focus();
-            placeCaretInInsertedBlock(event.currentTarget.firstElementChild as HTMLElement);
-          }
-        }}
+        onPointerDown={handleEditorPointerDown}
         onClick={handleEditorClick}
         onDragEnter={handleEditorDragOver}
         onDragOver={handleEditorDragOver}
@@ -2288,7 +2310,7 @@ export function SlashRichTextEditor({
       />
       {activePage ? (
         <div className="notion-page-view">
-          <button className="page-back-button" type="button" onClick={() => setActivePage(null)}>
+          <button className="page-back-button" type="button" onClick={closeActivePage}>
             <ArrowLeft size={18} />
             Zurück
           </button>
@@ -3113,14 +3135,54 @@ function insertBlockNodeAtSelection(editor: HTMLElement, node: HTMLElement) {
   }
 
   const block = closestEditorBlock(range.startContainer, editor);
-  if (!block || block === editor) {
+  const topLevelBlock = block && block !== editor ? topLevelEditorChild(block, editor) : null;
+  if (!topLevelBlock) {
     range.deleteContents();
     range.insertNode(fragment);
-  } else if (isEditorBlockEmpty(block)) {
-    block.replaceWith(fragment);
+  } else if (isEditorBlockEmpty(topLevelBlock)) {
+    topLevelBlock.replaceWith(fragment);
   } else {
-    block.after(fragment);
+    topLevelBlock.after(fragment);
   }
+}
+
+function topLevelEditorChild(element: HTMLElement, editor: HTMLElement) {
+  let current = element;
+  while (current.parentElement && current.parentElement !== editor) {
+    current = current.parentElement;
+  }
+  return current.parentElement === editor ? current : null;
+}
+
+function normalizeAtomicEditorBlocks(editor: HTMLElement) {
+  editor.querySelectorAll<HTMLElement>(".notion-page-link, .equipment-list-block, figure").forEach((block) => {
+    const topLevelBlock = topLevelEditorChild(block, editor);
+    if (!topLevelBlock || topLevelBlock === block) return;
+    topLevelBlock.before(block);
+    if (isEditorBlockEmpty(topLevelBlock)) topLevelBlock.remove();
+  });
+}
+
+function ensureEditableTail(editor: HTMLElement) {
+  const last = editor.lastElementChild as HTMLElement | null;
+  if (last && !last.matches("[contenteditable='false'], .notion-page-link, .equipment-list-block, figure") && isEditorBlockEmpty(last)) {
+    return last;
+  }
+  const paragraph = document.createElement("p");
+  paragraph.innerHTML = "<br>";
+  editor.append(paragraph);
+  return paragraph;
+}
+
+function ensureEditableBlockAfter(block: HTMLElement) {
+  const next = block.nextElementSibling as HTMLElement | null;
+  if (next && !next.matches("[contenteditable='false'], .notion-page-link, .equipment-list-block, figure")) {
+    return next;
+  }
+  const paragraph = document.createElement("p");
+  paragraph.innerHTML = "<br>";
+  block.after(paragraph);
+  return paragraph;
 }
 
 function insertBlockHtmlAtSelection(editor: HTMLElement, html: string) {

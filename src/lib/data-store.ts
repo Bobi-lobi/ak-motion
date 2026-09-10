@@ -1491,6 +1491,29 @@ export async function updateProfile(profileId: string, patch: Partial<Pick<Profi
   }
 }
 
+export async function changePassword(email: string, currentPassword: string, newPassword: string) {
+  if (newPassword.length < 6) {
+    throw new Error("Das neue Passwort muss mindestens 6 Zeichen lang sein.");
+  }
+
+  if (hasSupabaseConfig && supabase) {
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+    if (signInError) {
+      throw new Error("Das aktuelle Passwort ist nicht korrekt.");
+    }
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+    return;
+  }
+
+  if (loadPasswords()[email.trim().toLowerCase()] !== currentPassword) {
+    throw new Error("Das aktuelle Passwort ist nicht korrekt.");
+  }
+  savePassword(email, newPassword);
+}
+
 export async function updateKnowledgePage(pageId: KnowledgePageId, content: string, user?: SessionUser | null) {
   const title = knowledgePages.find((page) => page.id === pageId)?.title ?? pageId;
   const updatedAt = now();

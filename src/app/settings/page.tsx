@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, CalendarDays, Check, Copy, Filter, MapPin, Megaphone, Settings2, Tags, Trash2, UsersRound, X } from "lucide-react";
+import { BellRing, CalendarDays, Check, Copy, Filter, LockKeyhole, MapPin, Megaphone, Settings2, Tags, Trash2, UsersRound, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp } from "@/components/app-provider";
 import { AppShell } from "@/components/app-shell";
@@ -146,7 +146,7 @@ export default function SettingsPage() {
               <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Wenn du eingeteilt wirst oder ein Einsatz bald beginnt." checked={preferences.notifyAssignments} onChange={(checked) => updatePreference("notifyAssignments", checked)} />
               <SettingToggle label="Fehlende Besetzung" description="Hinweis auf baldige Veranstaltungen, für die noch Leute fehlen." checked={preferences.notifyUnstaffed} onChange={(checked) => updatePreference("notifyUnstaffed", checked)} />
               <SettingToggle label="Erfolge" description="Hinweise bei neuen Meilensteinen im Levelsystem." checked={preferences.notifyAchievements} onChange={(checked) => updatePreference("notifyAchievements", checked)} />
-              <SettingToggle label="Mitteilungen der Teamleitung" description="Nachrichten, die von der Teamleitung an alle gesendet werden." checked={preferences.notifyAnnouncements} onChange={(checked) => updatePreference("notifyAnnouncements", checked)} />
+              <div className="setting-toggle setting-fixed"><span><strong>Mitteilungen der Teamleitung</strong><span>Verpflichtende Nachrichten, die von der Teamleitung an alle gesendet werden.</span></span><span className="setting-required"><LockKeyhole size={14} /> Immer aktiv</span></div>
               <SettingToggle label="Neue Anfragen und Vorschläge" description="Neue Formulare, Bewerbungen und Regelvorschläge für Admins." checked={preferences.notifyAdminUpdates} onChange={(checked) => updatePreference("notifyAdminUpdates", checked)} />
             </div>
             <div className="settings-action-row">
