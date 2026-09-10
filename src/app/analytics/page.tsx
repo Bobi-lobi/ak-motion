@@ -7,7 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
 import { SchoolYearSelect } from "@/components/school-year-select";
 import { useApp } from "@/components/app-provider";
-import { isDateInSchoolYear, monthInBerlin, schoolYearForDate, schoolYearMonths, schoolYearOptions } from "@/lib/school-year";
+import { isDateInSchoolYear, monthInBerlin, schoolYearMonths, schoolYearOptions } from "@/lib/school-year";
 import { isPlaceholderProfile } from "@/lib/gamification";
 
 const axisStyle = { fill: "#a9a9a3", fontSize: 12 };
@@ -20,9 +20,9 @@ const tooltipStyle = {
 
 export default function AnalyticsPage() {
   const { data } = useApp();
-  const [schoolYear, setSchoolYear] = useState(() => schoolYearForDate());
-
   const schoolYears = useMemo(() => schoolYearOptions(data.events), [data.events]);
+  const [chosenSchoolYear, setChosenSchoolYear] = useState<number | null>(null);
+  const schoolYear = chosenSchoolYear ?? schoolYears[0];
   const countedEvents = useMemo(
     () =>
       data.events.filter(
@@ -72,7 +72,7 @@ export default function AnalyticsPage() {
     <RouteGuard>
       <AppShell title="Statistik" eyebrow="Schuljahresauswertung">
         <section className="toolbar">
-          <SchoolYearSelect value={schoolYear} options={schoolYears} onChange={setSchoolYear} />
+          <SchoolYearSelect value={schoolYear} options={schoolYears} onChange={setChosenSchoolYear} />
         </section>
 
         <section className="analytics-grid">

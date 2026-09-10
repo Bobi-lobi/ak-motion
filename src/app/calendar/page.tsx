@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarDays, ChevronLeft, ChevronRight, Columns3, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Columns3, Copy, ExternalLink, Plus, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { QRCodeSVG } from "qrcode.react";
 import { addWeeks, endOfWeek, startOfWeek, subWeeks } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -39,6 +40,8 @@ export default function CalendarPage() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; eventId: string } | null>(null);
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
   const [dragOverDayKey, setDragOverDayKey] = useState<string | null>(null);
+  const [requestUrl, setRequestUrl] = useState("");
+  const [requestUrlCopied, setRequestUrlCopied] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const creatingDayRef = useRef<Set<string>>(new Set());
   const lastDragEndedAtRef = useRef(0);
@@ -52,6 +55,10 @@ export default function CalendarPage() {
     },
     []
   );
+
+  useEffect(() => {
+    setRequestUrl(new URL("/request/motion", window.location.origin).toString());
+  }, []);
 
   function clearLongPressTimer() {
     if (longPressTimerRef.current) {
@@ -346,6 +353,27 @@ export default function CalendarPage() {
             />
           )}
         </section>
+
+        {requestUrl ? (
+          <section className="calendar-share" aria-labelledby="calendar-share-title">
+            <div className="calendar-share-copy">
+              <span className="eyebrow">Für Veranstalter</span>
+              <h2 id="calendar-share-title">Anfrageformular teilen</h2>
+              <p>Link kopieren oder QR-Code direkt mit einem anderen Gerät scannen.</p>
+              <div className="calendar-share-actions">
+                <a className="button" href={requestUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Formular öffnen</a>
+                <button className="button primary" type="button" onClick={async () => {
+                  await navigator.clipboard.writeText(requestUrl);
+                  setRequestUrlCopied(true);
+                  window.setTimeout(() => setRequestUrlCopied(false), 1400);
+                }}>{requestUrlCopied ? <Check size={16} /> : <Copy size={16} />} {requestUrlCopied ? "Kopiert" : "Link kopieren"}</button>
+              </div>
+            </div>
+            <div className="calendar-share-qr" aria-label="QR-Code zum Anfrageformular">
+              <QRCodeSVG value={requestUrl} size={126} bgColor="#ffffff" fgColor="#111111" marginSize={2} />
+            </div>
+          </section>
+        ) : null}
 
         {selectedEvent ? (
           <EventPageModal event={selectedEvent as Event} onClose={() => setSelectedEventId(null)} />

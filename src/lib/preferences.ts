@@ -1,9 +1,23 @@
 export type AppPreferences = {
+  browserNotifications: boolean;
+  calendarFeedEventTypes: string[];
+  calendarFeedScope: "all" | "assigned" | "types";
   defaultCalendarView: "month" | "week";
+  notifyAdminUpdates: boolean;
+  notifyAssignments: boolean;
+  notifyUnstaffed: boolean;
+  notifyAchievements: boolean;
 };
 
 export const defaultPreferences: AppPreferences = {
-  defaultCalendarView: "month"
+  browserNotifications: false,
+  calendarFeedEventTypes: [],
+  calendarFeedScope: "assigned",
+  defaultCalendarView: "month",
+  notifyAdminUpdates: true,
+  notifyAchievements: true,
+  notifyAssignments: true,
+  notifyUnstaffed: true
 };
 
 const PREFERENCES_KEY = "ak-motion-preferences";

@@ -10,22 +10,39 @@ function feedSecret() {
   return secret;
 }
 
-export function createCalendarFeedToken(userId: string) {
-  const signature = createHmac("sha256", feedSecret()).update(userId).digest("base64url");
-  return `${Buffer.from(userId).toString("base64url")}.${signature}`;
+export type CalendarFeedScope = "all" | "assigned" | "types";
+
+export type CalendarFeedSelection = {
+  eventTypes: string[];
+  scope: CalendarFeedScope;
+  userId: string;
+};
+
+export function createCalendarFeedToken(selection: CalendarFeedSelection) {
+  const payload = Buffer.from(JSON.stringify(selection)).toString("base64url");
+  const signature = createHmac("sha256", feedSecret()).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
 }
 
 export function readCalendarFeedToken(token: string) {
   const [encodedUserId, signature] = token.split(".");
   if (!encodedUserId || !signature) return null;
-  const userId = Buffer.from(encodedUserId, "base64url").toString("utf8");
-  const expected = createHmac("sha256", feedSecret()).update(userId).digest("base64url");
+  const decoded = Buffer.from(encodedUserId, "base64url").toString("utf8");
+  const isCurrentToken = decoded.startsWith("{");
+  const expected = createHmac("sha256", feedSecret()).update(isCurrentToken ? encodedUserId : decoded).digest("base64url");
   const signatureBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expected);
   if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
     return null;
   }
-  return userId;
+  if (!isCurrentToken) return { eventTypes: [], scope: "assigned" as const, userId: decoded };
+  try {
+    const value = JSON.parse(decoded) as CalendarFeedSelection;
+    if (!value.userId || !["all", "assigned", "types"].includes(value.scope)) return null;
+    return { eventTypes: Array.isArray(value.eventTypes) ? value.eventTypes.filter((item) => typeof item === "string") : [], scope: value.scope, userId: value.userId };
+  } catch {
+    return null;
+  }
 }
 
 export function escapeIcs(value: string) {

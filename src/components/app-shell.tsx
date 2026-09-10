@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
+import { NotificationDispatcher } from "@/components/notification-dispatcher";
 import { updateProfile } from "@/lib/data-store";
 import { uploadAppMedia } from "@/lib/media-storage";
 import { knowledgePages } from "@/lib/knowledge";
@@ -134,6 +135,14 @@ export function AppShell({
     }
   }
 
+  function openProfile() {
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, "true");
+      setSidebarCollapsed(true);
+    }
+    setProfileOpen(true);
+  }
+
   const profileModal =
     profileOpen && typeof document !== "undefined" ? (
       <div className="page-modal-backdrop profile-modal-backdrop" role="presentation" onClick={() => setProfileOpen(false)}>
@@ -197,6 +206,7 @@ export function AppShell({
       className={clsx("workspace", sidebarCollapsed && "is-sidebar-collapsed")}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
+      <NotificationDispatcher />
       {sidebarCollapsed ? (
         <button
           className="sidebar-show-button"
@@ -288,7 +298,7 @@ export function AppShell({
             <Link href="/datenschutz">Datenschutz</Link>
           </nav>
           <div className="sidebar-footer">
-            <button className="profile-trigger" type="button" onClick={() => setProfileOpen(true)}>
+            <button className="profile-trigger" type="button" onClick={openProfile}>
               <span className="profile-avatar" aria-hidden="true">
                 {session?.avatarUrl ? <img src={session.avatarUrl} alt="" /> : initials(session?.name)}
               </span>
@@ -298,7 +308,7 @@ export function AppShell({
               </span>
             </button>
             <div className="sidebar-footer-actions">
-              <Link className={clsx("icon-button", pathname === "/settings" && "is-active")} href="/settings" aria-label="Einstellungen" title="Einstellungen">
+              <Link className={clsx("icon-button", pathname === "/settings" && "is-active")} href="/settings" aria-label="Einstellungen" title="Einstellungen" onClick={(clickEvent) => openPageOnMobile(clickEvent, "/settings")}>
                 <Settings size={18} />
               </Link>
               <button className="icon-button" type="button" onClick={logout} aria-label="Abmelden" title="Abmelden">

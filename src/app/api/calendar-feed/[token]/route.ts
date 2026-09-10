@@ -8,24 +8,34 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
       return new NextResponse("Kalender-Feed ist nicht konfiguriert.", { status: 500 });
     }
     const { token } = await context.params;
-    const userId = readCalendarFeedToken(token);
-    if (!userId) {
+    const selection = readCalendarFeedToken(token);
+    if (!selection) {
       return new NextResponse("Ungültiger Kalender-Link.", { status: 401 });
     }
     const { data: assignments, error: assignmentError } = await supabaseAdmin
       .from("event_assignments")
       .select("event_id, role")
-      .eq("profile_id", userId);
+      .eq("profile_id", selection.userId);
     if (assignmentError) {
       throw assignmentError;
     }
     const eventIds = Array.from(new Set((assignments ?? []).map((assignment) => assignment.event_id)));
-    const { data: events, error: eventError } = eventIds.length
-      ? await supabaseAdmin
-          .from("events")
-          .select("id, title, starts_at, ends_at, location, notes, created_at")
-          .in("id", eventIds)
-      : { data: [], error: null };
+    let eventQuery = supabaseAdmin
+      .from("events")
+      .select("id, title, starts_at, ends_at, location, notes, created_at, event_type")
+      .order("starts_at", { ascending: true });
+    if (selection.scope === "assigned") {
+      if (!eventIds.length) {
+        eventQuery = eventQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
+      } else {
+        eventQuery = eventQuery.in("id", eventIds);
+      }
+    } else if (selection.scope === "types") {
+      eventQuery = selection.eventTypes.length
+        ? eventQuery.in("event_type", selection.eventTypes)
+        : eventQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
+    }
+    const { data: events, error: eventError } = await eventQuery;
     if (eventError) {
       throw eventError;
     }

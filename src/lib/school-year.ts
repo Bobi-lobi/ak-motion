@@ -41,7 +41,8 @@ export function monthInBerlin(value: Date | string) {
 }
 
 export function schoolYearOptions(events: Event[], now = new Date()) {
-  const years = new Set<number>([schoolYearForDate(now)]);
+  const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const years = new Set<number>([schoolYearForDate(now), schoolYearForDate(soon)]);
   events.forEach((event) => years.add(schoolYearForDate(event.startsAt)));
   return Array.from(years).sort((a, b) => b - a);
 }
