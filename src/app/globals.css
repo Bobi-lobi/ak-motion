@@ -2975,12 +2975,18 @@ textarea {
 .podium-avatar {
   position: relative;
   width: 58px;
+  min-width: 58px;
+  max-width: 58px;
   height: 58px;
+  flex-basis: 58px;
 }
 
 .podium-player.place-1 .podium-avatar {
   width: 72px;
+  min-width: 72px;
+  max-width: 72px;
   height: 72px;
+  flex-basis: 72px;
 }
 
 .podium-player-card h3,
