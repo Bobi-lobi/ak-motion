@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { createPublicRequest } from "@/lib/data-store";
 import type { AttachmentFile, EventRequestInput } from "@/lib/types";
 
@@ -85,6 +85,7 @@ export default function PublicRequestPage() {
   return (
     <main className="public-request">
       <section className="public-panel">
+        <a className="public-home-link" href="/login"><ArrowLeft size={17} /> Zur Startseite</a>
         <div className="public-header">
           <span className="eyebrow">AK-Technik Anfrage</span>
           <h1>Veranstaltung einreichen</h1>

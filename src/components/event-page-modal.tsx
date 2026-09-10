@@ -12,6 +12,8 @@ import {
   Trophy,
   Bold,
   Italic,
+  ListChecks,
+  Search,
   Strikethrough,
   Type,
   UsersRound,
@@ -54,7 +56,7 @@ type EventFieldPatchPayload = {
 };
 type TableControlsPosition = { top: number; left: number; width: number; height: number };
 type SlashCommand = {
-  action?: "audio" | "image" | "page" | "video";
+  action?: "audio" | "equipment" | "image" | "page" | "video";
   accept?: string;
   label: string;
   description: string;
@@ -62,6 +64,7 @@ type SlashCommand = {
   keywords?: string[];
   section: "basis" | "medien";
 };
+type EquipmentOption = { id: string; name: string; available: number };
 type ActivePage = {
   content: string;
   element: HTMLElement;
@@ -75,6 +78,7 @@ type BlockContextMenu = { blockId: string; x: number; y: number };
 export function EventPageModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const { data, session, isAdmin, refresh, updateData } = useApp();
   const [draftEvent, setDraftEvent] = useState(event);
+  const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOption[]>([]);
   const eventFieldChannelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
   const eventFieldChannelReadyRef = useRef(false);
   const eventFieldClientIdRef = useRef(`event-client-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -99,6 +103,28 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
   );
   const locationOptions = Array.from(new Set(["Aula", "Bühne", "Musikraum", "Sporthalle", ...data.events.map((item) => item.location).filter(Boolean)]));
   const canChooseAllTechnicians = Boolean(session);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (hasSupabaseConfig && supabase) {
+      void (async () => {
+        const { data: rows, error } = await supabase
+          .from("equipment_items")
+          .select("id, name, amount")
+          .order("name", { ascending: true });
+        if (error) throw error;
+        if (!cancelled) setEquipmentOptions((rows ?? []).map((row) => ({ id: row.id, name: row.name ?? "Ohne Namen", available: row.amount ?? 0 })));
+      })().catch((error: unknown) => console.error("Equipmentliste konnte nicht geladen werden:", error));
+    } else {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem("ak-motion-equipment-database") ?? "{}") as { rows?: Array<{ id: string; cells?: Record<string, string> }> };
+        setEquipmentOptions((stored.rows ?? []).map((row) => ({ id: row.id, name: row.cells?.name || "Ohne Namen", available: Number(row.cells?.amount ?? 0) || 0 })));
+      } catch {
+        setEquipmentOptions([]);
+      }
+    }
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -432,6 +458,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
               placeholder="Ablauf, Aufbauplan, Sonderwünsche, Links oder interne Hinweise..."
               currentUser={session}
               realtimeKey={`event-notes-${event.id}`}
+              equipmentOptions={equipmentOptions}
             />
           </section>
         </div>
@@ -888,7 +915,8 @@ export function SlashRichTextEditor({
   realtimeKey,
   value,
   onChange,
-  placeholder
+  placeholder,
+  equipmentOptions = []
 }: {
   ariaLabel?: string;
   currentUser?: SessionUser | null;
@@ -896,6 +924,7 @@ export function SlashRichTextEditor({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  equipmentOptions?: EquipmentOption[];
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -906,6 +935,8 @@ export function SlashRichTextEditor({
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const pendingMediaCommandRef = useRef<SlashCommand | null>(null);
   const selectedFormatRangeRef = useRef<Range | null>(null);
+  const equipmentInsertRangeRef = useRef<Range | null>(null);
+  const editingEquipmentBlockRef = useRef<HTMLElement | null>(null);
   const applyingRemoteHtmlRef = useRef(false);
   const blockIdsRef = useRef<WeakMap<HTMLElement, string>>(new WeakMap());
   const blockElementsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -941,6 +972,9 @@ export function SlashRichTextEditor({
   const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenu | null>(null);
   const [liveTypers, setLiveTypers] = useState<Record<string, LiveTypingState>>({});
   const [formatToolbar, setFormatToolbar] = useState<{ left: number; top: number } | null>(null);
+  const [equipmentPickerOpen, setEquipmentPickerOpen] = useState(false);
+  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [selectedEquipment, setSelectedEquipment] = useState<Record<string, number>>({});
   useCloseOnOutside(shellRef, () => setSlashOpen(false), slashOpen);
   useCloseOnOutside(pageIconPickerRef, () => setPageIconPickerOpen(false), pageIconPickerOpen);
 
@@ -1019,6 +1053,13 @@ export function SlashRichTextEditor({
       description: "Leere Seite",
       action: "page",
       keywords: ["page", "seite"],
+      section: "basis"
+    },
+    {
+      label: "Equipmentliste",
+      description: "Benötigtes Equipment auswählen",
+      action: "equipment",
+      keywords: ["technik", "material", "equipment", "liste"],
       section: "basis"
     },
     { label: "Bild", description: "Bilddatei hochladen", action: "image", accept: "image/*", keywords: ["foto", "image"], section: "medien" },
@@ -1366,7 +1407,13 @@ export function SlashRichTextEditor({
     editor.focus();
     deleteSlashBeforeCaret(editor);
 
-    if (command.action === "page") {
+    if (command.action === "equipment") {
+      equipmentInsertRangeRef.current = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0).cloneRange() : null;
+      editingEquipmentBlockRef.current = null;
+      setSelectedEquipment({});
+      setEquipmentSearch("");
+      setEquipmentPickerOpen(true);
+    } else if (command.action === "page") {
       insertPageBlock(editor);
     } else if (command.action) {
       pendingMediaCommandRef.current = command;
@@ -1445,7 +1492,7 @@ export function SlashRichTextEditor({
     const command = pendingMediaCommandRef.current;
     pendingMediaCommandRef.current = null;
 
-    if (!file || !command?.action) {
+    if (!file || !command?.action || command.action === "equipment") {
       return;
     }
 
@@ -1475,6 +1522,19 @@ export function SlashRichTextEditor({
 
   function handleEditorClick(mouseEvent: ReactMouseEvent<HTMLDivElement>) {
     const target = mouseEvent.target as HTMLElement;
+    const equipmentBlock = target.closest(".equipment-list-block") as HTMLElement | null;
+    if (equipmentBlock && editorRef.current?.contains(equipmentBlock)) {
+      const selection: Record<string, number> = {};
+      equipmentBlock.querySelectorAll<HTMLElement>("[data-equipment-id]").forEach((item) => {
+        const id = item.dataset.equipmentId;
+        if (id) selection[id] = Math.max(1, Number(item.dataset.equipmentQuantity ?? 1) || 1);
+      });
+      editingEquipmentBlockRef.current = equipmentBlock;
+      setSelectedEquipment(selection);
+      setEquipmentSearch("");
+      setEquipmentPickerOpen(true);
+      return;
+    }
     const pageLink = target.closest(".notion-page-link") as HTMLElement | null;
     if (pageLink && editorRef.current?.contains(pageLink)) {
       setActivePage(readPageFromElement(pageLink));
@@ -1923,6 +1983,32 @@ export function SlashRichTextEditor({
       };
     })
     .filter((item): item is { typing: LiveTypingState; handle: BlockHandle } => Boolean(item.handle));
+  const filteredEquipmentOptions = equipmentOptions.filter((option) => option.name.toLowerCase().includes(equipmentSearch.trim().toLowerCase()));
+
+  function saveEquipmentList() {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const selected = equipmentOptions.filter((option) => selectedEquipment[option.id]);
+    if (!selected.length) return;
+    const items = selected.map((option) => `<li data-equipment-id="${escapeHtml(option.id)}" data-equipment-quantity="${selectedEquipment[option.id]}"><span>${escapeHtml(option.name)}</span><strong>${selectedEquipment[option.id]} x</strong></li>`).join("");
+    const html = `<div class="equipment-list-block" data-equipment-list="true" contenteditable="false"><div><strong>Equipmentliste</strong><span>${selected.length} ${selected.length === 1 ? "Position" : "Positionen"}</span></div><ul>${items}</ul><small>Zum Bearbeiten anklicken</small></div>`;
+    const editingBlock = editingEquipmentBlockRef.current;
+    if (editingBlock && editor.contains(editingBlock)) {
+      editingBlock.outerHTML = html;
+    } else {
+      const range = equipmentInsertRangeRef.current;
+      if (range) {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+      insertBlockHtmlAtSelection(editor, `${html}<p><br></p>`);
+    }
+    editingEquipmentBlockRef.current = null;
+    equipmentInsertRangeRef.current = null;
+    setEquipmentPickerOpen(false);
+    syncEditor(false);
+  }
 
   return (
     <div className="slash-editor" ref={shellRef}>
@@ -2117,6 +2203,27 @@ export function SlashRichTextEditor({
           })}
         </div>
       ) : null}
+      {equipmentPickerOpen ? (
+        <div className="equipment-picker-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setEquipmentPickerOpen(false);
+        }}>
+          <section className="equipment-picker" role="dialog" aria-modal="true" aria-label="Equipment auswählen">
+            <header><div><ListChecks size={20} /><div><strong>Equipmentliste</strong><span>Wähle das benötigte Material aus.</span></div></div><button className="icon-button" type="button" aria-label="Schließen" onClick={() => setEquipmentPickerOpen(false)}><X size={18} /></button></header>
+            <label className="equipment-picker-search"><Search size={16} /><input autoFocus value={equipmentSearch} onChange={(event) => setEquipmentSearch(event.target.value)} placeholder="Equipment suchen..." /></label>
+            <div className="equipment-picker-list">
+              {filteredEquipmentOptions.map((option) => {
+                const quantity = selectedEquipment[option.id] ?? 0;
+                return <div className={quantity ? "is-selected" : ""} key={option.id}>
+                  <label><input type="checkbox" checked={quantity > 0} onChange={(event) => setSelectedEquipment((current) => ({ ...current, [option.id]: event.target.checked ? Math.max(1, current[option.id] ?? 1) : 0 }))} /><span><strong>{option.name}</strong><small>{option.available} verfügbar</small></span></label>
+                  {quantity ? <input className="equipment-quantity" type="number" min="1" max={Math.max(1, option.available)} value={quantity} aria-label={`Anzahl ${option.name}`} onChange={(event) => setSelectedEquipment((current) => ({ ...current, [option.id]: Math.max(1, Number(event.target.value) || 1) }))} /> : null}
+                </div>;
+              })}
+              {!filteredEquipmentOptions.length ? <p className="equipment-picker-empty">Kein Equipment gefunden.</p> : null}
+            </div>
+            <footer><span>{Object.values(selectedEquipment).filter(Boolean).length} ausgewählt</span><div><button className="button" type="button" onClick={() => setEquipmentPickerOpen(false)}>Abbrechen</button><button className="button primary" type="button" disabled={!Object.values(selectedEquipment).some(Boolean)} onClick={saveEquipmentList}>Liste einfügen</button></div></footer>
+          </section>
+        </div>
+      ) : null}
       <input
         ref={mediaInputRef}
         className="visually-hidden"
@@ -2176,6 +2283,7 @@ export function SlashRichTextEditor({
               placeholder="Schreibe etwas oder tippe / für Befehle..."
               currentUser={currentUser}
               realtimeKey={`${realtimeKey ?? "editor"}-page-${activePage.id}`}
+              equipmentOptions={equipmentOptions}
             />
           </div>
         </div>

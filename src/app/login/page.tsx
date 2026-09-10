@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { createRegistrationRequest } from "@/lib/data-store";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
@@ -11,7 +11,7 @@ type AuthPanel = "landing" | "login" | "register";
 
 export default function LoginPage() {
   const { data, login, ready } = useApp();
-  const [panel, setPanel] = useState<AuthPanel>(() => initialPanel());
+  const [panel, setPanel] = useState<AuthPanel>("landing");
   const [selectedImpression, setSelectedImpression] = useState<LandingImpression | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [equipmentStats, setEquipmentStats] = useState({ lamps: 64, items: 0 });
@@ -26,6 +26,10 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    setPanel(initialPanel());
+  }, []);
   const landing = data.landingContent;
   const selectedImages = selectedImpression?.images.filter(Boolean) ?? [];
   const teamNames = landing.teamNames.map((name) => name.trim()).filter(Boolean);
@@ -194,6 +198,12 @@ export default function LoginPage() {
     return (
       <main className="login-screen auth-only-screen">
         <section className="login-panel">
+          <button className="auth-home-button" type="button" onClick={() => {
+            setError("");
+            setSuccess("");
+            setPanel("landing");
+            window.history.replaceState(null, "", "/login");
+          }}><ArrowLeft size={17} /> Zur Startseite</button>
           <div className="login-brand">
             <img className="brand-mark large" src="/ak-motion-logo.png" alt="Motion" />
             <div>

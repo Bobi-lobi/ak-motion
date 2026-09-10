@@ -1,9 +1,11 @@
 "use client";
 
-import { BellRing, CalendarDays, Check, Copy, Settings2 } from "lucide-react";
+import { BellRing, CalendarDays, Check, Copy, Megaphone, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useApp } from "@/components/app-provider";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
+import { createAnnouncement, deleteAnnouncement } from "@/lib/data-store";
 import { defaultPreferences, loadPreferences, savePreferences, type AppPreferences } from "@/lib/preferences";
 import { supabase } from "@/lib/supabase";
 
@@ -11,11 +13,16 @@ type CalendarFeed = { url: string; webcalUrl: string };
 const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Feier", "Vortrag", "Aufführung", "Konzert", "Termin", "Sonstiges"];
 
 export default function SettingsPage() {
+  const { data, isAdmin, refresh, session } = useApp();
   const [preferences, setPreferences] = useState<AppPreferences>(defaultPreferences);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
   const [calendarFeed, setCalendarFeed] = useState<CalendarFeed | null>(null);
   const [calendarError, setCalendarError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementMessage, setAnnouncementMessage] = useState("");
+  const [announcementPending, setAnnouncementPending] = useState(false);
+  const [announcementError, setAnnouncementError] = useState("");
 
   useEffect(() => {
     setPreferences(loadPreferences());
@@ -74,6 +81,34 @@ export default function SettingsPage() {
     window.setTimeout(() => setCopied(false), 1400);
   }
 
+  async function publishAnnouncement() {
+    const title = announcementTitle.trim();
+    const message = announcementMessage.trim();
+    if (!title || !message || !session) return;
+
+    setAnnouncementPending(true);
+    setAnnouncementError("");
+    try {
+      await createAnnouncement(title, message, session);
+      setAnnouncementTitle("");
+      setAnnouncementMessage("");
+      await refresh();
+    } catch (error) {
+      setAnnouncementError(error instanceof Error ? error.message : "Mitteilung konnte nicht gesendet werden.");
+    } finally {
+      setAnnouncementPending(false);
+    }
+  }
+
+  async function removeAnnouncement(id: string) {
+    try {
+      await deleteAnnouncement(id);
+      await refresh();
+    } catch (error) {
+      setAnnouncementError(error instanceof Error ? error.message : "Mitteilung konnte nicht gelöscht werden.");
+    }
+  }
+
   return (
     <RouteGuard>
       <AppShell title="Einstellungen" eyebrow="Deine App" titleIcon={<Settings2 size={28} />} contentClassName="settings-page">
@@ -87,6 +122,7 @@ export default function SettingsPage() {
               <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Wenn du eingeteilt wirst oder ein Einsatz bald beginnt." checked={preferences.notifyAssignments} onChange={(checked) => updatePreference("notifyAssignments", checked)} />
               <SettingToggle label="Fehlende Besetzung" description="Hinweis auf baldige Veranstaltungen, für die noch Leute fehlen." checked={preferences.notifyUnstaffed} onChange={(checked) => updatePreference("notifyUnstaffed", checked)} />
               <SettingToggle label="Erfolge" description="Hinweise bei neuen Meilensteinen im Levelsystem." checked={preferences.notifyAchievements} onChange={(checked) => updatePreference("notifyAchievements", checked)} />
+              <SettingToggle label="Mitteilungen der Teamleitung" description="Nachrichten, die von der Teamleitung an alle gesendet werden." checked={preferences.notifyAnnouncements} onChange={(checked) => updatePreference("notifyAnnouncements", checked)} />
               <SettingToggle label="Neue Anfragen und Vorschläge" description="Neue Formulare, Bewerbungen und Regelvorschläge für Admins." checked={preferences.notifyAdminUpdates} onChange={(checked) => updatePreference("notifyAdminUpdates", checked)} />
             </div>
             <div className="settings-action-row">
@@ -145,6 +181,31 @@ export default function SettingsPage() {
               {calendarFeed ? <p className="settings-secret-note">Behandle diesen Link wie ein Passwort: Wer ihn kennt, kann deine Termine lesen.</p> : null}
             </div>
           </section>
+
+          {isAdmin ? (
+            <section className="settings-section settings-announcements">
+              <header className="settings-section-head">
+                <Megaphone size={22} />
+                <div><h2>Mitteilung an alle</h2><p>Sende eine Nachricht an alle angemeldeten Teammitglieder.</p></div>
+              </header>
+              <div className="announcement-composer">
+                <label><span>Titel</span><input value={announcementTitle} onChange={(event) => setAnnouncementTitle(event.target.value)} placeholder="Kurze Überschrift" /></label>
+                <label><span>Nachricht</span><textarea value={announcementMessage} onChange={(event) => setAnnouncementMessage(event.target.value)} placeholder="Was sollen alle wissen?" rows={4} /></label>
+                {announcementError ? <p className="error-text">{announcementError}</p> : null}
+                <button className="button primary" type="button" onClick={() => void publishAnnouncement()} disabled={announcementPending || !announcementTitle.trim() || !announcementMessage.trim()}><Megaphone size={16} /> {announcementPending ? "Wird gesendet..." : "An alle senden"}</button>
+              </div>
+              {data.announcements.length ? (
+                <div className="announcement-list">
+                  {data.announcements.map((announcement) => (
+                    <article key={announcement.id}>
+                      <div><strong>{announcement.title}</strong><p>{announcement.body}</p></div>
+                      <button className="icon-button" type="button" aria-label={`${announcement.title} löschen`} onClick={() => void removeAnnouncement(announcement.id)}><Trash2 size={16} /></button>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
         </section>
       </AppShell>

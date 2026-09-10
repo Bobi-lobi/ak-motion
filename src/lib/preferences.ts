@@ -4,6 +4,7 @@ export type AppPreferences = {
   calendarFeedScope: "all" | "assigned" | "types";
   defaultCalendarView: "month" | "week";
   notifyAdminUpdates: boolean;
+  notifyAnnouncements: boolean;
   notifyAssignments: boolean;
   notifyUnstaffed: boolean;
   notifyAchievements: boolean;
@@ -15,6 +16,7 @@ export const defaultPreferences: AppPreferences = {
   calendarFeedScope: "assigned",
   defaultCalendarView: "month",
   notifyAdminUpdates: true,
+  notifyAnnouncements: true,
   notifyAchievements: true,
   notifyAssignments: true,
   notifyUnstaffed: true

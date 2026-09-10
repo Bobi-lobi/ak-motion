@@ -1613,6 +1613,20 @@ select:disabled {
   padding: 22px 10px !important;
 }
 
+.equipment-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.equipment-loading svg {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .equipment-column-head {
   display: flex;
   align-items: center;
@@ -1866,6 +1880,32 @@ select:disabled {
   margin-top: 8px;
   padding: 0 12px;
   text-align: left;
+}
+
+.equipment-show-more {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.equipment-show-more:hover,
+.equipment-show-more:focus-visible {
+  background: rgba(255, 255, 255, 0.035);
+  outline: none;
+}
+
+.equipment-show-more span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .equipment-add-row:hover,
@@ -2135,6 +2175,60 @@ textarea {
 .calendar-divider {
   border-top: 1px solid var(--line);
   margin: 24px 0;
+}
+
+.announcement-composer {
+  display: grid;
+  gap: 14px;
+}
+
+.announcement-composer label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.announcement-composer input,
+.announcement-composer textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-soft);
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
+.announcement-composer .button {
+  justify-self: start;
+}
+
+.announcement-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 16px;
+}
+
+.announcement-list article {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 12px 14px;
+}
+
+.announcement-list p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
 }
 
 .calendar-subscription {
@@ -4147,6 +4241,29 @@ textarea {
   width: min(440px, 100%);
 }
 
+.auth-home-button,
+.public-home-link {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+  margin-bottom: 24px;
+  padding: 0 11px;
+  text-decoration: none;
+}
+
+.auth-home-button:hover,
+.public-home-link:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
 .public-request select,
 .login-panel select,
 .public-panel select {
@@ -5546,6 +5663,174 @@ textarea {
 .rich-text-editor th {
   background: rgba(255, 255, 255, 0.06);
   font-weight: 800;
+}
+
+.rich-text-editor .equipment-list-block {
+  max-width: 620px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(91, 140, 255, 0.055);
+  cursor: pointer;
+  margin: 14px 0;
+  padding: 14px 16px;
+}
+
+.rich-text-editor .equipment-list-block > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rich-text-editor .equipment-list-block > div span,
+.rich-text-editor .equipment-list-block small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.rich-text-editor .equipment-list-block ul {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.rich-text-editor .equipment-list-block li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.equipment-picker-backdrop {
+  position: fixed;
+  z-index: 180;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.68);
+  padding: 18px;
+}
+
+.equipment-picker {
+  display: grid;
+  width: min(620px, 100%);
+  max-height: min(720px, calc(100dvh - 36px));
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-elevated);
+  box-shadow: var(--shadow);
+}
+
+.equipment-picker header,
+.equipment-picker footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.equipment-picker header {
+  border-bottom: 1px solid var(--line);
+}
+
+.equipment-picker header > div,
+.equipment-picker header > div > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.equipment-picker header > div > div {
+  align-items: start;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.equipment-picker header span,
+.equipment-picker footer > span,
+.equipment-picker-list small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.equipment-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 18px;
+}
+
+.equipment-picker-search input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.equipment-picker-list {
+  overflow: auto;
+  padding: 8px;
+}
+
+.equipment-picker-list > div {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+
+.equipment-picker-list > div:hover,
+.equipment-picker-list > div.is-selected {
+  background: rgba(91, 140, 255, 0.08);
+}
+
+.equipment-picker-list label {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 11px;
+}
+
+.equipment-picker-list label span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.equipment-quantity {
+  width: 64px;
+  min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--ink);
+  font: inherit;
+  padding: 0 8px;
+}
+
+.equipment-picker-empty {
+  color: var(--muted);
+  padding: 24px;
+  text-align: center;
+}
+
+.equipment-picker footer {
+  border-top: 1px solid var(--line);
+}
+
+.equipment-picker footer > div {
+  display: flex;
+  gap: 8px;
 }
 
 .notion-page-link {

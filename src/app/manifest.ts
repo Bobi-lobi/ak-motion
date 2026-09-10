@@ -6,8 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Kalender und Einsatzplanung für das AK-Motion Technikteam",
     display: "standalone",
     icons: [
-      { src: "/icon.png", sizes: "512x512", type: "image/png" },
-      { src: "/ak-motion-logo.png", sizes: "512x512", type: "image/png" }
+      { src: "/ak-motion-logo.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/ak-motion-logo.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
     ],
     name: "AK-Motion",
     short_name: "Motion",

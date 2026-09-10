@@ -4,7 +4,7 @@ export type AppNotification = {
   body: string;
   href: string;
   id: string;
-  kind: "achievement" | "admin" | "assignment" | "attention";
+  kind: "achievement" | "admin" | "announcement" | "assignment" | "attention";
   title: string;
 };
 
@@ -14,7 +14,15 @@ export function buildNotifications(data: AppData, session: SessionUser | null) {
   if (!session) return [];
 
   const now = Date.now();
-  const notifications: AppNotification[] = [];
+  const notifications: AppNotification[] = data.announcements
+    .filter((announcement) => !announcement.expiresAt || new Date(announcement.expiresAt).getTime() > now)
+    .map((announcement) => ({
+      body: announcement.body,
+      href: "/calendar",
+      id: `announcement:${announcement.id}`,
+      kind: "announcement",
+      title: announcement.title
+    }));
   const assignedEventIds = new Set(
     data.assignments.filter((assignment) => assignment.profileId === session.id).map((assignment) => assignment.eventId)
   );

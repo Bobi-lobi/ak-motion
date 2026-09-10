@@ -46,9 +46,9 @@ async function notifyDevice(notifications: AppNotification[]) {
   const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.register("/sw.js") : null;
   for (const notification of notifications) {
     if (registration) {
-      await registration.showNotification(notification.title, { body: notification.body, icon: "/icon.png", tag: notification.id, data: { href: notification.href } });
+      await registration.showNotification(notification.title, { body: notification.body, icon: "/ak-motion-logo.png", badge: "/ak-motion-logo.png", tag: notification.id, data: { href: notification.href } });
     } else {
-      new Notification(notification.title, { body: notification.body, icon: "/icon.png", tag: notification.id });
+      new Notification(notification.title, { body: notification.body, icon: "/ak-motion-logo.png", tag: notification.id });
     }
   }
 }
@@ -57,5 +57,6 @@ function notificationEnabled(notification: AppNotification, preferences: AppPref
   if (notification.kind === "assignment") return preferences.notifyAssignments;
   if (notification.kind === "attention") return preferences.notifyUnstaffed;
   if (notification.kind === "achievement") return preferences.notifyAchievements;
+  if (notification.kind === "announcement") return preferences.notifyAnnouncements;
   return preferences.notifyAdminUpdates;
 }

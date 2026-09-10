@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, CircleDot, Database, GripVertical, Hash, MoreHorizontal, Plus, Text, Trash2 } from "lucide-react";
+import { Check, ChevronDown, CircleDot, Database, GripVertical, Hash, LoaderCircle, MoreHorizontal, Plus, Text, Trash2 } from "lucide-react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -37,8 +37,10 @@ const tagPalette = ["#3f765c", "#765842", "#69558a", "#5f708d", "#7d6f3c", "#7d4
 
 export default function EquipmentPage() {
   const { isAdmin } = useApp();
-  const [data, setData] = useState<EquipmentData>(() => loadEquipmentData());
+  const [data, setData] = useState<EquipmentData>(() => hasSupabaseConfig ? { columns: defaultColumns, rows: [] } : loadEquipmentData());
   const [tagState, setTagState] = useState<EquipmentTagState>(() => loadTagState());
+  const [loading, setLoading] = useState(hasSupabaseConfig);
+  const [visibleLimit, setVisibleLimit] = useState(20);
   const [openSelect, setOpenSelect] = useState<OpenSelect>(null);
   const [openFilter, setOpenFilter] = useState<OpenFilter>(null);
   const [rowContextMenu, setRowContextMenu] = useState<RowContextMenu>(null);
@@ -72,13 +74,14 @@ export default function EquipmentPage() {
       return matchesQuery && matchesType && matchesState;
     });
   }, [data.rows, searchQuery, stateFilter, typeFilter]);
+  const visibleRows = useMemo(() => filteredRows.slice(0, visibleLimit), [filteredRows, visibleLimit]);
   const groupedRows = useMemo(() => {
     if (groupMode === "none") {
-      return [{ key: "all", label: "", rows: filteredRows }];
+      return [{ key: "all", label: "", rows: visibleRows }];
     }
 
     const groups = new Map<string, EquipmentRow[]>();
-    filteredRows.forEach((row) => {
+    visibleRows.forEach((row) => {
       const label = row.cells[groupMode] || "Ohne Angabe";
       groups.set(label, [...(groups.get(label) ?? []), row]);
     });
@@ -86,7 +89,11 @@ export default function EquipmentPage() {
     return Array.from(groups.entries())
       .sort(([a], [b]) => a.localeCompare(b, "de"))
       .map(([label, rows]) => ({ key: `${groupMode}-${label}`, label, rows }));
-  }, [filteredRows, groupMode]);
+  }, [groupMode, visibleRows]);
+
+  useEffect(() => {
+    setVisibleLimit(20);
+  }, [groupMode, searchQuery, stateFilter, typeFilter]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -95,15 +102,19 @@ export default function EquipmentPage() {
 
     let cancelled = false;
     void (async () => {
-      if (isAdmin) {
+      setLoading(true);
+      let remoteData = await loadRemoteEquipment();
+      if (isAdmin && remoteData.equipment.rows.length === 0) {
         await ensureNotionEquipmentCatalog();
+        remoteData = await loadRemoteEquipment();
       }
-      const { equipment, tags } = await loadRemoteEquipment();
       if (!cancelled) {
-        setData(equipment);
-        setTagState(tags);
+        setData(remoteData.equipment);
+        setTagState(remoteData.tags);
       }
-    })().catch((error) => console.error("Equipment konnte nicht geladen werden:", error));
+    })().catch((error) => console.error("Equipment konnte nicht geladen werden:", error)).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -398,7 +409,7 @@ export default function EquipmentPage() {
                 </tr>
               </thead>
               <tbody>
-                {groupedRows.map((group) => (
+                {!loading ? groupedRows.map((group) => (
                   <EquipmentGroup
                     key={group.key}
                     group={group}
@@ -414,8 +425,11 @@ export default function EquipmentPage() {
                     onToggleSelect={toggleSelect}
                     onCloseSelect={() => setOpenSelect(null)}
                   />
-                ))}
-                {!filteredRows.length ? (
+                )) : null}
+                {loading ? (
+                  <tr><td className="equipment-empty-row" colSpan={data.columns.length + 1}><span className="equipment-loading"><LoaderCircle size={20} /> Equipment wird geladen...</span></td></tr>
+                ) : null}
+                {!loading && !filteredRows.length ? (
                   <tr>
                     <td className="equipment-empty-row" colSpan={data.columns.length + 1}>
                       Keine Einträge gefunden.
@@ -424,6 +438,11 @@ export default function EquipmentPage() {
                 ) : null}
               </tbody>
             </table>
+            {!loading && visibleLimit < filteredRows.length ? (
+              <button className="equipment-show-more" type="button" onClick={() => setVisibleLimit((current) => current + 20)}>
+                <ChevronDown size={16} /> Mehr anzeigen <span>{filteredRows.length - visibleLimit} weitere</span>
+              </button>
+            ) : null}
             <button className="equipment-add-row" type="button" onClick={() => void addRow()}>
               <Plus size={16} />
               Neue Zeile
