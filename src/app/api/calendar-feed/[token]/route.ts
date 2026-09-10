@@ -20,6 +20,15 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
       throw assignmentError;
     }
     const eventIds = Array.from(new Set((assignments ?? []).map((assignment) => assignment.event_id)));
+    let filteredProfileEventIds: string[] | null = null;
+    if (selection.scope === "types" && selection.profileIds.length) {
+      const { data: filteredAssignments, error: filteredAssignmentError } = await supabaseAdmin
+        .from("event_assignments")
+        .select("event_id")
+        .in("profile_id", selection.profileIds);
+      if (filteredAssignmentError) throw filteredAssignmentError;
+      filteredProfileEventIds = Array.from(new Set((filteredAssignments ?? []).map((assignment) => assignment.event_id)));
+    }
     let eventQuery = supabaseAdmin
       .from("events")
       .select("id, title, starts_at, ends_at, location, notes, created_at, event_type")
@@ -31,9 +40,14 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
         eventQuery = eventQuery.in("id", eventIds);
       }
     } else if (selection.scope === "types") {
-      eventQuery = selection.eventTypes.length
-        ? eventQuery.in("event_type", selection.eventTypes)
-        : eventQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
+      if (selection.eventTypes.length) eventQuery = eventQuery.in("event_type", selection.eventTypes);
+      if (selection.locations.length) eventQuery = eventQuery.in("location", selection.locations);
+      if (filteredProfileEventIds !== null) {
+        eventQuery = eventQuery.in("id", filteredProfileEventIds.length ? filteredProfileEventIds : ["00000000-0000-0000-0000-000000000000"]);
+      }
+      if (!selection.eventTypes.length && !selection.locations.length && filteredProfileEventIds === null) {
+        eventQuery = eventQuery.in("id", ["00000000-0000-0000-0000-000000000000"]);
+      }
     }
     const { data: events, error: eventError } = await eventQuery;
     if (eventError) {

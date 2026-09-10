@@ -15,10 +15,12 @@ export async function POST(request: Request) {
   if (error || !data.user) {
     return NextResponse.json({ error: "Sitzung konnte nicht geprüft werden." }, { status: 401 });
   }
-  const body = await request.json().catch(() => ({})) as { eventTypes?: unknown; scope?: unknown };
+  const body = await request.json().catch(() => ({})) as { eventTypes?: unknown; locations?: unknown; profileIds?: unknown; scope?: unknown };
   const scope: CalendarFeedScope = body.scope === "all" || body.scope === "types" ? body.scope : "assigned";
   const eventTypes = Array.isArray(body.eventTypes) ? body.eventTypes.filter((value): value is string => typeof value === "string").slice(0, 20) : [];
-  const token = createCalendarFeedToken({ eventTypes, scope, userId: data.user.id });
+  const locations = Array.isArray(body.locations) ? body.locations.filter((value): value is string => typeof value === "string").slice(0, 50) : [];
+  const profileIds = Array.isArray(body.profileIds) ? body.profileIds.filter((value): value is string => typeof value === "string").slice(0, 100) : [];
+  const token = createCalendarFeedToken({ eventTypes, locations, profileIds, scope, userId: data.user.id });
   const url = new URL(`/api/calendar-feed/${token}`, request.url).toString();
   return NextResponse.json({ url, webcalUrl: url.replace(/^https?:\/\//, "webcal://") });
 }

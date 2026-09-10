@@ -14,6 +14,8 @@ export type CalendarFeedScope = "all" | "assigned" | "types";
 
 export type CalendarFeedSelection = {
   eventTypes: string[];
+  locations: string[];
+  profileIds: string[];
   scope: CalendarFeedScope;
   userId: string;
 };
@@ -35,11 +37,17 @@ export function readCalendarFeedToken(token: string) {
   if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
     return null;
   }
-  if (!isCurrentToken) return { eventTypes: [], scope: "assigned" as const, userId: decoded };
+  if (!isCurrentToken) return { eventTypes: [], locations: [], profileIds: [], scope: "assigned" as const, userId: decoded };
   try {
     const value = JSON.parse(decoded) as CalendarFeedSelection;
     if (!value.userId || !["all", "assigned", "types"].includes(value.scope)) return null;
-    return { eventTypes: Array.isArray(value.eventTypes) ? value.eventTypes.filter((item) => typeof item === "string") : [], scope: value.scope, userId: value.userId };
+    return {
+      eventTypes: Array.isArray(value.eventTypes) ? value.eventTypes.filter((item) => typeof item === "string") : [],
+      locations: Array.isArray(value.locations) ? value.locations.filter((item) => typeof item === "string") : [],
+      profileIds: Array.isArray(value.profileIds) ? value.profileIds.filter((item) => typeof item === "string") : [],
+      scope: value.scope,
+      userId: value.userId
+    };
   } catch {
     return null;
   }

@@ -1,7 +1,7 @@
 "use client";
 
-import { BellRing, CalendarDays, Check, Copy, Megaphone, Settings2, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { BellRing, CalendarDays, Check, Copy, Filter, MapPin, Megaphone, Settings2, Tags, Trash2, UsersRound, X } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useApp } from "@/components/app-provider";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
@@ -10,6 +10,7 @@ import { defaultPreferences, loadPreferences, savePreferences, type AppPreferenc
 import { supabase } from "@/lib/supabase";
 
 type CalendarFeed = { url: string; webcalUrl: string };
+type CalendarFilterKind = "eventTypes" | "locations" | "profiles";
 const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Feier", "Vortrag", "Aufführung", "Konzert", "Termin", "Sonstiges"];
 
 export default function SettingsPage() {
@@ -23,9 +24,12 @@ export default function SettingsPage() {
   const [announcementMessage, setAnnouncementMessage] = useState("");
   const [announcementPending, setAnnouncementPending] = useState(false);
   const [announcementError, setAnnouncementError] = useState("");
+  const [calendarFilters, setCalendarFilters] = useState<CalendarFilterKind[]>([]);
 
   useEffect(() => {
-    setPreferences(loadPreferences());
+    const loadedPreferences = loadPreferences();
+    setPreferences(loadedPreferences);
+    setCalendarFilters(calendarFilterKinds(loadedPreferences));
     setPermission("Notification" in window ? Notification.permission : "unsupported");
   }, []);
 
@@ -48,7 +52,7 @@ export default function SettingsPage() {
     updatePreference("browserNotifications", result === "granted");
   }
 
-  function updateCalendarSelection<K extends "calendarFeedScope" | "calendarFeedEventTypes">(key: K, value: AppPreferences[K]) {
+  function updateCalendarSelection<K extends "calendarFeedScope" | "calendarFeedEventTypes" | "calendarFeedLocations" | "calendarFeedProfileIds">(key: K, value: AppPreferences[K]) {
     updatePreference(key, value);
     setCalendarFeed(null);
   }
@@ -64,7 +68,12 @@ export default function SettingsPage() {
     const response = await fetch("/api/calendar-feed/token", {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ eventTypes: preferences.calendarFeedEventTypes, scope: preferences.calendarFeedScope })
+      body: JSON.stringify({
+        eventTypes: preferences.calendarFeedEventTypes,
+        locations: preferences.calendarFeedLocations,
+        profileIds: preferences.calendarFeedProfileIds,
+        scope: preferences.calendarFeedScope
+      })
     });
     const result = await response.json();
     if (!response.ok) {
@@ -109,6 +118,21 @@ export default function SettingsPage() {
     }
   }
 
+  function addCalendarFilter(kind: CalendarFilterKind) {
+    setCalendarFilters((current) => current.includes(kind) ? current : [...current, kind]);
+    updateCalendarSelection("calendarFeedScope", "types");
+  }
+
+  function removeCalendarFilter(kind: CalendarFilterKind) {
+    setCalendarFilters((current) => current.filter((item) => item !== kind));
+    if (kind === "eventTypes") updateCalendarSelection("calendarFeedEventTypes", []);
+    if (kind === "locations") updateCalendarSelection("calendarFeedLocations", []);
+    if (kind === "profiles") updateCalendarSelection("calendarFeedProfileIds", []);
+  }
+
+  const locationOptions = Array.from(new Set(data.events.map((event) => event.location).filter(Boolean))).sort((a, b) => a.localeCompare(b, "de"));
+  const calendarHasFilters = preferences.calendarFeedEventTypes.length + preferences.calendarFeedLocations.length + preferences.calendarFeedProfileIds.length > 0;
+
   return (
     <RouteGuard>
       <AppShell title="Einstellungen" eyebrow="Deine App" titleIcon={<Settings2 size={28} />} contentClassName="settings-page">
@@ -126,9 +150,17 @@ export default function SettingsPage() {
               <SettingToggle label="Neue Anfragen und Vorschläge" description="Neue Formulare, Bewerbungen und Regelvorschläge für Admins." checked={preferences.notifyAdminUpdates} onChange={(checked) => updatePreference("notifyAdminUpdates", checked)} />
             </div>
             <div className="settings-action-row">
-              <div><strong>Hinweise auf diesem Gerät</strong><span>{permissionLabel(permission)}</span></div>
-              <button className="button primary" type="button" onClick={enableBrowserNotifications} disabled={permission === "denied" || permission === "unsupported"}>
-                <BellRing size={16} /> {permission === "granted" ? "Aktiviert" : "Aktivieren"}
+              <div><strong>Hinweise auf diesem Gerät</strong><span>{permissionLabel(permission, preferences.browserNotifications)}</span></div>
+              <button className={preferences.browserNotifications ? "button danger" : "button primary"} type="button" onClick={() => {
+                if (preferences.browserNotifications) {
+                  updatePreference("browserNotifications", false);
+                } else if (permission === "granted") {
+                  updatePreference("browserNotifications", true);
+                } else {
+                  void enableBrowserNotifications();
+                }
+              }} disabled={permission === "denied" || permission === "unsupported"}>
+                <BellRing size={16} /> {preferences.browserNotifications ? "Deaktivieren" : "Aktivieren"}
               </button>
             </div>
           </section>
@@ -148,21 +180,15 @@ export default function SettingsPage() {
               <div className="settings-choice-grid">
                 <ChoiceButton active={preferences.calendarFeedScope === "assigned"} label="Meine Einteilungen" description="Nur Veranstaltungen, bei denen du eingeteilt bist." onClick={() => updateCalendarSelection("calendarFeedScope", "assigned")} />
                 <ChoiceButton active={preferences.calendarFeedScope === "all"} label="Alle Veranstaltungen" description="Der vollständige AK-Motion-Kalender." onClick={() => updateCalendarSelection("calendarFeedScope", "all")} />
-                <ChoiceButton active={preferences.calendarFeedScope === "types"} label="Bestimmte Arten" description="Nur die unten ausgewählten Veranstaltungsarten." onClick={() => updateCalendarSelection("calendarFeedScope", "types")} />
+                <ChoiceButton active={preferences.calendarFeedScope === "types"} label="Mit Filtern" description="Nach Personen, Arten oder Orten zusammenstellen." onClick={() => updateCalendarSelection("calendarFeedScope", "types")} />
               </div>
               {preferences.calendarFeedScope === "types" ? (
-                <div className="calendar-type-options">
-                  {eventTypeOptions.map((eventType) => (
-                    <label key={eventType}>
-                      <input type="checkbox" checked={preferences.calendarFeedEventTypes.includes(eventType)} onChange={(event) => updateCalendarSelection(
-                        "calendarFeedEventTypes",
-                        event.target.checked
-                          ? [...preferences.calendarFeedEventTypes, eventType]
-                          : preferences.calendarFeedEventTypes.filter((item) => item !== eventType)
-                      )} />
-                      <span>{eventType}</span>
-                    </label>
-                  ))}
+                <div className="calendar-filter-builder">
+                  <label className="calendar-filter-add"><Filter size={16} /><select value="" onChange={(event) => event.target.value && addCalendarFilter(event.target.value as CalendarFilterKind)}><option value="">Filter hinzufügen...</option>{!calendarFilters.includes("profiles") ? <option value="profiles">Personen</option> : null}{!calendarFilters.includes("eventTypes") ? <option value="eventTypes">Veranstaltungsarten</option> : null}{!calendarFilters.includes("locations") ? <option value="locations">Orte</option> : null}</select></label>
+                  {calendarFilters.includes("profiles") ? <CalendarFilterDropdown icon={<UsersRound size={17} />} title="Personen" values={data.profiles.map((profile) => ({ value: profile.id, label: profile.name }))} selected={preferences.calendarFeedProfileIds} onChange={(values) => updateCalendarSelection("calendarFeedProfileIds", values)} onRemove={() => removeCalendarFilter("profiles")} /> : null}
+                  {calendarFilters.includes("eventTypes") ? <CalendarFilterDropdown icon={<Tags size={17} />} title="Veranstaltungsarten" values={eventTypeOptions.map((value) => ({ value, label: value }))} selected={preferences.calendarFeedEventTypes} onChange={(values) => updateCalendarSelection("calendarFeedEventTypes", values)} onRemove={() => removeCalendarFilter("eventTypes")} /> : null}
+                  {calendarFilters.includes("locations") ? <CalendarFilterDropdown icon={<MapPin size={17} />} title="Orte" values={locationOptions.map((value) => ({ value, label: value }))} selected={preferences.calendarFeedLocations} onChange={(values) => updateCalendarSelection("calendarFeedLocations", values)} onRemove={() => removeCalendarFilter("locations")} /> : null}
+                  {!calendarFilters.length ? <p className="calendar-filter-empty">Füge einen Filter hinzu, um deinen Kalender zusammenzustellen.</p> : null}
                 </div>
               ) : null}
             </div>
@@ -170,7 +196,7 @@ export default function SettingsPage() {
             <div className="calendar-subscription">
               <div><strong>Persönlichen Kalender verbinden</strong><span>Apple Kalender und andere Kalender-Apps aktualisieren dieses Abo regelmäßig.</span></div>
               {!calendarFeed ? (
-                <button className="button" type="button" onClick={loadCalendarFeed} disabled={preferences.calendarFeedScope === "types" && preferences.calendarFeedEventTypes.length === 0}>Kalender-Link erstellen</button>
+                <button className="button" type="button" onClick={loadCalendarFeed} disabled={preferences.calendarFeedScope === "types" && !calendarHasFilters}>Kalender-Link erstellen</button>
               ) : (
                 <div className="calendar-subscription-actions">
                   <a className="button primary" href={calendarFeed.webcalUrl}><CalendarDays size={16} /> In Kalender öffnen</a>
@@ -221,7 +247,20 @@ function ChoiceButton({ active, label, description, onClick }: { active: boolean
   return <button className={active ? "is-active" : ""} type="button" onClick={onClick}><strong>{label}</strong><span>{description}</span></button>;
 }
 
-function permissionLabel(permission: NotificationPermission | "unsupported") {
+function CalendarFilterDropdown({ icon, title, values, selected, onChange, onRemove }: { icon: ReactNode; title: string; values: Array<{ value: string; label: string }>; selected: string[]; onChange: (values: string[]) => void; onRemove: () => void }) {
+  return <details className="calendar-filter-dropdown"><summary><span>{icon}<strong>{title}</strong></span><span>{selected.length ? `${selected.length} ausgewählt` : "Auswählen"}</span></summary><button className="calendar-filter-remove" type="button" aria-label={`${title}-Filter entfernen`} onClick={onRemove}><X size={15} /></button><div>{values.map((option) => <label key={option.value}><input type="checkbox" checked={selected.includes(option.value)} onChange={(event) => onChange(event.target.checked ? [...selected, option.value] : selected.filter((value) => value !== option.value))} /><span>{option.label}</span><Check size={15} /></label>)}{!values.length ? <p>Keine passenden Einträge vorhanden.</p> : null}</div></details>;
+}
+
+function calendarFilterKinds(preferences: AppPreferences): CalendarFilterKind[] {
+  const result: CalendarFilterKind[] = [];
+  if (preferences.calendarFeedProfileIds.length) result.push("profiles");
+  if (preferences.calendarFeedEventTypes.length) result.push("eventTypes");
+  if (preferences.calendarFeedLocations.length) result.push("locations");
+  return result;
+}
+
+function permissionLabel(permission: NotificationPermission | "unsupported", enabled: boolean) {
+  if (permission === "granted" && !enabled) return "Hinweise sind auf diesem Gerät pausiert und können jederzeit wieder aktiviert werden.";
   if (permission === "granted") return "Hinweise sind erlaubt. Auf dem iPhone funktioniert das in der Home-Bildschirm-App.";
   if (permission === "denied") return "Im Browser blockiert. Ändere das in den Website-Einstellungen.";
   if (permission === "unsupported") return "Öffne die App auf dem iPhone über das Symbol auf dem Home-Bildschirm.";

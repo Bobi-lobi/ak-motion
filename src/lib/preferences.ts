@@ -1,6 +1,8 @@
 export type AppPreferences = {
   browserNotifications: boolean;
   calendarFeedEventTypes: string[];
+  calendarFeedLocations: string[];
+  calendarFeedProfileIds: string[];
   calendarFeedScope: "all" | "assigned" | "types";
   defaultCalendarView: "month" | "week";
   notifyAdminUpdates: boolean;
@@ -13,6 +15,8 @@ export type AppPreferences = {
 export const defaultPreferences: AppPreferences = {
   browserNotifications: false,
   calendarFeedEventTypes: [],
+  calendarFeedLocations: [],
+  calendarFeedProfileIds: [],
   calendarFeedScope: "assigned",
   defaultCalendarView: "month",
   notifyAdminUpdates: true,

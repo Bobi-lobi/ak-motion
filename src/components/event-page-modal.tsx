@@ -65,6 +65,9 @@ type SlashCommand = {
   section: "basis" | "medien";
 };
 type EquipmentOption = { id: string; name: string; available: number };
+type SlashMenuPosition = { bottom?: number; left: number; maxHeight: number; top?: number };
+let equipmentOptionsCache: EquipmentOption[] | null = null;
+let equipmentOptionsPromise: Promise<EquipmentOption[]> | null = null;
 type ActivePage = {
   content: string;
   element: HTMLElement;
@@ -78,7 +81,6 @@ type BlockContextMenu = { blockId: string; x: number; y: number };
 export function EventPageModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const { data, session, isAdmin, refresh, updateData } = useApp();
   const [draftEvent, setDraftEvent] = useState(event);
-  const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOption[]>([]);
   const eventFieldChannelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
   const eventFieldChannelReadyRef = useRef(false);
   const eventFieldClientIdRef = useRef(`event-client-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -103,28 +105,6 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
   );
   const locationOptions = Array.from(new Set(["Aula", "Bühne", "Musikraum", "Sporthalle", ...data.events.map((item) => item.location).filter(Boolean)]));
   const canChooseAllTechnicians = Boolean(session);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (hasSupabaseConfig && supabase) {
-      void (async () => {
-        const { data: rows, error } = await supabase
-          .from("equipment_items")
-          .select("id, name, amount")
-          .order("name", { ascending: true });
-        if (error) throw error;
-        if (!cancelled) setEquipmentOptions((rows ?? []).map((row) => ({ id: row.id, name: row.name ?? "Ohne Namen", available: row.amount ?? 0 })));
-      })().catch((error: unknown) => console.error("Equipmentliste konnte nicht geladen werden:", error));
-    } else {
-      try {
-        const stored = JSON.parse(window.localStorage.getItem("ak-motion-equipment-database") ?? "{}") as { rows?: Array<{ id: string; cells?: Record<string, string> }> };
-        setEquipmentOptions((stored.rows ?? []).map((row) => ({ id: row.id, name: row.cells?.name || "Ohne Namen", available: Number(row.cells?.amount ?? 0) || 0 })));
-      } catch {
-        setEquipmentOptions([]);
-      }
-    }
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -458,7 +438,6 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
               placeholder="Ablauf, Aufbauplan, Sonderwünsche, Links oder interne Hinweise..."
               currentUser={session}
               realtimeKey={`event-notes-${event.id}`}
-              equipmentOptions={equipmentOptions}
             />
           </section>
         </div>
@@ -915,8 +894,7 @@ export function SlashRichTextEditor({
   realtimeKey,
   value,
   onChange,
-  placeholder,
-  equipmentOptions = []
+  placeholder
 }: {
   ariaLabel?: string;
   currentUser?: SessionUser | null;
@@ -924,7 +902,6 @@ export function SlashRichTextEditor({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  equipmentOptions?: EquipmentOption[];
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -975,12 +952,49 @@ export function SlashRichTextEditor({
   const [equipmentPickerOpen, setEquipmentPickerOpen] = useState(false);
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [selectedEquipment, setSelectedEquipment] = useState<Record<string, number>>({});
+  const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOption[]>(() => equipmentOptionsCache ?? []);
+  const [equipmentLoading, setEquipmentLoading] = useState(!equipmentOptionsCache);
+  const [slashMenuPosition, setSlashMenuPosition] = useState<SlashMenuPosition | null>(null);
   useCloseOnOutside(shellRef, () => setSlashOpen(false), slashOpen);
   useCloseOnOutside(pageIconPickerRef, () => setPageIconPickerOpen(false), pageIconPickerOpen);
 
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshEquipment = () => {
+      equipmentOptionsCache = null;
+      setEquipmentLoading(true);
+      void loadEditorEquipmentOptions().then((options) => {
+        if (!cancelled) {
+          setEquipmentOptions(options);
+          setEquipmentLoading(false);
+        }
+      }).catch((error: unknown) => {
+        console.error("Equipmentliste konnte nicht geladen werden:", error);
+        if (!cancelled) setEquipmentLoading(false);
+      });
+    };
+    refreshEquipment();
+    window.addEventListener("ak-motion-equipment", refreshEquipment);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("ak-motion-equipment", refreshEquipment);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!slashOpen) return;
+    const updatePosition = () => positionSlashMenu();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [slashOpen]);
 
   useEffect(() => {
     function syncFormatToolbar() {
@@ -1372,8 +1386,35 @@ export function SlashRichTextEditor({
     const slashState = getSlashState(editor);
     setSlashOpen(openSlashMenu && slashState.active);
     setSlashQuery(slashState.query);
+    if (openSlashMenu && slashState.active) {
+      requestAnimationFrame(positionSlashMenu);
+    } else {
+      setSlashMenuPosition(null);
+    }
     refreshBlockHandles(editor);
     updateTableControls();
+  }
+
+  function positionSlashMenu() {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection?.rangeCount || !editor.contains(selection.anchorNode)) return;
+    const range = selection.getRangeAt(0).cloneRange();
+    const rangeRect = range.getBoundingClientRect();
+    const blockRect = getActiveBlock(editor)?.getBoundingClientRect();
+    const rect = rangeRect.width || rangeRect.height ? rangeRect : blockRect;
+    if (!rect) return;
+    const anchorTop = Math.max(12, Math.min(window.innerHeight - 12, rect.top));
+    const anchorBottom = Math.max(anchorTop, Math.min(window.innerHeight - 12, rect.bottom));
+    const width = Math.min(320, window.innerWidth - 24);
+    const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.left));
+    const spaceBelow = window.innerHeight - anchorBottom - 12;
+    const spaceAbove = anchorTop - 12;
+    if (spaceBelow >= 220 || spaceBelow >= spaceAbove) {
+      setSlashMenuPosition({ left, maxHeight: Math.max(80, Math.min(460, spaceBelow)), top: anchorBottom + 8 });
+    } else {
+      setSlashMenuPosition({ bottom: window.innerHeight - anchorTop + 8, left, maxHeight: Math.max(80, Math.min(460, spaceAbove)) });
+    }
   }
 
   function forkActiveBlockDuringConcurrentEdit(editor: HTMLElement) {
@@ -1434,6 +1475,7 @@ export function SlashRichTextEditor({
     onChange(nextHtml);
     broadcastTyping(nextHtml);
     setSlashOpen(false);
+    setSlashMenuPosition(null);
     refreshBlockHandles(editor);
     updateTableControls();
   }
@@ -1484,6 +1526,7 @@ export function SlashRichTextEditor({
     if (keyEvent.key === "Escape") {
       setSlashOpen(false);
       setSlashQuery("");
+      setSlashMenuPosition(null);
     }
   }
 
@@ -2153,6 +2196,14 @@ export function SlashRichTextEditor({
         contentEditable
         data-placeholder={placeholder}
         onInput={() => syncEditor()}
+        onPointerDown={(event) => {
+          if (!event.currentTarget.childNodes.length) {
+            event.preventDefault();
+            event.currentTarget.innerHTML = "<p><br></p>";
+            event.currentTarget.focus();
+            placeCaretInInsertedBlock(event.currentTarget.firstElementChild as HTMLElement);
+          }
+        }}
         onClick={handleEditorClick}
         onDragEnter={handleEditorDragOver}
         onDragOver={handleEditorDragOver}
@@ -2170,8 +2221,8 @@ export function SlashRichTextEditor({
         aria-label={ariaLabel}
         suppressContentEditableWarning
       />
-      {slashOpen ? (
-        <div className="slash-menu">
+      {slashOpen && slashMenuPosition ? (
+        <div className="slash-menu" style={slashMenuPosition}>
           <span>{slashQuery ? `/${slashQuery}` : "Block hinzufügen"}</span>
           {commandSections.map((section) => {
             const sectionCommands = filteredCommands.filter((command) => command.section === section.id);
@@ -2218,7 +2269,8 @@ export function SlashRichTextEditor({
                   {quantity ? <input className="equipment-quantity" type="number" min="1" max={Math.max(1, option.available)} value={quantity} aria-label={`Anzahl ${option.name}`} onChange={(event) => setSelectedEquipment((current) => ({ ...current, [option.id]: Math.max(1, Number(event.target.value) || 1) }))} /> : null}
                 </div>;
               })}
-              {!filteredEquipmentOptions.length ? <p className="equipment-picker-empty">Kein Equipment gefunden.</p> : null}
+              {equipmentLoading ? <p className="equipment-picker-empty">Equipment wird geladen...</p> : null}
+              {!equipmentLoading && !filteredEquipmentOptions.length ? <p className="equipment-picker-empty">Kein Equipment gefunden.</p> : null}
             </div>
             <footer><span>{Object.values(selectedEquipment).filter(Boolean).length} ausgewählt</span><div><button className="button" type="button" onClick={() => setEquipmentPickerOpen(false)}>Abbrechen</button><button className="button primary" type="button" disabled={!Object.values(selectedEquipment).some(Boolean)} onClick={saveEquipmentList}>Liste einfügen</button></div></footer>
           </section>
@@ -2283,7 +2335,6 @@ export function SlashRichTextEditor({
               placeholder="Schreibe etwas oder tippe / für Befehle..."
               currentUser={currentUser}
               realtimeKey={`${realtimeKey ?? "editor"}-page-${activePage.id}`}
-              equipmentOptions={equipmentOptions}
             />
           </div>
         </div>
@@ -2423,6 +2474,45 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+async function loadEditorEquipmentOptions(): Promise<EquipmentOption[]> {
+  if (equipmentOptionsCache) return equipmentOptionsCache;
+  if (equipmentOptionsPromise) return equipmentOptionsPromise;
+
+  equipmentOptionsPromise = (async () => {
+    if (hasSupabaseConfig && supabase) {
+      const { data: rows, error } = await supabase
+        .from("equipment_items")
+        .select("id, name, amount")
+        .order("name", { ascending: true });
+      if (error) throw error;
+      equipmentOptionsCache = (rows ?? []).map((row) => ({
+        id: row.id,
+        name: row.name ?? "Ohne Namen",
+        available: row.amount ?? 0
+      }));
+      return equipmentOptionsCache;
+    }
+
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("ak-motion-equipment-database") ?? "{}") as {
+        rows?: Array<{ id: string; cells?: Record<string, string> }>;
+      };
+      equipmentOptionsCache = (stored.rows ?? []).map((row) => ({
+        id: row.id,
+        name: row.cells?.name || "Ohne Namen",
+        available: Number(row.cells?.amount ?? 0) || 0
+      }));
+    } catch {
+      equipmentOptionsCache = [];
+    }
+    return equipmentOptionsCache;
+  })().finally(() => {
+    equipmentOptionsPromise = null;
+  });
+
+  return equipmentOptionsPromise;
 }
 
 function isEditorBlank(editor: HTMLElement) {
