@@ -2216,7 +2216,7 @@ textarea {
 
 .announcement-list article {
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   border-radius: 7px;
