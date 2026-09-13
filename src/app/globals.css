@@ -4733,6 +4733,28 @@ textarea {
   font-weight: 900;
 }
 
+.landing-stat-editable-value {
+  display: flex;
+  align-items: baseline;
+}
+
+.landing-stat-editable-value input {
+  width: 5ch;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  padding: 0;
+}
+
+.landing-stat-editable-value input:focus {
+  border-color: rgba(91, 134, 255, 0.45);
+  border-radius: 6px;
+  outline: none;
+}
+
 .landing-stat-suffix input:focus,
 .landing-stat-label-input:focus {
   border-color: rgba(91, 134, 255, 0.45);

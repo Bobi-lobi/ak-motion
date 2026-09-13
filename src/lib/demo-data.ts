@@ -42,7 +42,7 @@ export const demoData: AppData = {
     requestButtonText: "Veranstaltung anfragen",
     stats: [
       { id: "events", label: "Veranstaltungen", suffix: "+" },
-      { id: "lamps", label: "Lampen", suffix: "+" },
+      { id: "lamps", label: "Lampen", suffix: "+", manualValue: 0 },
       { id: "technicians", label: "Techniker", suffix: "+" },
       { id: "equipment", label: "Equipment-Teile", suffix: "+" }
     ],

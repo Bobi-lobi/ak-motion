@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
 import { updateLandingContent } from "@/lib/data-store";
+import { emptyLandingCounts, loadLandingCounts } from "@/lib/landing-stats";
 import { migrateLandingImage, uploadLandingImage } from "@/lib/landing-storage";
 import type { LandingContent, LandingImpression } from "@/lib/types";
 
@@ -14,6 +15,7 @@ type ToolbarState = { x: number; y: number } | null;
 export default function LandingEditorPage() {
   const { data, refresh } = useApp();
   const [content, setContent] = useState<LandingContent>(data.landingContent);
+  const [landingCounts, setLandingCounts] = useState(emptyLandingCounts);
   const [saveError, setSaveError] = useState("");
   const [uploadingImages, setUploadingImages] = useState(0);
   const [toolbar, setToolbar] = useState<ToolbarState>(null);
@@ -27,6 +29,24 @@ export default function LandingEditorPage() {
     contentRef.current = data.landingContent;
     setSelectedImpressionId((current) => current || data.landingContent.impressions[0]?.id || "");
   }, [data.landingContent]);
+
+  useEffect(() => {
+    let active = true;
+    void loadLandingCounts()
+      .then((counts) => {
+        if (active) {
+          setLandingCounts(counts);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setLandingCounts(emptyLandingCounts);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const selectedImpression =
     content.impressions.find((impression) => impression.id === selectedImpressionId) ?? content.impressions[0] ?? null;
@@ -390,7 +410,34 @@ export default function LandingEditorPage() {
                       })
                     }
                   />
-                  <strong>{stat.id === "technicians" ? data.profiles.length : stat.id === "lamps" ? 64 : stat.id === "events" ? 3 : 1}{stat.suffix}</strong>
+                  {stat.id === "lamps" ? (
+                    <strong className="landing-stat-editable-value">
+                      <input
+                        aria-label="Anzahl der Lampen"
+                        min="0"
+                        step="1"
+                        type="number"
+                        value={stat.manualValue ?? 0}
+                        onChange={(event) =>
+                          patchContent({
+                            stats: content.stats.map((item) =>
+                              item.id === "lamps" ? { ...item, manualValue: Math.max(0, Number.parseInt(event.target.value, 10) || 0) } : item
+                            )
+                          })
+                        }
+                      />
+                      {stat.suffix}
+                    </strong>
+                  ) : (
+                    <strong>
+                      {stat.id === "events"
+                        ? landingCounts.events
+                        : stat.id === "technicians"
+                          ? landingCounts.technicians
+                          : landingCounts.equipment}
+                      {stat.suffix}
+                    </strong>
+                  )}
                   <span>{stat.label}</span>
                 </article>
               ))}

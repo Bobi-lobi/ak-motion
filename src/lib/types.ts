@@ -150,6 +150,7 @@ export type LandingStat = {
   id: "events" | "lamps" | "technicians" | "equipment";
   label: string;
   suffix: string;
+  manualValue?: number;
 };
 
 export type LandingImpression = {

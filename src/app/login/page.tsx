@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { createRegistrationRequest } from "@/lib/data-store";
-import { hasSupabaseConfig, supabase } from "@/lib/supabase";
+import { emptyLandingCounts, loadLandingCounts } from "@/lib/landing-stats";
 import type { LandingImpression } from "@/lib/types";
 
 type AuthPanel = "landing" | "login" | "register";
@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [panel, setPanel] = useState<AuthPanel>("landing");
   const [selectedImpression, setSelectedImpression] = useState<LandingImpression | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [equipmentStats, setEquipmentStats] = useState({ lamps: 64, items: 0 });
+  const [landingCounts, setLandingCounts] = useState(emptyLandingCounts);
   const [statsVisible, setStatsVisible] = useState(false);
   const [visibleStats, setVisibleStats] = useState([0, 0, 0, 0]);
   const [email, setEmail] = useState("");
@@ -35,47 +35,23 @@ export default function LoginPage() {
   const teamNames = landing.teamNames.map((name) => name.trim()).filter(Boolean);
 
   useEffect(() => {
-    async function readEquipmentStats() {
-      if (hasSupabaseConfig && supabase) {
-        const { data: rows } = await supabase.from("equipment_items").select("name, amount, type");
-        const equipmentRows = rows ?? [];
-        const lamps = equipmentRows.reduce((sum, row) => {
-          const type = row.type?.toLowerCase() ?? "";
-          const name = row.name?.toLowerCase() ?? "";
-          const amount = Number(row.amount ?? 1) || 1;
-          return type.includes("licht") || name.includes("lampe") || name.includes("spot") ? sum + amount : sum;
-        }, 0);
-        setEquipmentStats({ items: equipmentRows.length, lamps: lamps || 64 });
-        return;
-      }
-
-      const raw = window.localStorage.getItem("ak-motion-equipment-database");
-      if (!raw) {
-        return;
-      }
-
+    let active = true;
+    async function refreshLandingCounts() {
       try {
-        const equipment = JSON.parse(raw) as { rows?: Array<{ cells?: Record<string, string> }> };
-        const rows = equipment.rows ?? [];
-        const lamps = rows.reduce((sum, row) => {
-          const type = row.cells?.type?.toLowerCase() ?? "";
-          const name = row.cells?.name?.toLowerCase() ?? "";
-          const amount = Number(row.cells?.amount ?? 1) || 1;
-          return type.includes("licht") || name.includes("lampe") || name.includes("spot") ? sum + amount : sum;
-        }, 0);
-        setEquipmentStats({ items: rows.length, lamps: lamps || 64 });
+        const counts = await loadLandingCounts();
+        if (active) {
+          setLandingCounts(counts);
+        }
       } catch {
-        setEquipmentStats({ items: 0, lamps: 64 });
+        if (active) {
+          setLandingCounts(emptyLandingCounts);
+        }
       }
     }
 
-    void readEquipmentStats();
-    const handleStorage = () => void readEquipmentStats();
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener("ak-motion-equipment", handleStorage);
+    void refreshLandingCounts();
     return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("ak-motion-equipment", handleStorage);
+      active = false;
     };
   }, []);
 
@@ -85,15 +61,15 @@ export default function LoginPage() {
         ...stat,
         value:
           stat.id === "events"
-            ? data.events.length
+            ? landingCounts.events
             : stat.id === "lamps"
-              ? equipmentStats.lamps
+              ? stat.manualValue ?? 0
               : stat.id === "technicians"
-                ? data.profiles.length
-                : Math.max(equipmentStats.items, 1),
+                ? landingCounts.technicians
+                : landingCounts.equipment,
         icon: stat.id === "events" ? CalendarDays : stat.id === "lamps" ? Lightbulb : stat.id === "technicians" ? UsersRound : Sparkles
       })),
-    [data.events.length, data.profiles.length, equipmentStats.items, equipmentStats.lamps, landing.stats]
+    [landing.stats, landingCounts]
   );
 
   useEffect(() => {

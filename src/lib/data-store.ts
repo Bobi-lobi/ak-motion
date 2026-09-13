@@ -190,7 +190,13 @@ function normalizeLandingContent(value?: Partial<LandingContent>): LandingConten
   landing.teamNames = Array.isArray(value?.teamNames) ? value.teamNames : defaults.teamNames;
   landing.teamNames = landing.teamNames.map((name) => (name === "Teamleitung" ? "Max" : name));
   landing.impressions = Array.isArray(value?.impressions) ? value.impressions : defaults.impressions;
-  landing.stats = Array.isArray(value?.stats) && value.stats.length ? value.stats : defaults.stats;
+  landing.stats = (Array.isArray(value?.stats) && value.stats.length ? value.stats : defaults.stats).map((stat) => ({
+    ...stat,
+    manualValue:
+      stat.id === "lamps" && Number.isFinite(Number(stat.manualValue))
+        ? Math.max(0, Math.round(Number(stat.manualValue)))
+        : undefined
+  }));
 
   if (landing.joinText.includes("Keine Vorerfahrung nötig") && !landing.joinText.includes("Freitag um 13:00 Uhr")) {
     landing.joinText =
