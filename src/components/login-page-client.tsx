@@ -50,6 +50,7 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
       })),
     [landing.stats, landingCounts]
   );
+  const statsAnimationKey = stats.map((stat) => `${stat.id}:${stat.value}`).join("|");
 
   useEffect(() => {
     const targets = document.querySelectorAll<HTMLElement>(".landing-reveal");
@@ -95,7 +96,7 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
     let frame = 0;
     const duration = 1000;
     const startedAt = performance.now();
-    const targets = stats.map((stat) => stat.value);
+    const targets = statsAnimationKey.split("|").map((entry) => Number(entry.split(":")[1]) || 0);
 
     function tick(now: number) {
       const progress = Math.min(1, (now - startedAt) / duration);
@@ -108,7 +109,7 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [stats, statsVisible]);
+  }, [statsAnimationKey, statsVisible]);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

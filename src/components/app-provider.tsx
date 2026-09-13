@@ -111,14 +111,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "ak-motion-data" || event.key === "ak-motion-session") {
+        void refresh();
+      }
+    };
+
     void refresh();
     window.addEventListener("ak-motion-data", refresh);
     window.addEventListener("ak-motion-session", refresh);
-    window.addEventListener("storage", refresh);
+    window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("ak-motion-data", refresh);
       window.removeEventListener("ak-motion-session", refresh);
-      window.removeEventListener("storage", refresh);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [refresh]);
 

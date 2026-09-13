@@ -115,7 +115,10 @@ export function cacheData(data: AppData) {
   }
 
   try {
-    window.localStorage.setItem(DATA_KEY, JSON.stringify(data));
+    const serialized = JSON.stringify(data);
+    if (window.localStorage.getItem(DATA_KEY) !== serialized) {
+      window.localStorage.setItem(DATA_KEY, serialized);
+    }
   } catch (error) {
     // Safari keeps a comparatively small localStorage quota. The landing page
     // can exceed it because uploaded images are currently stored as data URLs.
