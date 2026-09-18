@@ -131,6 +131,12 @@ export type ChatMessage = {
   createdAt: string;
 };
 
+export type ChatReadReceipt = {
+  profileId: string;
+  messageId: string;
+  readAt: string;
+};
+
 export type XpAward = {
   id: string;
   profileId: string;

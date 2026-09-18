@@ -4,7 +4,7 @@ export type AppNotification = {
   body: string;
   href: string;
   id: string;
-  kind: "achievement" | "admin" | "announcement" | "assignment" | "attention";
+  kind: "achievement" | "admin" | "announcement" | "assignment" | "attention" | "chat";
   title: string;
 };
 

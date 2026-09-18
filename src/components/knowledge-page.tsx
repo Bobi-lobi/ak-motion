@@ -23,6 +23,7 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
   const savingRef = useRef(false);
   const saveAgainRef = useRef(false);
   const [suggestionDraft, setSuggestionDraft] = useState("");
+  const [suggestionError, setSuggestionError] = useState("");
   const usesSuggestions = pageId === "rules";
   const page = data.knowledgePages.find((item) => item.id === pageId) ?? {
     id: pageId,
@@ -150,8 +151,13 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                         className="button success"
                         type="button"
                         onClick={async () => {
-                          await acceptKnowledgeSuggestion(suggestion.id, session);
-                          refresh();
+                          setSuggestionError("");
+                          try {
+                            await acceptKnowledgeSuggestion(suggestion.id, session);
+                            await refresh();
+                          } catch (error) {
+                            setSuggestionError(error instanceof Error ? error.message : "Vorschlag konnte nicht übernommen werden.");
+                          }
                         }}
                       >
                         <Check size={16} />
@@ -172,6 +178,7 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                   ) : null}
                 </article>
               ))}
+              {suggestionError ? <p className="error-text" role="alert">{suggestionError}</p> : null}
             </aside>
           ) : null}
         </section>

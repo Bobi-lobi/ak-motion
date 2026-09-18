@@ -438,6 +438,7 @@ function getInitialSidebarCollapsed() {
 
 function MobileUndoRedo() {
   const lastEditableRef = useRef<HTMLElement | null>(null);
+  const historyRef = useRef(new WeakMap<HTMLElement, EditableHistory>());
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -449,14 +450,42 @@ function MobileUndoRedo() {
         setVisible(true);
       }
     };
+    const rememberChange = (event: Event) => {
+      const inputEvent = event as InputEvent;
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !isUndoableElement(target) || inputEvent.inputType.startsWith("history")) return;
+      const history = historyFor(historyRef.current, target);
+      const snapshot = snapshotEditable(target);
+      if (!snapshot || snapshotsEqual(history.undo.at(-1), snapshot)) return;
+      history.undo.push(snapshot);
+      if (history.undo.length > 500) history.undo.shift();
+      history.redo = [];
+      lastEditableRef.current = target;
+      setVisible(true);
+    };
+    const handleKeyboardUndo = (event: KeyboardEvent) => {
+      const isUndo = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.shiftKey;
+      const isRedo = (event.metaKey || event.ctrlKey) && (event.key.toLowerCase() === "y" || (event.key.toLowerCase() === "z" && event.shiftKey));
+      if (!isUndo && !isRedo) return;
+      const target = event.target instanceof HTMLElement && isUndoableElement(event.target) ? event.target : lastEditableRef.current;
+      if (!target) return;
+      event.preventDefault();
+      runHistory(target, isUndo ? "undo" : "redo", historyRef.current);
+    };
     document.addEventListener("focusin", rememberEditable);
-    return () => document.removeEventListener("focusin", rememberEditable);
+    document.addEventListener("beforeinput", rememberChange);
+    document.addEventListener("keydown", handleKeyboardUndo, true);
+    return () => {
+      document.removeEventListener("focusin", rememberEditable);
+      document.removeEventListener("beforeinput", rememberChange);
+      document.removeEventListener("keydown", handleKeyboardUndo, true);
+    };
   }, []);
 
   function run(command: "undo" | "redo") {
-    lastEditableRef.current?.focus();
-    document.execCommand(command);
-    lastEditableRef.current?.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: `history${command === "undo" ? "Undo" : "Redo"}` }));
+    const target = lastEditableRef.current;
+    if (!target) return;
+    runHistory(target, command, historyRef.current);
   }
 
   return visible ? (
@@ -465,4 +494,112 @@ function MobileUndoRedo() {
       <button type="button" aria-label="Wiederholen" title="Wiederholen" onPointerDown={(event) => event.preventDefault()} onClick={() => run("redo")}><Redo2 size={18} /></button>
     </div>
   ) : null;
+}
+
+type EditableSnapshot = {
+  content: string;
+  end: number;
+  kind: "text" | "html";
+  start: number;
+};
+
+type EditableHistory = { redo: EditableSnapshot[]; undo: EditableSnapshot[] };
+
+function isUndoableElement(target: HTMLElement) {
+  return target.matches("input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable=true]");
+}
+
+function historyFor(histories: WeakMap<HTMLElement, EditableHistory>, target: HTMLElement) {
+  const existing = histories.get(target);
+  if (existing) return existing;
+  const history: EditableHistory = { redo: [], undo: [] };
+  histories.set(target, history);
+  return history;
+}
+
+function snapshotEditable(target: HTMLElement): EditableSnapshot | null {
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    return {
+      content: target.value,
+      end: target.selectionEnd ?? target.value.length,
+      kind: "text",
+      start: target.selectionStart ?? target.value.length
+    };
+  }
+  if (!target.isContentEditable) return null;
+  const selection = window.getSelection();
+  let start = target.textContent?.length ?? 0;
+  let end = start;
+  if (selection?.rangeCount && target.contains(selection.anchorNode) && target.contains(selection.focusNode)) {
+    const range = selection.getRangeAt(0);
+    const beforeStart = range.cloneRange();
+    beforeStart.selectNodeContents(target);
+    beforeStart.setEnd(range.startContainer, range.startOffset);
+    const beforeEnd = range.cloneRange();
+    beforeEnd.selectNodeContents(target);
+    beforeEnd.setEnd(range.endContainer, range.endOffset);
+    start = beforeStart.toString().length;
+    end = beforeEnd.toString().length;
+  }
+  return { content: target.innerHTML, end, kind: "html", start };
+}
+
+function snapshotsEqual(left: EditableSnapshot | undefined, right: EditableSnapshot) {
+  return Boolean(left && left.content === right.content && left.start === right.start && left.end === right.end);
+}
+
+function runHistory(target: HTMLElement, command: "undo" | "redo", histories: WeakMap<HTMLElement, EditableHistory>) {
+  const history = historyFor(histories, target);
+  const source = command === "undo" ? history.undo : history.redo;
+  const destination = command === "undo" ? history.redo : history.undo;
+  const next = source.pop();
+  const current = snapshotEditable(target);
+  if (!next || !current) return;
+  destination.push(current);
+  target.focus();
+  restoreEditable(target, next);
+  target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: command === "undo" ? "historyUndo" : "historyRedo" }));
+}
+
+function restoreEditable(target: HTMLElement, snapshot: EditableSnapshot) {
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    const prototype = target instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+    const nativeSetter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+    nativeSetter?.call(target, snapshot.content);
+    target.setSelectionRange(snapshot.start, snapshot.end);
+    return;
+  }
+  target.innerHTML = snapshot.content;
+  restoreContentEditableSelection(target, snapshot.start, snapshot.end);
+}
+
+function restoreContentEditableSelection(target: HTMLElement, start: number, end: number) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+  let startNode: Node = target;
+  let startOffset = 0;
+  let endNode: Node = target;
+  let endOffset = 0;
+  let node = walker.nextNode();
+  while (node) {
+    const nextOffset = offset + (node.textContent?.length ?? 0);
+    if (start >= offset && start <= nextOffset) {
+      startNode = node;
+      startOffset = start - offset;
+    }
+    if (end >= offset && end <= nextOffset) {
+      endNode = node;
+      endOffset = end - offset;
+      break;
+    }
+    offset = nextOffset;
+    node = walker.nextNode();
+  }
+  range.setStart(startNode, startOffset);
+  range.setEnd(endNode, endOffset);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }

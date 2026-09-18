@@ -82,6 +82,7 @@ type BlockContextMenu = { blockId: string; x: number; y: number };
 export function EventPageModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const { data, session, isAdmin, refresh, updateData } = useApp();
   const [draftEvent, setDraftEvent] = useState(event);
+  const [optimisticPreparationRating, setOptimisticPreparationRating] = useState<number | null>(null);
   const eventFieldChannelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
   const eventFieldChannelReadyRef = useRef(false);
   const eventFieldClientIdRef = useRef(`event-client-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -114,9 +115,18 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
   const averagePreparationRating = preparationRatings.length
     ? preparationRatings.reduce((sum, rating) => sum + rating.stars, 0) / preparationRatings.length
     : 0;
+  const displayedPreparationRating = optimisticPreparationRating ?? ownPreparationRating;
+  const displayedPreparationRatingCount = preparationRatings.length + (optimisticPreparationRating !== null && !ownPreparationRating ? 1 : 0);
+  const displayedPreparationRatingAverage = optimisticPreparationRating === null
+    ? averagePreparationRating
+    : (preparationRatings.reduce((sum, rating) => sum + rating.stars, 0) - ownPreparationRating + optimisticPreparationRating) / displayedPreparationRatingCount;
   const canRatePreparation = Boolean(
     session && (isAdmin || data.assignments.some((assignment) => assignment.eventId === draftEvent.relatedEventId && assignment.profileId === session.id))
   );
+
+  useEffect(() => {
+    setOptimisticPreparationRating(null);
+  }, [event.id, ownPreparationRating]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -466,24 +476,31 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
             <section className="preparation-rating" aria-label="Vorbereitung bewerten">
               <div>
                 <strong>Vorbereitung bewerten</strong>
-                <span>{preparationRatings.length ? `${averagePreparationRating.toFixed(1)} von 5 Sternen · ${Math.round(averagePreparationRating * 20)} XP` : "Noch keine Bewertung · 0 XP"}</span>
+                <span>{displayedPreparationRatingCount ? `${displayedPreparationRatingAverage.toFixed(1)} von 5 Sternen · ${Math.round(displayedPreparationRatingAverage * 20)} XP` : "Noch keine Bewertung · 0 XP"}</span>
               </div>
               <div className="star-rating" role="group" aria-label="Sterne vergeben">
                 {[1, 2, 3, 4, 5].map((stars) => (
                   <button
                     key={stars}
                     type="button"
-                    className={stars <= ownPreparationRating ? "is-active" : ""}
+                    className={stars <= displayedPreparationRating ? "is-active" : ""}
                     aria-label={`${stars} von 5 Sternen`}
                     title={`${stars * 20} XP`}
                     disabled={!canRatePreparation}
                     onClick={async () => {
                       if (!session) return;
-                      await ratePreparation(event.id, session.id, stars);
-                      await refresh();
+                      const previousRating = displayedPreparationRating;
+                      setOptimisticPreparationRating(stars);
+                      try {
+                        await ratePreparation(event.id, session.id, stars);
+                        void refresh();
+                      } catch (error) {
+                        setOptimisticPreparationRating(previousRating || null);
+                        console.error("Bewertung konnte nicht gespeichert werden:", error);
+                      }
                     }}
                   >
-                    <Star size={24} fill={stars <= ownPreparationRating ? "currentColor" : "none"} />
+                    <Star size={24} fill={stars <= displayedPreparationRating ? "currentColor" : "none"} />
                   </button>
                 ))}
               </div>

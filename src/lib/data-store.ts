@@ -9,6 +9,7 @@ import type {
   AvailabilityStatus,
   AttachmentFile,
   ChatMessage,
+  ChatReadReceipt,
   Event as CalendarEvent,
   EventRequest,
   EventRequestInput,
@@ -1623,11 +1624,12 @@ export async function deleteKnowledgeSuggestion(suggestionId: string) {
 
 export async function acceptKnowledgeSuggestion(suggestionId: string, user?: SessionUser | null) {
   if (hasSupabaseConfig && supabase) {
-    const { error } = await supabase.rpc("accept_knowledge_suggestion", {
-      suggestion_uuid: suggestionId,
-      editor_name: user?.name ?? null
+    const response = await fetch("/api/admin/knowledge-suggestions/accept", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ suggestionId, editorName: user?.name })
     });
-    if (error) throw new Error(error.message);
+    if (!response.ok) throw new Error(await readApiError(response, "Vorschlag konnte nicht übernommen werden."));
     window.dispatchEvent(new Event("ak-motion-data"));
     return;
   }
@@ -1735,6 +1737,26 @@ export async function loadChatMessages(limit = 120): Promise<ChatMessage[]> {
     attachments: attachmentFiles(message.attachments),
     createdAt: message.created_at
   }));
+}
+
+export async function loadChatReadReceipts(): Promise<ChatReadReceipt[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from("chat_read_receipts").select("profile_id, message_id, read_at");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((receipt) => ({
+    profileId: receipt.profile_id,
+    messageId: receipt.message_id,
+    readAt: receipt.read_at
+  }));
+}
+
+export async function markChatRead(profileId: string, messageId: string) {
+  if (!supabase) return;
+  const { error } = await supabase.from("chat_read_receipts").upsert(
+    { profile_id: profileId, message_id: messageId, read_at: now() },
+    { onConflict: "profile_id" }
+  );
+  if (error) throw new Error(error.message);
 }
 
 export async function sendChatMessage(authorId: string, body: string, attachments: AttachmentFile[]) {
