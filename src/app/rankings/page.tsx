@@ -69,11 +69,13 @@ export default function RankingsPage() {
     window.setTimeout(() => setClaimAnimation(null), 950);
   }
 
-  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, session?.id ? { [session.id]: claimedQuestIds } : {}), [
+  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, session?.id ? { [session.id]: claimedQuestIds } : {}, data.xpAwards, data.preparationRatings), [
     data.assignments,
     data.attendance,
     data.events,
     data.profiles,
+    data.xpAwards,
+    data.preparationRatings,
     claimedQuestIds,
     session?.id
   ]);

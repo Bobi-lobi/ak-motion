@@ -1,10 +1,10 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LoaderCircle, LockKeyhole, LogOut, Package, PanelLeftClose, PanelLeftOpen, Settings, Trophy, Upload, Users, X } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, GalleryVerticalEnd, LoaderCircle, LockKeyhole, LogOut, MessageCircle, Package, PanelLeftClose, PanelLeftOpen, Redo2, Settings, Trophy, Undo2, Upload, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
 import { NotificationDispatcher } from "@/components/notification-dispatcher";
@@ -20,6 +20,7 @@ const navItems = [
   { href: "/calendar", label: "Veranstaltungskalender", icon: CalendarDays, admin: false },
   { href: "/analytics", label: "Statistik", icon: BarChart3, admin: false },
   { href: "/rankings", label: "Level", icon: Trophy, admin: false },
+  { href: "/chat", label: "Chat", icon: MessageCircle, admin: false },
   ...knowledgePages.map((page) => ({ href: page.href, label: page.title, icon: page.icon, admin: false })),
   { href: "/equipment", label: "Equipment", icon: Package, admin: false }
 ];
@@ -274,6 +275,7 @@ export function AppShell({
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
       <NotificationDispatcher />
+      <MobileUndoRedo />
       {sidebarCollapsed ? (
         <button
           className="sidebar-show-button"
@@ -432,4 +434,35 @@ function getInitialSidebarCollapsed() {
   }
 
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+}
+
+function MobileUndoRedo() {
+  const lastEditableRef = useRef<HTMLElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const rememberEditable = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.matches("input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable=true]")) {
+        lastEditableRef.current = target;
+        setVisible(true);
+      }
+    };
+    document.addEventListener("focusin", rememberEditable);
+    return () => document.removeEventListener("focusin", rememberEditable);
+  }, []);
+
+  function run(command: "undo" | "redo") {
+    lastEditableRef.current?.focus();
+    document.execCommand(command);
+    lastEditableRef.current?.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: `history${command === "undo" ? "Undo" : "Redo"}` }));
+  }
+
+  return visible ? (
+    <div className="mobile-undo-redo" aria-label="Bearbeitung rückgängig machen oder wiederholen">
+      <button type="button" aria-label="Rückgängig" title="Rückgängig" onPointerDown={(event) => event.preventDefault()} onClick={() => run("undo")}><Undo2 size={18} /></button>
+      <button type="button" aria-label="Wiederholen" title="Wiederholen" onPointerDown={(event) => event.preventDefault()} onClick={() => run("redo")}><Redo2 size={18} /></button>
+    </div>
+  ) : null;
 }

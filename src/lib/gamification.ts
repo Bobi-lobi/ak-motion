@@ -1,4 +1,4 @@
-import type { AssignmentRole, Event as CalendarEvent, EventAssignment, EventAttendance, Profile } from "@/lib/types";
+import type { AssignmentRole, Event as CalendarEvent, EventAssignment, EventAttendance, EventPreparationRating, Profile, XpAward } from "@/lib/types";
 
 export const rankLadder = [
   { name: "Rookie", min: 0 },
@@ -31,6 +31,7 @@ export const eventTypeXpLimits = [
   { type: "Vortrag", xp: 100 },
   { type: "Aufführung", xp: 200 },
   { type: "Konzert", xp: 300 },
+  { type: "Vorbereiten", xp: 100 },
   { type: "Termin", xp: 0 }
 ];
 
@@ -205,9 +206,9 @@ export function eventMaxXp(event: CalendarEvent) {
   return eventBaseXp(event) + durationXp(event) + afterSchoolXp(event) + bestRoleXp + 20;
 }
 
-export function assignmentXp(event: CalendarEvent, role: AssignmentRole, attended: boolean) {
+export function assignmentXp(event: CalendarEvent, role: AssignmentRole, attended: boolean, preparationXp = 0) {
   if (isEventType(event, "Termin") || role === "Teilnehmer") {
-    return 0;
+    return isEventType(event, "Vorbereiten") ? Math.min(100, Math.max(0, preparationXp)) : 0;
   }
   const rawXp = eventBaseXp(event) + durationXp(event) + afterSchoolXp(event) + roleXp[role] + (attended ? 20 : 0);
   const typeLimit = eventTypeXpLimit(event);
@@ -238,7 +239,7 @@ export function isRehearsal(event: CalendarEvent) {
 }
 
 export function assignmentRolesForEventType(eventType: string): AssignmentRole[] {
-  if (normalizeEventType(eventType) === normalizeEventType("Termin")) {
+  if (["Termin", "Vorbereiten"].some((type) => normalizeEventType(eventType) === normalizeEventType(type))) {
     return ["Teilnehmer"];
   }
   return normalizeEventType(eventType) === normalizeEventType("Schulische Veranstaltung") ? ["Ton"] : allAssignmentRoles;
@@ -254,7 +255,9 @@ export function calculatePlayerScores(
   events: CalendarEvent[],
   assignments: EventAssignment[],
   attendance: EventAttendance[],
-  claimedQuestIdsByProfile: Record<string, string[]> = {}
+  claimedQuestIdsByProfile: Record<string, string[]> = {},
+  xpAwards: XpAward[] = [],
+  preparationRatings: EventPreparationRating[] = []
 ) {
   const eventById = new Map(events.map((event) => [event.id, event]));
   const activeProfiles = profiles.filter(
@@ -289,11 +292,18 @@ export function calculatePlayerScores(
             entry.role === assignment.role &&
             entry.attended
         );
-        const points = assignmentXp(event, assignment.role, attended);
+        const eventRatings = preparationRatings.filter((rating) => rating.eventId === event.id);
+        const preparationXp = eventRatings.length
+          ? Math.round((eventRatings.reduce((sum, rating) => sum + rating.stars, 0) / eventRatings.length) * 20)
+          : 0;
+        const points = assignmentXp(event, assignment.role, attended, preparationXp);
 
         basePoints += points;
         if (attended) {
           attendedCount += 1;
+        }
+        if (isEventType(event, "Vorbereiten")) {
+          return;
         }
         if (assignmentRolesForEventType(event.eventType).includes(assignment.role)) {
           roles.add(assignment.role);
@@ -308,6 +318,10 @@ export function calculatePlayerScores(
           realEventIds.add(event.id);
         }
       });
+
+      basePoints += xpAwards
+        .filter((award) => award.profileId === profile.id)
+        .reduce((sum, award) => sum + award.amount, 0);
 
       const questResult = createQuestProgress({
         afterSchool: afterSchoolEventIds.size,

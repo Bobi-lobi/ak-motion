@@ -27,7 +27,7 @@ export default function AnalyticsPage() {
     () =>
       data.events.filter(
         (event) =>
-          event.eventType.trim().toLowerCase() !== "termin" &&
+          !["termin", "vorbereiten"].includes(event.eventType.trim().toLowerCase()) &&
           event.status === "Abgeschlossen" &&
           isDateInSchoolYear(event.startsAt, schoolYear)
       ),
@@ -123,7 +123,7 @@ export default function AnalyticsPage() {
 
         <aside className="analytics-info-callout">
           <Lightbulb size={26} />
-          <p>Ab drei betreuten Veranstaltungen im Schuljahr gibt es ein Zertifikat und Pizza. Termine und Proben zählen dafür nicht.</p>
+          <p>Ab drei betreuten Veranstaltungen im Schuljahr gibt es ein Zertifikat und Pizza. Termine, Vorbereitungen und Proben zählen dafür nicht.</p>
         </aside>
       </AppShell>
     </RouteGuard>

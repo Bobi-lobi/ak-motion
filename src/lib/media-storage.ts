@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 
 const APP_MEDIA_BUCKET = "app-media";
 
-export async function uploadAppMedia(file: File, scope: "editor" | "profile") {
+export async function uploadAppMedia(file: File, scope: "chat" | "editor" | "profile") {
   const uploadFile = scope === "profile" ? await prepareProfileImage(file) : file;
   if (!supabase) {
     return fileToDataUrl(uploadFile);

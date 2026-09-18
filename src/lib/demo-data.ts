@@ -2,6 +2,8 @@ import type { AppData } from "@/lib/types";
 
 export const demoData: AppData = {
   announcements: [],
+  xpAwards: [],
+  preparationRatings: [],
   profiles: [
     {
       id: "admin-1",

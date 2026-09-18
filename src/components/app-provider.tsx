@@ -144,6 +144,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       "registration_requests",
       "knowledge_pages",
       "knowledge_suggestions",
+      "announcements",
+      "xp_awards",
+      "event_preparation_ratings",
       "landing_content"
     ];
 

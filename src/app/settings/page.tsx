@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase";
 
 type CalendarFeed = { url: string; webcalUrl: string };
 type CalendarFilterKind = "eventTypes" | "locations" | "profiles";
-const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Feier", "Vortrag", "Aufführung", "Konzert", "Termin", "Sonstiges"];
+const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Feier", "Vortrag", "Aufführung", "Konzert", "Vorbereiten", "Termin", "Sonstiges"];
 
 export default function SettingsPage() {
   const { data, isAdmin, refresh, session } = useApp();

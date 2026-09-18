@@ -122,6 +122,32 @@ export type Announcement = {
   expiresAt?: string;
 };
 
+export type ChatMessage = {
+  id: string;
+  authorId: string;
+  body: string;
+  attachments: AttachmentFile[];
+  createdAt: string;
+};
+
+export type XpAward = {
+  id: string;
+  profileId: string;
+  amount: number;
+  reason: string;
+  createdBy?: string;
+  createdAt: string;
+};
+
+export type EventPreparationRating = {
+  id: string;
+  eventId: string;
+  ratedBy: string;
+  stars: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type LandingContent = {
   brandTitle: string;
   heroKicker: string;
@@ -172,6 +198,8 @@ export type AppData = {
   attendance: EventAttendance[];
   knowledgePages: KnowledgePage[];
   knowledgeSuggestions: KnowledgeSuggestion[];
+  xpAwards: XpAward[];
+  preparationRatings: EventPreparationRating[];
 };
 
 export type RegistrationRequestInput = Pick<RegistrationRequest, "email" | "motivation" | "name" | "password" | "phone">;

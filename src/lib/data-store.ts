@@ -7,6 +7,8 @@ import type {
   Announcement,
   AssignmentRole,
   AvailabilityStatus,
+  AttachmentFile,
+  ChatMessage,
   Event as CalendarEvent,
   EventRequest,
   EventRequestInput,
@@ -241,6 +243,8 @@ function normalizeData(data: AppData): AppData {
   normalized.landingContent = normalizeLandingContent(normalized.landingContent);
   normalized.knowledgePages = normalized.knowledgePages ?? [];
   normalized.knowledgeSuggestions = normalized.knowledgeSuggestions ?? [];
+  normalized.xpAwards = normalized.xpAwards ?? [];
+  normalized.preparationRatings = normalized.preparationRatings ?? [];
 
   knowledgePages.forEach((page) => {
     if (!normalized.knowledgePages.some((item) => item.id === page.id)) {
@@ -371,6 +375,8 @@ export async function loadRemoteData(): Promise<AppData> {
     knowledgePagesResult,
     knowledgeSuggestionsResult,
     announcementsResult,
+    xpAwardsResult,
+    preparationRatingsResult,
     landingResult
   ] = await Promise.all([
     supabase.from("profiles").select("id, name, email, avatar_url, phone, role, created_at").order("created_at", { ascending: true }),
@@ -383,6 +389,8 @@ export async function loadRemoteData(): Promise<AppData> {
     supabase.from("knowledge_pages").select("id, title, content, updated_at, updated_by"),
     supabase.from("knowledge_suggestions").select("id, page_id, content, author_id, author_name, created_at").order("created_at", { ascending: false }),
     supabase.from("announcements").select("id, title, body, created_by, created_at, expires_at").order("created_at", { ascending: false }),
+    supabase.from("xp_awards").select("id, profile_id, amount, reason, created_by, created_at").order("created_at", { ascending: false }),
+    supabase.from("event_preparation_ratings").select("id, event_id, rated_by, stars, created_at, updated_at"),
     supabase
       .from("landing_content")
       .select("hero_title, hero_text, join_title, join_text, event_images, team_image, team_names, impressions, content_settings")
@@ -487,6 +495,22 @@ export async function loadRemoteData(): Promise<AppData> {
       createdAt: announcement.created_at,
       expiresAt: announcement.expires_at ?? undefined
     })) : fallback.announcements,
+    xpAwards: xpAwardsResult.data ? xpAwardsResult.data.map((award) => ({
+      id: award.id,
+      profileId: award.profile_id,
+      amount: award.amount,
+      reason: award.reason,
+      createdBy: award.created_by ?? undefined,
+      createdAt: award.created_at
+    })) : fallback.xpAwards,
+    preparationRatings: preparationRatingsResult.data ? preparationRatingsResult.data.map((rating) => ({
+      id: rating.id,
+      eventId: rating.event_id,
+      ratedBy: rating.rated_by,
+      stars: rating.stars,
+      createdAt: rating.created_at,
+      updatedAt: rating.updated_at
+    })) : fallback.preparationRatings,
     landingContent: landingResult.data
       ? normalizeLandingContent({
           ...landingSettings(landingResult.data.content_settings),
@@ -1594,40 +1618,11 @@ export async function deleteKnowledgeSuggestion(suggestionId: string) {
 
 export async function acceptKnowledgeSuggestion(suggestionId: string, user?: SessionUser | null) {
   if (hasSupabaseConfig && supabase) {
-    const { data: suggestion, error: suggestionError } = await supabase
-      .from("knowledge_suggestions")
-      .select("page_id, content")
-      .eq("id", suggestionId)
-      .maybeSingle();
-    if (suggestionError) {
-      throw new Error(suggestionError.message);
-    }
-    if (!suggestion) {
-      return;
-    }
-
-    const { data: page, error: pageError } = await supabase
-      .from("knowledge_pages")
-      .select("title, content")
-      .eq("id", suggestion.page_id)
-      .maybeSingle();
-    if (pageError) {
-      throw new Error(pageError.message);
-    }
-
-    const definition = knowledgePages.find((item) => item.id === suggestion.page_id);
-    const nextContent = [page?.content ?? "", suggestion.content].filter((item) => item.trim()).join("<p><br></p>");
-    const { error: upsertError } = await supabase.from("knowledge_pages").upsert({
-      id: suggestion.page_id,
-      title: page?.title ?? definition?.title ?? suggestion.page_id,
-      content: nextContent,
-      updated_at: now(),
-      updated_by: user?.name ?? null
+    const { error } = await supabase.rpc("accept_knowledge_suggestion", {
+      suggestion_uuid: suggestionId,
+      editor_name: user?.name ?? null
     });
-    const { error: deleteError } = await supabase.from("knowledge_suggestions").delete().eq("id", suggestionId);
-    if (upsertError || deleteError) {
-      throw new Error(upsertError?.message ?? deleteError?.message ?? "Vorschlag konnte nicht übernommen werden.");
-    }
+    if (error) throw new Error(error.message);
     window.dispatchEvent(new Event("ak-motion-data"));
     return;
   }
@@ -1718,6 +1713,66 @@ export async function deleteAnnouncement(announcementId: string) {
   const data = loadData();
   data.announcements = data.announcements.filter((announcement) => announcement.id !== announcementId);
   saveData(data);
+}
+
+export async function loadChatMessages(limit = 120): Promise<ChatMessage[]> {
+  if (!hasSupabaseConfig || !supabase) return [];
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("id, author_id, body, attachments, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).reverse().map((message) => ({
+    id: message.id,
+    authorId: message.author_id,
+    body: message.body,
+    attachments: attachmentFiles(message.attachments),
+    createdAt: message.created_at
+  }));
+}
+
+export async function sendChatMessage(authorId: string, body: string, attachments: AttachmentFile[]) {
+  if (!supabase) throw new Error("Der Teamchat benötigt die Supabase-Verbindung.");
+  const { error } = await supabase.from("chat_messages").insert({
+    author_id: authorId,
+    body: body.trim(),
+    attachments
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteChatMessage(messageId: string) {
+  if (!supabase) return;
+  const { error } = await supabase.from("chat_messages").delete().eq("id", messageId);
+  if (error) throw new Error(error.message);
+}
+
+export async function grantXp(profileId: string, amount: number, reason: string, createdBy: string) {
+  if (!supabase) throw new Error("XP können nur mit der Supabase-Verbindung vergeben werden.");
+  const { error } = await supabase.from("xp_awards").insert({
+    profile_id: profileId,
+    amount: Math.round(amount),
+    reason: reason.trim(),
+    created_by: createdBy
+  });
+  if (error) throw new Error(error.message);
+  window.dispatchEvent(new Event("ak-motion-data"));
+}
+
+export async function ratePreparation(eventId: string, ratedBy: string, stars: number) {
+  if (!supabase) return;
+  const { error } = await supabase.from("event_preparation_ratings").upsert(
+    {
+      event_id: eventId,
+      rated_by: ratedBy,
+      stars: Math.max(1, Math.min(5, Math.round(stars))),
+      updated_at: now()
+    },
+    { onConflict: "event_id,rated_by" }
+  );
+  if (error) throw new Error(error.message);
+  window.dispatchEvent(new Event("ak-motion-data"));
 }
 
 export async function updateLandingContent(patch: LandingContent) {

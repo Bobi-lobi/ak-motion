@@ -21,6 +21,107 @@
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
 }
 
+.property-fieldset {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.property-fieldset:disabled {
+  opacity: .72;
+}
+
+.event-readonly-notice {
+  background: var(--blue-soft);
+  border-left: 3px solid var(--blue);
+  color: var(--muted);
+  margin: 8px 0 18px;
+  padding: 10px 12px;
+}
+
+.preparation-rating {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 0;
+}
+
+.preparation-rating > div:first-child { display: grid; gap: 4px; }
+.preparation-rating span { color: var(--muted); font-size: .88rem; }
+.star-rating { display: flex; gap: 2px; }
+.star-rating button { background: transparent; border: 0; color: var(--muted); cursor: pointer; padding: 4px; }
+.star-rating button.is-active { color: #f0b44c; }
+
+.xp-award-editor {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: 90px minmax(180px, 1fr) auto auto;
+  padding: 10px 0 0 50px;
+  width: 100%;
+}
+
+.xp-award-editor input { min-width: 0; }
+
+.chat-page { min-height: 100dvh; }
+.team-chat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-rows: minmax(360px, 1fr) auto;
+  height: min(760px, calc(100dvh - 190px));
+  margin-top: 18px;
+  overflow: hidden;
+}
+.chat-stream { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding: 22px; }
+.chat-loading { align-items: center; color: var(--muted); display: flex; gap: 9px; justify-content: center; margin: auto; }
+.chat-message { align-self: flex-start; background: var(--panel-soft); border: 1px solid var(--line); max-width: min(72%, 660px); padding: 10px 40px 10px 12px; position: relative; }
+.chat-message.is-own { align-self: flex-end; background: var(--blue-soft); border-color: rgba(91, 140, 255, .42); }
+.chat-message-meta { align-items: baseline; display: flex; gap: 10px; margin-bottom: 5px; }
+.chat-message-meta time { color: var(--muted); font-size: .72rem; }
+.chat-message p { margin: 0; white-space: pre-wrap; }
+.chat-delete { background: transparent; border: 0; color: var(--muted); cursor: pointer; opacity: 0; padding: 7px; position: absolute; right: 3px; top: 3px; }
+.chat-message:hover .chat-delete, .chat-delete:focus-visible { opacity: 1; }
+.chat-attachments { display: grid; gap: 7px; margin-top: 9px; }
+.chat-attachments > a { align-items: center; color: inherit; display: flex; gap: 7px; text-decoration: none; }
+.chat-image { display: grid !important; gap: 5px !important; }
+.chat-image img { display: block; max-height: 340px; max-width: 100%; object-fit: contain; }
+.chat-image span { align-items: center; color: var(--muted); display: flex; font-size: .78rem; gap: 5px; }
+.chat-composer { border-top: 1px solid var(--line); padding: 12px; }
+.chat-composer > div:last-child { align-items: end; display: grid; gap: 8px; grid-template-columns: auto 1fr auto; }
+.chat-composer textarea { max-height: 130px; min-height: 42px; resize: vertical; }
+.chat-upload-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chat-upload-list span { align-items: center; background: var(--panel-soft); display: flex; font-size: .8rem; gap: 5px; padding: 6px 8px; }
+.chat-upload-list button { background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; padding: 0; }
+.mobile-undo-redo { display: none; }
+
+@media (max-width: 700px) {
+  .preparation-rating { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .xp-award-editor { grid-template-columns: 72px 1fr auto; padding-left: 0; }
+  .xp-award-editor .button { grid-column: 1 / 3; }
+  .team-chat { height: calc(100dvh - 130px); margin-top: 8px; }
+  .chat-stream { padding: 12px; }
+  .chat-message { max-width: 90%; }
+  .chat-delete { opacity: 1; }
+  .mobile-undo-redo {
+    background: var(--panel-elevated);
+    border: 1px solid var(--line-strong);
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    box-shadow: var(--shadow);
+    display: flex;
+    gap: 2px;
+    left: 50%;
+    padding: 4px;
+    position: fixed;
+    transform: translateX(-50%);
+    z-index: 1200;
+  }
+  .mobile-undo-redo button { background: transparent; border: 0; color: var(--ink); display: grid; padding: 9px 13px; place-items: center; }
+}
+
 * {
   box-sizing: border-box;
 }

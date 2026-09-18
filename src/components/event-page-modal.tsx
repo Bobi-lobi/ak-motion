@@ -14,6 +14,7 @@ import {
   Italic,
   ListChecks,
   Search,
+  Star,
   Strikethrough,
   Type,
   UsersRound,
@@ -22,7 +23,7 @@ import {
 import type { DragEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
-import { createProfile, addAssignment, removeAssignment, updateEvent } from "@/lib/data-store";
+import { createProfile, addAssignment, ratePreparation, removeAssignment, updateEvent } from "@/lib/data-store";
 import { addMonths, format, getCalendarGridDays, isDayInMonth, parseISO, subMonths, monthLabel } from "@/lib/date-utils";
 import type { AssignmentRole, Event, Profile, SessionUser } from "@/lib/types";
 import { useApp } from "@/components/app-provider";
@@ -99,12 +100,20 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
       "Vortrag",
       "Aufführung",
       "Konzert",
+      "Vorbereiten",
       "Termin",
       ...data.events.map((item) => item.eventType).filter(Boolean)
     ])
   );
   const locationOptions = Array.from(new Set(["Aula", "Bühne", "Musikraum", "Sporthalle", ...data.events.map((item) => item.location).filter(Boolean)]));
   const canChooseAllTechnicians = Boolean(session);
+  const canEditEvent = isAdmin || draftEvent.status !== "Abgeschlossen";
+  const isPreparation = draftEvent.eventType.trim().toLowerCase() === "vorbereiten";
+  const preparationRatings = data.preparationRatings.filter((rating) => rating.eventId === event.id);
+  const ownPreparationRating = preparationRatings.find((rating) => rating.ratedBy === session?.id)?.stars ?? 0;
+  const averagePreparationRating = preparationRatings.length
+    ? preparationRatings.reduce((sum, rating) => sum + rating.stars, 0) / preparationRatings.length
+    : 0;
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -280,6 +289,11 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
               <UsersRound size={17} />
               <span>Gemeinsamer Termin</span>
             </div>
+          ) : isPreparation ? (
+            <div className="event-xp-badge" title="Die Bewertung bestimmt die XP: 20 XP je Stern">
+              <Trophy size={17} />
+              <span>Vorbereiten · bis 100 XP</span>
+            </div>
           ) : (
             <div className="event-xp-badge" title="Maximale XP für eine Person bei bester Rolle und markierter Anwesenheit">
               <Trophy size={17} />
@@ -295,11 +309,13 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
           <input
             className="notion-title-input"
             value={draftEvent.title}
+            disabled={!canEditEvent}
             onChange={(changeEvent) => patchEvent({ title: changeEvent.target.value })}
             aria-label="Veranstaltungstitel"
           />
 
-          <div className="property-grid">
+          {!canEditEvent ? <p className="event-readonly-notice">Abgeschlossen: Nur Admins können diese Veranstaltung noch bearbeiten.</p> : null}
+          <fieldset className="property-grid property-fieldset" disabled={!canEditEvent}>
             {visibleAssignmentRoles.map((role) => (
               <PropertyRow key={role} icon={<UsersRound size={18} />} label={role}>
                 <TechnicianField
@@ -425,7 +441,35 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                 <span className="property-empty">Keine Dateien</span>
               )}
             </PropertyRow>
-          </div>
+          </fieldset>
+
+          {isPreparation ? (
+            <section className="preparation-rating" aria-label="Vorbereitung bewerten">
+              <div>
+                <strong>Vorbereitung bewerten</strong>
+                <span>{preparationRatings.length ? `${averagePreparationRating.toFixed(1)} von 5 Sternen · ${Math.round(averagePreparationRating * 20)} XP` : "Noch keine Bewertung · 0 XP"}</span>
+              </div>
+              <div className="star-rating" role="group" aria-label="Sterne vergeben">
+                {[1, 2, 3, 4, 5].map((stars) => (
+                  <button
+                    key={stars}
+                    type="button"
+                    className={stars <= ownPreparationRating ? "is-active" : ""}
+                    aria-label={`${stars} von 5 Sternen`}
+                    title={`${stars * 20} XP`}
+                    disabled={!session}
+                    onClick={async () => {
+                      if (!session) return;
+                      await ratePreparation(event.id, session.id, stars);
+                      await refresh();
+                    }}
+                  >
+                    <Star size={24} fill={stars <= ownPreparationRating ? "currentColor" : "none"} />
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="notion-document">
             <h2>Notizen</h2>
@@ -438,6 +482,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
               placeholder="Ablauf, Aufbauplan, Sonderwünsche, Links oder interne Hinweise..."
               currentUser={session}
               realtimeKey={`event-notes-${event.id}`}
+              readOnly={!canEditEvent}
             />
           </section>
         </div>
@@ -894,7 +939,8 @@ export function SlashRichTextEditor({
   realtimeKey,
   value,
   onChange,
-  placeholder
+  placeholder,
+  readOnly = false
 }: {
   ariaLabel?: string;
   currentUser?: SessionUser | null;
@@ -902,6 +948,7 @@ export function SlashRichTextEditor({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  readOnly?: boolean;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -2222,7 +2269,7 @@ export function SlashRichTextEditor({
       <div
         ref={editorRef}
         className={isEmpty ? "rich-text-editor is-empty" : "rich-text-editor"}
-        contentEditable
+        contentEditable={!readOnly}
         data-placeholder={placeholder}
         onInput={() => syncEditor()}
         onPointerDown={handleEditorPointerDown}

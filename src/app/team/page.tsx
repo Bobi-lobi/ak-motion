@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Shield, Trash2, UserRound, X } from "lucide-react";
+import { Check, Gift, Shield, Trash2, UserRound, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
@@ -9,6 +9,7 @@ import {
   approveRegistrationRequest,
   deleteProfile,
   deleteRegistrationRequest,
+  grantXp,
   rejectRegistrationRequest,
   updateProfileRole
 } from "@/lib/data-store";
@@ -18,6 +19,9 @@ import type { UserRole } from "@/lib/types";
 export default function TeamPage() {
   const { data, refresh, session } = useApp();
   const [actionError, setActionError] = useState("");
+  const [xpProfileId, setXpProfileId] = useState<string | null>(null);
+  const [xpAmount, setXpAmount] = useState("25");
+  const [xpReason, setXpReason] = useState("");
   const visibleProfiles = data.profiles.filter((profile) => !isPlaceholderProfile(profile));
 
   async function handleRoleChange(profileId: string, role: UserRole) {
@@ -48,6 +52,19 @@ export default function TeamPage() {
   async function handleDeleteRegistration(requestId: string) {
     await deleteRegistrationRequest(requestId);
     refresh();
+  }
+
+  async function handleGrantXp() {
+    if (!session || !xpProfileId || !xpReason.trim() || Number(xpAmount) <= 0) return;
+    setActionError("");
+    try {
+      await grantXp(xpProfileId, Number(xpAmount), xpReason, session.id);
+      setXpProfileId(null);
+      setXpReason("");
+      await refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "XP konnten nicht vergeben werden.");
+    }
   }
 
   return (
@@ -122,6 +139,9 @@ export default function TeamPage() {
                     <span>{profile.email}</span>
                   </div>
                   <div className="team-actions">
+                    <button className="icon-button" type="button" aria-label={`${profile.name} XP geben`} title="XP geben" onClick={() => setXpProfileId(profile.id)}>
+                      <Gift size={16} />
+                    </button>
                     <select
                       aria-label={`${profile.name} Rolle ändern`}
                       disabled={profile.id === session?.id}
@@ -141,6 +161,14 @@ export default function TeamPage() {
                       <Trash2 size={16} />
                     </button>
                   </div>
+                  {xpProfileId === profile.id ? (
+                    <div className="xp-award-editor">
+                      <input type="number" min="1" max="10000" value={xpAmount} onChange={(event) => setXpAmount(event.target.value)} aria-label="XP" />
+                      <input value={xpReason} onChange={(event) => setXpReason(event.target.value)} placeholder="Grund, z. B. Aufräumen" autoFocus />
+                      <button className="button primary" type="button" disabled={!xpReason.trim() || Number(xpAmount) <= 0} onClick={handleGrantXp}>Vergeben</button>
+                      <button className="icon-button" type="button" aria-label="Abbrechen" onClick={() => setXpProfileId(null)}><X size={16} /></button>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

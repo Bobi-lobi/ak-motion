@@ -108,7 +108,7 @@ export default function PublicRequestPage() {
               <input value={form.title} onChange={(event) => update("title", event.target.value)} required />
             </label>
             <label>
-              Ort
+              Veranstaltungsort
               <input value={form.location} onChange={(event) => update("location", event.target.value)} required />
             </label>
             <label>
