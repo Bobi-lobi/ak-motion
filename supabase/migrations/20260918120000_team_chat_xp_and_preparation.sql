@@ -25,6 +25,9 @@ create table if not exists public.xp_awards (
   created_at timestamptz not null default now()
 );
 
+alter table public.events
+  add column if not exists related_event_id uuid references public.events(id) on delete set null;
+
 create table if not exists public.event_preparation_ratings (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
@@ -70,8 +73,26 @@ create policy "team reads preparation ratings" on public.event_preparation_ratin
   for select to authenticated using (true);
 create policy "team rates preparation" on public.event_preparation_ratings
   for all to authenticated
-  using (rated_by = auth.uid() or public.is_admin())
-  with check (rated_by = auth.uid() or public.is_admin());
+  using (
+    public.is_admin() or (
+      rated_by = auth.uid() and exists (
+        select 1
+        from public.events preparation
+        join public.event_assignments assignment on assignment.event_id = preparation.related_event_id
+        where preparation.id = event_preparation_ratings.event_id and assignment.profile_id = auth.uid()
+      )
+    )
+  )
+  with check (
+    public.is_admin() or (
+      rated_by = auth.uid() and exists (
+        select 1
+        from public.events preparation
+        join public.event_assignments assignment on assignment.event_id = preparation.related_event_id
+        where preparation.id = event_preparation_ratings.event_id and assignment.profile_id = auth.uid()
+      )
+    )
+  );
 
 drop policy if exists "signed in users manage events" on public.events;
 drop policy if exists "team reads events" on public.events;

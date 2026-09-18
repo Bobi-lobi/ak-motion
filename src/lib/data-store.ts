@@ -381,7 +381,7 @@ export async function loadRemoteData(): Promise<AppData> {
   ] = await Promise.all([
     supabase.from("profiles").select("id, name, email, avatar_url, phone, role, created_at").order("created_at", { ascending: true }),
     supabase.from("event_requests").select("id, title, starts_at, ends_at, location, contact_name, contact_email, event_type, tech_needs, notes, presentation_files, status, created_at").order("created_at", { ascending: false }),
-    supabase.from("events").select("id, title, starts_at, ends_at, location, event_type, status, contact_name, contact_email, microphone_count, tech_needs, notes, presentation_files, request_id, created_at").order("starts_at", { ascending: true }),
+    supabase.from("events").select("id, title, starts_at, ends_at, location, event_type, status, contact_name, contact_email, microphone_count, tech_needs, notes, presentation_files, request_id, related_event_id, created_at").order("starts_at", { ascending: true }),
     supabase.from("event_availability").select("id, event_id, profile_id, status, updated_at"),
     supabase.from("event_assignments").select("id, event_id, profile_id, role, created_at"),
     supabase.from("event_attendance").select("id, event_id, profile_id, role, attended, created_at"),
@@ -438,6 +438,7 @@ export async function loadRemoteData(): Promise<AppData> {
       notes: event.notes,
       presentationFiles: attachmentFiles(event.presentation_files),
       requestId: event.request_id ?? undefined,
+      relatedEventId: event.related_event_id ?? undefined,
       createdAt: event.created_at
     })) : fallback.events,
     availability: availabilityResult.data ? availabilityResult.data.map((availability) => ({
@@ -679,6 +680,7 @@ function eventPatchToRemotePatch(patch: Partial<CalendarEvent>) {
   if (patch.notes !== undefined) remotePatch.notes = patch.notes;
   if (patch.presentationFiles !== undefined) remotePatch.presentation_files = patch.presentationFiles;
   if (patch.requestId !== undefined) remotePatch.request_id = patch.requestId;
+  if (patch.relatedEventId !== undefined) remotePatch.related_event_id = patch.relatedEventId || null;
   return remotePatch;
 }
 
@@ -1216,9 +1218,10 @@ export async function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">
         tech_needs: input.techNeeds,
         notes: input.notes,
         presentation_files: input.presentationFiles ?? [],
-        request_id: input.requestId
+        request_id: input.requestId,
+        related_event_id: input.relatedEventId || null
       })
-      .select("id, title, starts_at, ends_at, location, event_type, status, contact_name, contact_email, microphone_count, tech_needs, notes, presentation_files, request_id, created_at")
+      .select("id, title, starts_at, ends_at, location, event_type, status, contact_name, contact_email, microphone_count, tech_needs, notes, presentation_files, request_id, related_event_id, created_at")
       .single();
     if (error || !data) {
       throw new Error(error?.message ?? "Veranstaltung konnte nicht erstellt werden.");
@@ -1239,6 +1242,7 @@ export async function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">
       notes: data.notes,
       presentationFiles: attachmentFiles(data.presentation_files),
       requestId: data.request_id ?? undefined,
+      relatedEventId: data.related_event_id ?? undefined,
       createdAt: data.created_at
     } satisfies CalendarEvent;
   }

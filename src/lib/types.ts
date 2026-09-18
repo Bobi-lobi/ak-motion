@@ -50,6 +50,7 @@ export type Event = {
   notes: string;
   presentationFiles?: AttachmentFile[];
   requestId?: string;
+  relatedEventId?: string;
   createdAt: string;
 };
 

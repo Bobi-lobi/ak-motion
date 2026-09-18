@@ -114,6 +114,9 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
   const averagePreparationRating = preparationRatings.length
     ? preparationRatings.reduce((sum, rating) => sum + rating.stars, 0) / preparationRatings.length
     : 0;
+  const canRatePreparation = Boolean(
+    session && (isAdmin || data.assignments.some((assignment) => assignment.eventId === draftEvent.relatedEventId && assignment.profileId === session.id))
+  );
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -365,6 +368,22 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
               </PropertyRow>
             ))}
 
+            {isPreparation ? (
+              <PropertyRow icon={<CalendarDays size={18} />} label="Hauptveranstaltung">
+                <select
+                  className="property-input"
+                  value={draftEvent.relatedEventId ?? ""}
+                  onChange={(changeEvent) => patchEvent({ relatedEventId: changeEvent.target.value }, { immediate: true })}
+                  aria-label="Zugehörige Hauptveranstaltung"
+                >
+                  <option value="">Bitte auswählen</option>
+                  {data.events
+                    .filter((item) => item.id !== event.id && item.eventType.trim().toLowerCase() !== "vorbereiten")
+                    .map((item) => <option key={item.id} value={item.id}>{format(parseISO(item.startsAt), "dd.MM.yyyy")} · {item.title}</option>)}
+                </select>
+              </PropertyRow>
+            ) : null}
+
             <PropertyRow icon={<Mail size={18} />} label="Ansprechpartner">
               <input
                 className="property-input"
@@ -457,7 +476,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                     className={stars <= ownPreparationRating ? "is-active" : ""}
                     aria-label={`${stars} von 5 Sternen`}
                     title={`${stars * 20} XP`}
-                    disabled={!session}
+                    disabled={!canRatePreparation}
                     onClick={async () => {
                       if (!session) return;
                       await ratePreparation(event.id, session.id, stars);
@@ -468,6 +487,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                   </button>
                 ))}
               </div>
+              {!canRatePreparation ? <small>Bewerten können Admins und die eingeteilten Personen der verknüpften Hauptveranstaltung.</small> : null}
             </section>
           ) : null}
 
