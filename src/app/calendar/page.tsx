@@ -45,6 +45,7 @@ export default function CalendarPage() {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const creatingDayRef = useRef<Set<string>>(new Set());
   const lastDragEndedAtRef = useRef(0);
+  const requestedEventHandledRef = useRef(false);
 
   const calendarDays = useMemo(() => getCalendarGridDays(month), [month]);
   const selectedEvent = data.events.find((event) => event.id === selectedEventId) ?? null;
@@ -59,6 +60,20 @@ export default function CalendarPage() {
   useEffect(() => {
     setRequestUrl(new URL("/request/motion", window.location.origin).toString());
   }, []);
+
+  useEffect(() => {
+    if (requestedEventHandledRef.current || !data.events.length) return;
+    const requestedEventId = new URLSearchParams(window.location.search).get("event");
+    if (!requestedEventId) {
+      requestedEventHandledRef.current = true;
+      return;
+    }
+    const requestedEvent = data.events.find((item) => item.id === requestedEventId);
+    if (!requestedEvent) return;
+    requestedEventHandledRef.current = true;
+    setMonth(new Date(requestedEvent.startsAt));
+    setSelectedEventId(requestedEvent.id);
+  }, [data.events]);
 
   function clearLongPressTimer() {
     if (longPressTimerRef.current) {

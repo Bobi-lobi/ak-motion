@@ -8,7 +8,9 @@ import type {
   AssignmentRole,
   AvailabilityStatus,
   AttachmentFile,
+  ChatConversation,
   ChatMessage,
+  ChatPoll,
   ChatReadReceipt,
   Event as CalendarEvent,
   EventRequest,
@@ -1722,57 +1724,289 @@ export async function deleteAnnouncement(announcementId: string) {
   saveData(data);
 }
 
-export async function loadChatMessages(limit = 120): Promise<ChatMessage[]> {
+export async function loadChatConversations(profileId: string): Promise<ChatConversation[]> {
+  if (!hasSupabaseConfig || !supabase) {
+    const memberIds = loadData().profiles.map((profile) => profile.id);
+    const createdAt = "2026-01-01T00:00:00.000Z";
+    return [
+      { id: "00000000-0000-0000-0000-000000000001", name: "Teamchat", description: "Der gemeinsame Chat für das gesamte Technik-Team.", kind: "group", memberIds, createdAt, unreadCount: 0 },
+      { id: "00000000-0000-0000-0000-000000000002", name: "Licht", description: "Absprachen rund um Lichttechnik und Beleuchtung.", kind: "group", memberIds, createdAt, unreadCount: 0 },
+      { id: "00000000-0000-0000-0000-000000000003", name: "Ton", description: "Absprachen rund um Ton, Mikrofone und Audio.", kind: "group", memberIds, createdAt, unreadCount: 0 },
+      { id: "00000000-0000-0000-0000-000000000004", name: "Umbau", description: "Aufbau, Umbau und Abbau gemeinsam koordinieren.", kind: "group", memberIds, createdAt, unreadCount: 0 },
+      { id: "00000000-0000-0000-0000-000000000005", name: "Orga", description: "Organisatorische Fragen und interne Abstimmungen.", kind: "group", memberIds, createdAt, unreadCount: 0 }
+    ];
+  }
+  const [conversationResult, memberResult, messageResult, receiptResult] = await Promise.all([
+    supabase.from("chat_conversations").select("id, name, description, image_url, kind, created_by, created_at").order("created_at"),
+    supabase.from("chat_conversation_members").select("conversation_id, profile_id"),
+    supabase.from("chat_messages").select("id, conversation_id, author_id, body, attachments, created_at").order("created_at", { ascending: false }).limit(500),
+    supabase.from("chat_read_receipts").select("conversation_id, message_id").eq("profile_id", profileId)
+  ]);
+  if (conversationResult.error) throw new Error(conversationResult.error.message);
+  if (memberResult.error) throw new Error(memberResult.error.message);
+  if (messageResult.error) throw new Error(messageResult.error.message);
+  const receiptByConversation = new Map((receiptResult.data ?? []).map((receipt) => [receipt.conversation_id, receipt.message_id]));
+  const messageById = new Map((messageResult.data ?? []).map((message) => [message.id, message]));
+  return (conversationResult.data ?? []).map((conversation) => {
+    const messages = (messageResult.data ?? []).filter((message) => message.conversation_id === conversation.id);
+    const last = messages[0];
+    const readMessage = messageById.get(receiptByConversation.get(conversation.id) ?? "");
+    const readAt = readMessage ? new Date(readMessage.created_at).getTime() : 0;
+    return {
+      id: conversation.id,
+      name: conversation.name,
+      description: conversation.description ?? "",
+      imageUrl: conversation.image_url ?? undefined,
+      kind: conversation.kind === "direct" ? "direct" : "group",
+      memberIds: (memberResult.data ?? []).filter((member) => member.conversation_id === conversation.id).map((member) => member.profile_id),
+      createdBy: conversation.created_by ?? undefined,
+      createdAt: conversation.created_at,
+      lastMessage: last ? {
+        id: last.id,
+        authorId: last.author_id,
+        body: last.body,
+        attachmentCount: attachmentFiles(last.attachments).length
+      } : undefined,
+      unreadCount: messages.filter((message) => message.author_id !== profileId && new Date(message.created_at).getTime() > readAt).length
+    } satisfies ChatConversation;
+  }).sort((left, right) => {
+    const leftLast = (messageResult.data ?? []).find((message) => message.conversation_id === left.id)?.created_at ?? left.createdAt;
+    const rightLast = (messageResult.data ?? []).find((message) => message.conversation_id === right.id)?.created_at ?? right.createdAt;
+    return new Date(rightLast).getTime() - new Date(leftLast).getTime();
+  });
+}
+
+export async function loadChatUnreadCount(profileId: string) {
+  try {
+    const conversations = await loadChatConversations(profileId);
+    return conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0);
+  } catch {
+    return 0;
+  }
+}
+
+export async function loadChatMessages(conversationId: string, limit = 120): Promise<ChatMessage[]> {
   if (!hasSupabaseConfig || !supabase) return [];
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select("id, author_id, body, attachments, created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  return (data ?? []).reverse().map((message) => ({
+  const [messageResult, pollResult, optionResult, voteResult, reactionResult] = await Promise.all([
+    supabase.from("chat_messages").select("id, conversation_id, author_id, body, attachments, reply_to_message_id, edited_at, pinned_at, pinned_by, created_at").eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(limit),
+    supabase.from("chat_polls").select("message_id, question, allow_multiple"),
+    supabase.from("chat_poll_options").select("id, poll_id, label, position").order("position"),
+    supabase.from("chat_poll_votes").select("poll_id, option_id, profile_id"),
+    supabase.from("chat_message_reactions").select("message_id, profile_id, emoji")
+  ]);
+  if (messageResult.error) throw new Error(messageResult.error.message);
+  const pollsAvailable = !pollResult.error && !optionResult.error && !voteResult.error;
+  const pollByMessage = new Map<string, ChatPoll>();
+  if (pollsAvailable) {
+    for (const poll of pollResult.data ?? []) {
+      pollByMessage.set(poll.message_id, {
+        allowMultiple: poll.allow_multiple,
+        options: (optionResult.data ?? []).filter((option) => option.poll_id === poll.message_id).map((option) => ({
+          id: option.id,
+          label: option.label,
+          voterIds: (voteResult.data ?? []).filter((vote) => vote.option_id === option.id).map((vote) => vote.profile_id)
+        })),
+        question: poll.question
+      });
+    }
+  }
+  const rawById = new Map((messageResult.data ?? []).map((message) => [message.id, message]));
+  return (messageResult.data ?? []).reverse().map((message) => ({
     id: message.id,
+    conversationId: message.conversation_id,
     authorId: message.author_id,
     body: message.body,
     attachments: attachmentFiles(message.attachments),
+    poll: pollByMessage.get(message.id),
+    reactions: Array.from(new Set((reactionResult.data ?? []).filter((reaction) => reaction.message_id === message.id).map((reaction) => reaction.emoji))).map((emoji) => ({
+      emoji,
+      profileIds: (reactionResult.data ?? []).filter((reaction) => reaction.message_id === message.id && reaction.emoji === emoji).map((reaction) => reaction.profile_id)
+    })),
+    replyTo: message.reply_to_message_id && rawById.get(message.reply_to_message_id) ? {
+      id: message.reply_to_message_id,
+      authorId: rawById.get(message.reply_to_message_id)!.author_id,
+      body: rawById.get(message.reply_to_message_id)!.body,
+      attachmentCount: attachmentFiles(rawById.get(message.reply_to_message_id)!.attachments).length
+    } : undefined,
+    editedAt: message.edited_at ?? undefined,
+    pinnedAt: message.pinned_at ?? undefined,
+    pinnedBy: message.pinned_by ?? undefined,
     createdAt: message.created_at
   }));
 }
 
-export async function loadChatReadReceipts(): Promise<ChatReadReceipt[]> {
+export async function loadChatReadReceipts(conversationId: string): Promise<ChatReadReceipt[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.from("chat_read_receipts").select("profile_id, message_id, read_at");
+  const { data, error } = await supabase.from("chat_read_receipts").select("conversation_id, profile_id, message_id, read_at").eq("conversation_id", conversationId);
   if (error) throw new Error(error.message);
   return (data ?? []).map((receipt) => ({
+    conversationId: receipt.conversation_id,
     profileId: receipt.profile_id,
     messageId: receipt.message_id,
     readAt: receipt.read_at
   }));
 }
 
-export async function markChatRead(profileId: string, messageId: string) {
+export async function markChatRead(profileId: string, conversationId: string, messageId: string) {
   if (!supabase) return;
   const { error } = await supabase.from("chat_read_receipts").upsert(
-    { profile_id: profileId, message_id: messageId, read_at: now() },
-    { onConflict: "profile_id" }
+    { profile_id: profileId, conversation_id: conversationId, message_id: messageId, read_at: now() },
+    { onConflict: "conversation_id,profile_id" }
   );
   if (error) throw new Error(error.message);
 }
 
-export async function sendChatMessage(authorId: string, body: string, attachments: AttachmentFile[]) {
+export async function sendChatMessage(authorId: string, conversationId: string, body: string, attachments: AttachmentFile[], replyToMessageId?: string) {
   if (!supabase) throw new Error("Der Teamchat benötigt die Supabase-Verbindung.");
-  const { error } = await supabase.from("chat_messages").insert({
+  const { data: message, error } = await supabase.from("chat_messages").insert({
     author_id: authorId,
+    conversation_id: conversationId,
     body: body.trim(),
-    attachments
-  });
+    attachments,
+    reply_to_message_id: replyToMessageId ?? null
+  }).select("id").single();
   if (error) throw new Error(error.message);
+  void notifyChatSubscribers(message.id);
+}
+
+export async function sendChatPoll(authorId: string, conversationId: string, question: string, labels: string[], allowMultiple: boolean) {
+  if (!supabase) throw new Error("Umfragen benötigen die Supabase-Verbindung.");
+  const cleanQuestion = question.trim();
+  const cleanLabels = labels.map((label) => label.trim()).filter(Boolean);
+  const { data: message, error: messageError } = await supabase.from("chat_messages").insert({
+    author_id: authorId,
+    conversation_id: conversationId,
+    body: `Umfrage: ${cleanQuestion}`,
+    attachments: []
+  }).select("id").single();
+  if (messageError) throw new Error(messageError.message);
+  const { error: pollError } = await supabase.from("chat_polls").insert({
+    message_id: message.id,
+    question: cleanQuestion,
+    allow_multiple: allowMultiple
+  });
+  if (pollError) {
+    await supabase.from("chat_messages").delete().eq("id", message.id);
+    throw new Error(pollError.message);
+  }
+  const { error: optionError } = await supabase.from("chat_poll_options").insert(
+    cleanLabels.map((label, position) => ({ poll_id: message.id, label, position }))
+  );
+  if (optionError) {
+    await supabase.from("chat_messages").delete().eq("id", message.id);
+    throw new Error(optionError.message);
+  }
+  void notifyChatSubscribers(message.id);
+}
+
+export async function voteChatPoll(pollId: string, optionId: string, profileId: string, allowMultiple: boolean, selected: boolean) {
+  if (!supabase) return;
+  if (!allowMultiple) {
+    const { error: clearError } = await supabase.from("chat_poll_votes").delete().eq("poll_id", pollId).eq("profile_id", profileId);
+    if (clearError) throw new Error(clearError.message);
+  } else if (selected) {
+    const { error } = await supabase.from("chat_poll_votes").delete().eq("option_id", optionId).eq("profile_id", profileId);
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const { error } = await supabase.from("chat_poll_votes").upsert(
+    { poll_id: pollId, option_id: optionId, profile_id: profileId },
+    { onConflict: "option_id,profile_id" }
+  );
+  if (error) throw new Error(error.message);
+}
+
+async function notifyChatSubscribers(messageId: string) {
+  try {
+    await fetch("/api/push/chat", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ messageId })
+    });
+  } catch (error) {
+    console.warn("Chat-Push konnte nicht ausgelöst werden:", error);
+  }
 }
 
 export async function deleteChatMessage(messageId: string) {
   if (!supabase) return;
   const { error } = await supabase.from("chat_messages").delete().eq("id", messageId);
   if (error) throw new Error(error.message);
+}
+
+export async function updateChatMessage(messageId: string, body: string) {
+  if (!supabase) return;
+  const { error } = await supabase.from("chat_messages").update({ body: body.trim(), edited_at: now() }).eq("id", messageId);
+  if (error) throw new Error(error.message);
+}
+
+export async function toggleChatMessagePin(messageId: string, pinned: boolean) {
+  if (!supabase) return;
+  const { error } = await supabase.rpc("set_chat_message_pin", { message_uuid: messageId, should_pin: pinned });
+  if (error) throw new Error(error.message);
+}
+
+export async function toggleChatReaction(messageId: string, profileId: string, emoji: string, selected: boolean) {
+  if (!supabase) return;
+  if (selected) {
+    const { error } = await supabase.from("chat_message_reactions").delete().eq("message_id", messageId).eq("profile_id", profileId).eq("emoji", emoji);
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const { error } = await supabase.from("chat_message_reactions").insert({ message_id: messageId, profile_id: profileId, emoji });
+  if (error) throw new Error(error.message);
+}
+
+export async function forwardChatMessage(authorId: string, targetConversationId: string, message: ChatMessage) {
+  const prefix = message.body ? `Weitergeleitet\n${message.body}` : "Weitergeleitet";
+  await sendChatMessage(authorId, targetConversationId, prefix, message.attachments);
+}
+
+export async function createChatConversation(authorId: string, name: string, description: string, kind: "group" | "direct", memberIds: string[], imageUrl?: string) {
+  if (!supabase) throw new Error("Chats benötigen die Supabase-Verbindung.");
+  const { data: conversation, error } = await supabase.from("chat_conversations").insert({
+    name: name.trim(),
+    description: description.trim(),
+    image_url: imageUrl || null,
+    kind,
+    created_by: authorId
+  }).select("id").single();
+  if (error) throw new Error(error.message);
+  const members = Array.from(new Set([authorId, ...memberIds]));
+  const { error: ownMemberError } = await supabase.from("chat_conversation_members").insert({ conversation_id: conversation.id, profile_id: authorId });
+  if (ownMemberError) throw new Error(ownMemberError.message);
+  const otherMembers = members.filter((profileId) => profileId !== authorId);
+  if (otherMembers.length) {
+    const { error: memberError } = await supabase.from("chat_conversation_members").insert(otherMembers.map((profileId) => ({ conversation_id: conversation.id, profile_id: profileId })));
+    if (memberError) throw new Error(memberError.message);
+  }
+  return conversation.id as string;
+}
+
+export async function updateChatConversation(conversationId: string, patch: { name?: string; description?: string; imageUrl?: string; memberIds?: string[] }) {
+  if (!supabase) return;
+  const values: Record<string, unknown> = { updated_at: now() };
+  if (patch.name !== undefined) values.name = patch.name.trim();
+  if (patch.description !== undefined) values.description = patch.description.trim();
+  if (patch.imageUrl !== undefined) values.image_url = patch.imageUrl || null;
+  const { error } = await supabase.from("chat_conversations").update(values).eq("id", conversationId);
+  if (error) throw new Error(error.message);
+  if (patch.memberIds) {
+    const { data: existing, error: existingError } = await supabase.from("chat_conversation_members").select("profile_id").eq("conversation_id", conversationId);
+    if (existingError) throw new Error(existingError.message);
+    const current = new Set((existing ?? []).map((member) => member.profile_id));
+    const next = new Set(patch.memberIds);
+    const remove = [...current].filter((profileId) => !next.has(profileId));
+    const add = [...next].filter((profileId) => !current.has(profileId));
+    if (remove.length) {
+      const { error: removeError } = await supabase.from("chat_conversation_members").delete().eq("conversation_id", conversationId).in("profile_id", remove);
+      if (removeError) throw new Error(removeError.message);
+    }
+    if (add.length) {
+      const { error: addError } = await supabase.from("chat_conversation_members").insert(add.map((profileId) => ({ conversation_id: conversationId, profile_id: profileId })));
+      if (addError) throw new Error(addError.message);
+    }
+  }
 }
 
 export async function grantXp(profileId: string, amount: number, reason: string, createdBy: string) {

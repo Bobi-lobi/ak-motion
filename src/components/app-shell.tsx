@@ -8,9 +8,10 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "@/components/app-provider";
 import { NotificationDispatcher } from "@/components/notification-dispatcher";
-import { changePassword, updateProfile } from "@/lib/data-store";
+import { changePassword, loadChatUnreadCount, updateProfile } from "@/lib/data-store";
 import { uploadAppMedia } from "@/lib/media-storage";
 import { knowledgePages } from "@/lib/knowledge";
+import { supabase } from "@/lib/supabase";
 
 const SIDEBAR_WIDTH_KEY = "ak-motion-sidebar-width";
 const SIDEBAR_COLLAPSED_KEY = "ak-motion-sidebar-collapsed";
@@ -58,6 +59,21 @@ export function AppShell({
   const [profileError, setProfileError] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!session) { setChatUnreadCount(0); return; }
+    const update = () => void loadChatUnreadCount(session.id).then(setChatUnreadCount);
+    update();
+    if (!supabase) return;
+    const client = supabase;
+    const channel = client.channel(`ak-motion-nav-chat-${session.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, update)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts" }, update)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversation_members" }, update)
+      .subscribe();
+    return () => { void client.removeChannel(channel); };
+  }, [session]);
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
@@ -315,7 +331,9 @@ export function AppShell({
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
-              const badge = item.href === "/rules"
+              const badge = item.href === "/chat"
+                ? chatUnreadCount
+                : item.href === "/rules"
                 ? data.knowledgeSuggestions.filter((suggestion) => suggestion.pageId === "rules").length
                 : 0;
 
@@ -328,7 +346,7 @@ export function AppShell({
                 >
                   <Icon size={18} />
                   <span>{item.label}</span>
-                  {isAdmin && badge ? <span className="nav-notification-badge">{formatBadgeCount(badge)}</span> : null}
+                  {badge && (item.href === "/chat" || isAdmin) ? <span className="nav-notification-badge">{formatBadgeCount(badge)}</span> : null}
                 </Link>
               );
             })}

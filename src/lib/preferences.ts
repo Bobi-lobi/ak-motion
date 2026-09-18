@@ -8,6 +8,7 @@ export type AppPreferences = {
   notifyAdminUpdates: boolean;
   notifyAnnouncements: boolean;
   notifyAssignments: boolean;
+  notifyChatMessages: boolean;
   notifyUnstaffed: boolean;
   notifyAchievements: boolean;
 };
@@ -23,6 +24,7 @@ export const defaultPreferences: AppPreferences = {
   notifyAnnouncements: true,
   notifyAchievements: true,
   notifyAssignments: true,
+  notifyChatMessages: true,
   notifyUnstaffed: true
 };
 

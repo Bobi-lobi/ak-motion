@@ -125,13 +125,58 @@ export type Announcement = {
 
 export type ChatMessage = {
   id: string;
+  conversationId: string;
   authorId: string;
   body: string;
   attachments: AttachmentFile[];
+  poll?: ChatPoll;
+  reactions: ChatReaction[];
+  replyTo?: ChatMessagePreview;
+  editedAt?: string;
+  pinnedAt?: string;
+  pinnedBy?: string;
   createdAt: string;
 };
 
+export type ChatConversation = {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  kind: "group" | "direct";
+  memberIds: string[];
+  createdBy?: string;
+  createdAt: string;
+  lastMessage?: ChatMessagePreview;
+  unreadCount: number;
+};
+
+export type ChatMessagePreview = {
+  id: string;
+  authorId: string;
+  body: string;
+  attachmentCount: number;
+};
+
+export type ChatReaction = {
+  emoji: string;
+  profileIds: string[];
+};
+
+export type ChatPoll = {
+  allowMultiple: boolean;
+  options: ChatPollOption[];
+  question: string;
+};
+
+export type ChatPollOption = {
+  id: string;
+  label: string;
+  voterIds: string[];
+};
+
 export type ChatReadReceipt = {
+  conversationId: string;
   profileId: string;
   messageId: string;
   readAt: string;

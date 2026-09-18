@@ -14,7 +14,7 @@ export const supabaseAdmin = hasSupabaseAdminConfig
     })
   : null;
 
-export async function requireAdminFromRequest(request: Request) {
+export async function requireUserFromRequest(request: Request) {
   if (!supabaseAdmin) {
     throw new Response("Supabase Admin ist nicht konfiguriert.", { status: 500 });
   }
@@ -29,14 +29,20 @@ export async function requireAdminFromRequest(request: Request) {
     throw new Response("Session konnte nicht geprüft werden.", { status: 401 });
   }
 
-  const { data: profile, error: profileError } = await supabaseAdmin
+  return userData.user;
+}
+
+export async function requireAdminFromRequest(request: Request) {
+  const user = await requireUserFromRequest(request);
+
+  const { data: profile, error: profileError } = await supabaseAdmin!
     .from("profiles")
     .select("role")
-    .eq("id", userData.user.id)
+    .eq("id", user.id)
     .maybeSingle();
   if (profileError || profile?.role !== "admin") {
     throw new Response("Nur Admins dürfen diese Aktion ausführen.", { status: 403 });
   }
 
-  return userData.user;
+  return user;
 }

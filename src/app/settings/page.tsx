@@ -144,6 +144,7 @@ export default function SettingsPage() {
             </header>
             <div className="settings-options">
               <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Wenn du eingeteilt wirst oder ein Einsatz bald beginnt." checked={preferences.notifyAssignments} onChange={(checked) => updatePreference("notifyAssignments", checked)} />
+              <SettingToggle label="Neue Chatnachrichten" description="Zeigt neue Nachrichten des Teams als Gerätehinweis an." checked={preferences.notifyChatMessages} onChange={(checked) => updatePreference("notifyChatMessages", checked)} />
               <SettingToggle label="Fehlende Besetzung" description="Hinweis auf baldige Veranstaltungen, für die noch Leute fehlen." checked={preferences.notifyUnstaffed} onChange={(checked) => updatePreference("notifyUnstaffed", checked)} />
               <SettingToggle label="Erfolge" description="Hinweise bei neuen Meilensteinen im Levelsystem." checked={preferences.notifyAchievements} onChange={(checked) => updatePreference("notifyAchievements", checked)} />
               <div className="setting-toggle setting-fixed"><span><strong>Mitteilungen der Teamleitung</strong><span>Verpflichtende Nachrichten, die von der Teamleitung an alle gesendet werden.</span></span><span className="setting-required"><LockKeyhole size={14} /> Immer aktiv</span></div>

@@ -23,12 +23,14 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^2.15.3",
+    "web-push": "^3.6.7",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.5",
     "@types/react-dom": "^19.1.5",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.2",
     "typescript": "^5.8.3"
