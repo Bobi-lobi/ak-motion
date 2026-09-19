@@ -57,7 +57,7 @@ type EventFieldPatchPayload = {
 };
 type TableControlsPosition = { top: number; left: number; width: number; height: number };
 type SlashCommand = {
-  action?: "audio" | "equipment" | "image" | "page" | "video";
+  action?: "audio" | "equipment" | "file" | "image" | "page" | "video";
   accept?: string;
   label: string;
   description: string;
@@ -995,6 +995,7 @@ export function SlashRichTextEditor({
   const selectedListItemRef = useRef<HTMLLIElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const pendingMediaCommandRef = useRef<SlashCommand | null>(null);
+  const mediaInsertRangeRef = useRef<Range | null>(null);
   const selectedFormatRangeRef = useRef<Range | null>(null);
   const equipmentInsertRangeRef = useRef<Range | null>(null);
   const editingEquipmentBlockRef = useRef<HTMLElement | null>(null);
@@ -1138,6 +1139,13 @@ export function SlashRichTextEditor({
       keywords: ["info", "hinweis", "callout", "hervorhebung"],
       section: "basis"
     },
+    {
+      label: "Trennlinie",
+      description: "Eine elegante horizontale Linie",
+      html: '<hr class="divider-block"><p><br></p>',
+      keywords: ["linie", "trenner", "divider", "horizontal"],
+      section: "basis"
+    },
     { label: "Liste", description: "Aufzählung", html: "<ul><li><br></li></ul><p><br></p>", keywords: ["bullet", "punkt"], section: "basis" },
     {
       label: "Tabelle",
@@ -1162,7 +1170,8 @@ export function SlashRichTextEditor({
     },
     { label: "Bild", description: "Bilddatei hochladen", action: "image", accept: "image/*", keywords: ["foto", "image"], section: "medien" },
     { label: "Video", description: "Videodatei hochladen", action: "video", accept: "video/*", keywords: ["film"], section: "medien" },
-    { label: "Audio", description: "Audiodatei hochladen", action: "audio", accept: "audio/*", keywords: ["sound", "musik"], section: "medien" }
+    { label: "Audio", description: "Audiodatei hochladen", action: "audio", accept: "audio/*", keywords: ["sound", "musik"], section: "medien" },
+    { label: "Datei", description: "PDF oder andere Datei einbetten", action: "file", accept: "*/*", keywords: ["pdf", "dokument", "anhang", "download"], section: "medien" }
   ];
   const filteredCommands = commands.filter((command) => commandMatchesQuery(command, slashQuery));
   const commandSections = [
@@ -1546,6 +1555,7 @@ export function SlashRichTextEditor({
       insertPageBlock(editor);
     } else if (command.action) {
       pendingMediaCommandRef.current = command;
+      mediaInsertRangeRef.current = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0).cloneRange() : null;
       if (mediaInputRef.current) {
         mediaInputRef.current.accept = command.accept ?? "";
       }
@@ -1634,7 +1644,14 @@ export function SlashRichTextEditor({
         return;
       }
 
-      const html = mediaFileToHtml(command.action!, source, file.name);
+      const range = mediaInsertRangeRef.current;
+      mediaInsertRangeRef.current = null;
+      if (range && editor.contains(range.startContainer)) {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+      const html = mediaFileToHtml(command.action!, source, file.name, file.type);
       insertBlockHtmlAtSelection(editor, html);
       ensureEditorBlockIds(editor);
       const nextHtml = sanitizeEditorHtml(editor);
@@ -2028,16 +2045,30 @@ export function SlashRichTextEditor({
   }
 
   function handleEditorDragOver(dragEvent: DragEvent<HTMLDivElement>) {
-    if (!dragBlockIdRef.current) {
+    if (!dragBlockIdRef.current && !dragEvent.dataTransfer.types.includes("Files")) {
       return;
     }
 
     dragEvent.preventDefault();
+    if (dragEvent.dataTransfer.types.includes("Files")) {
+      dragEvent.dataTransfer.dropEffect = "copy";
+      return;
+    }
     dragEvent.dataTransfer.dropEffect = "move";
     setDropIndicator(getDropIndicator(dragEvent.clientY));
   }
 
   function handleEditorDrop(dragEvent: DragEvent<HTMLDivElement>) {
+    if (dragEvent.dataTransfer.files.length) {
+      dragEvent.preventDefault();
+      dragEvent.stopPropagation();
+      const editor = editorRef.current;
+      if (!editor) return;
+      const marker = createEditorDropMarker(editor, dragEvent.clientX, dragEvent.clientY);
+      void insertDroppedFiles(editor, Array.from(dragEvent.dataTransfer.files), marker);
+      return;
+    }
+
     if (!dragBlockIdRef.current) {
       return;
     }
@@ -2052,6 +2083,25 @@ export function SlashRichTextEditor({
 
     if (indicator) {
       moveBlockTo(sourceId, indicator.targetId, indicator.placement);
+    }
+  }
+
+  async function insertDroppedFiles(editor: HTMLElement, files: File[], marker: HTMLElement) {
+    try {
+      for (const file of files) {
+        const source = await uploadAppMedia(file, "editor");
+        const template = document.createElement("template");
+        template.innerHTML = mediaFileToHtml(mediaKindForFile(file), source, file.name, file.type).trim();
+        marker.before(template.content);
+      }
+      marker.remove();
+      normalizeAtomicEditorBlocks(editor);
+      ensureEditableTail(editor);
+      syncEditor(false);
+    } catch (error) {
+      marker.remove();
+      console.error("Datei konnte nicht hochgeladen werden:", error);
+      window.alert(error instanceof Error ? error.message : "Datei konnte nicht hochgeladen werden.");
     }
   }
 
@@ -2476,7 +2526,7 @@ function normalizeNoteHtml(value: string) {
     return "";
   }
 
-  if (/<(p|br|h1|h2|h3|details|summary|ul|ol|li|table|tbody|tr|th|td|strong|em|div|figure|figcaption|img|video|audio|source)\b/i.test(trimmed)) {
+  if (/<(p|br|h1|h2|h3|details|summary|ul|ol|li|table|tbody|tr|th|td|strong|em|div|figure|figcaption|img|video|audio|source|a|iframe|hr)\b/i.test(trimmed)) {
     return trimmed;
   }
 
@@ -2687,7 +2737,7 @@ function closestEditorHandleBlock(node: Node, editor: HTMLElement) {
       return current;
     }
 
-    if (current.matches("p, div, h1, h2, h3, details, ul, ol, table, figure")) {
+    if (current.matches("p, div, h1, h2, h3, details, ul, ol, table, figure, hr")) {
       return current;
     }
 
@@ -2700,7 +2750,7 @@ function closestEditorHandleBlock(node: Node, editor: HTMLElement) {
 function getEditorHandleBlocks(editor: HTMLElement) {
   return Array.from(
     editor.querySelectorAll<HTMLElement>(
-      ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > details, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > .notion-page-link, li"
+      ":scope > p, :scope > div:not(.notion-page-link), :scope > h1, :scope > h2, :scope > h3, :scope > details, :scope > ul, :scope > ol, :scope > table, :scope > figure, :scope > hr, :scope > .notion-page-link, li"
     )
   ).filter((block) => !block.closest(".notion-page-link") || block.classList.contains("notion-page-link"));
 }
@@ -3129,22 +3179,57 @@ function base64ToUint8Array(value: string) {
   return update;
 }
 
-function mediaFileToHtml(kind: "audio" | "image" | "page" | "video", source: string, name: string) {
+function mediaFileToHtml(kind: "audio" | "file" | "image" | "page" | "video", source: string, name: string, mimeType = "") {
   const safeName = escapeHtml(name);
+  const safeSource = escapeHtml(source);
 
   if (kind === "image") {
-    return `<figure class="media-block"><img src="${source}" alt="${safeName}" /><figcaption>${safeName}</figcaption></figure><p><br></p>`;
+    return `<figure class="media-block" contenteditable="false"><img src="${safeSource}" alt="${safeName}" /><figcaption>${safeName}</figcaption></figure><p><br></p>`;
   }
 
   if (kind === "video") {
-    return `<figure class="media-block"><video controls src="${source}"></video><figcaption>${safeName}</figcaption></figure><p><br></p>`;
+    return `<figure class="media-block" contenteditable="false"><video controls src="${safeSource}"></video><figcaption>${safeName}</figcaption></figure><p><br></p>`;
   }
 
   if (kind === "audio") {
-    return `<figure class="media-block"><audio controls src="${source}"></audio><figcaption>${safeName}</figcaption></figure><p><br></p>`;
+    return `<figure class="media-block" contenteditable="false"><audio controls src="${safeSource}"></audio><figcaption>${safeName}</figcaption></figure><p><br></p>`;
+  }
+
+  if (kind === "file") {
+    const preview = mimeType === "application/pdf" || /\.pdf$/i.test(name)
+      ? `<iframe src="${safeSource}" title="${safeName}"></iframe>`
+      : "";
+    return `<figure class="file-block" contenteditable="false">${preview}<a href="${safeSource}" target="_blank" rel="noreferrer" download="${safeName}"><strong>${safeName}</strong><span>Datei öffnen oder herunterladen</span></a></figure><p><br></p>`;
   }
 
   return "<p><br></p>";
+}
+
+function mediaKindForFile(file: File): "audio" | "file" | "image" | "video" {
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("video/")) return "video";
+  if (file.type.startsWith("audio/")) return "audio";
+  return "file";
+}
+
+function createEditorDropMarker(editor: HTMLElement, clientX: number, clientY: number) {
+  const marker = document.createElement("span");
+  marker.dataset.fileDropMarker = "true";
+  marker.hidden = true;
+  const caretDocument = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => CaretPosition | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  const position = caretDocument.caretPositionFromPoint?.(clientX, clientY);
+  const range = position ? document.createRange() : caretDocument.caretRangeFromPoint?.(clientX, clientY) ?? null;
+  if (position && range) range.setStart(position.offsetNode, position.offset);
+  if (range && editor.contains(range.startContainer)) {
+    range.collapse(true);
+    range.insertNode(marker);
+  } else {
+    editor.append(marker);
+  }
+  return marker;
 }
 
 function getTextRangeAt(root: HTMLElement, start: number, end: number) {
@@ -3239,7 +3324,7 @@ function topLevelEditorChild(element: HTMLElement, editor: HTMLElement) {
 }
 
 function normalizeAtomicEditorBlocks(editor: HTMLElement) {
-  editor.querySelectorAll<HTMLElement>(".notion-page-link, .equipment-list-block, figure").forEach((block) => {
+  editor.querySelectorAll<HTMLElement>(".notion-page-link, .equipment-list-block, figure, hr").forEach((block) => {
     const topLevelBlock = topLevelEditorChild(block, editor);
     if (!topLevelBlock || topLevelBlock === block) return;
     topLevelBlock.before(block);
@@ -3249,7 +3334,7 @@ function normalizeAtomicEditorBlocks(editor: HTMLElement) {
 
 function ensureEditableTail(editor: HTMLElement) {
   const last = editor.lastElementChild as HTMLElement | null;
-  if (last && !last.matches("[contenteditable='false'], .notion-page-link, .equipment-list-block, figure") && isEditorBlockEmpty(last)) {
+  if (last && !last.matches("[contenteditable='false'], .notion-page-link, .equipment-list-block, figure, hr") && isEditorBlockEmpty(last)) {
     return last;
   }
   const paragraph = document.createElement("p");
@@ -3260,7 +3345,7 @@ function ensureEditableTail(editor: HTMLElement) {
 
 function ensureEditableBlockAfter(block: HTMLElement) {
   const next = block.nextElementSibling as HTMLElement | null;
-  if (next && !next.matches("[contenteditable='false'], .notion-page-link, .equipment-list-block, figure")) {
+  if (next && !next.matches("[contenteditable='false'], .notion-page-link, .equipment-list-block, figure, hr")) {
     return next;
   }
   const paragraph = document.createElement("p");
@@ -3316,8 +3401,8 @@ function placeCaretInInsertedBlock(block: HTMLElement) {
         ? (block.querySelector("summary") as HTMLElement | null)
       : block.matches("ul, ol")
         ? (block.querySelector("li") as HTMLElement | null)
-        : block.matches("figure")
-          ? null
+        : block.matches("figure, hr")
+          ? (block.nextElementSibling as HTMLElement | null)
           : block;
 
   if (!target) {
@@ -3345,7 +3430,7 @@ function closestEditorBlock(node: Node, editor: HTMLElement) {
       return current.parentElement;
     }
 
-    if (current.matches("p, div, .notion-page-link, h1, h2, h3, details, ul, ol, table, figure")) {
+    if (current.matches("p, div, .notion-page-link, h1, h2, h3, details, ul, ol, table, figure, hr")) {
       return current;
     }
 

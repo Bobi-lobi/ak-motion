@@ -1729,11 +1729,7 @@ export async function loadChatConversations(profileId: string): Promise<ChatConv
     const memberIds = loadData().profiles.map((profile) => profile.id);
     const createdAt = "2026-01-01T00:00:00.000Z";
     return [
-      { id: "00000000-0000-0000-0000-000000000001", name: "Teamchat", description: "Der gemeinsame Chat für das gesamte Technik-Team.", kind: "group", memberIds, createdAt, unreadCount: 0 },
-      { id: "00000000-0000-0000-0000-000000000002", name: "Licht", description: "Absprachen rund um Lichttechnik und Beleuchtung.", kind: "group", memberIds, createdAt, unreadCount: 0 },
-      { id: "00000000-0000-0000-0000-000000000003", name: "Ton", description: "Absprachen rund um Ton, Mikrofone und Audio.", kind: "group", memberIds, createdAt, unreadCount: 0 },
-      { id: "00000000-0000-0000-0000-000000000004", name: "Umbau", description: "Aufbau, Umbau und Abbau gemeinsam koordinieren.", kind: "group", memberIds, createdAt, unreadCount: 0 },
-      { id: "00000000-0000-0000-0000-000000000005", name: "Orga", description: "Organisatorische Fragen und interne Abstimmungen.", kind: "group", memberIds, createdAt, unreadCount: 0 }
+      { id: "00000000-0000-0000-0000-000000000001", name: "Teamchat", description: "Der gemeinsame Chat für das gesamte Technik-Team.", kind: "group", memberIds, createdAt, unreadCount: 0 }
     ];
   }
   const [conversationResult, memberResult, messageResult, receiptResult] = await Promise.all([
