@@ -1863,6 +1863,7 @@ export async function sendChatMessage(authorId: string, conversationId: string, 
   }).select("id").single();
   if (error) throw new Error(error.message);
   void notifyChatSubscribers(message.id);
+  void notifyChatByEmail(message.id);
 }
 
 export async function sendChatPoll(authorId: string, conversationId: string, question: string, labels: string[], allowMultiple: boolean) {
@@ -1893,6 +1894,7 @@ export async function sendChatPoll(authorId: string, conversationId: string, que
     throw new Error(optionError.message);
   }
   void notifyChatSubscribers(message.id);
+  void notifyChatByEmail(message.id);
 }
 
 export async function voteChatPoll(pollId: string, optionId: string, profileId: string, allowMultiple: boolean, selected: boolean) {
@@ -1921,6 +1923,19 @@ async function notifyChatSubscribers(messageId: string) {
     });
   } catch (error) {
     console.warn("Chat-Push konnte nicht ausgelöst werden:", error);
+  }
+}
+
+async function notifyChatByEmail(messageId: string) {
+  try {
+    const response = await fetch("/api/email/chat", {
+      method: "POST",
+      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId })
+    });
+    if (!response.ok) console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", response.status);
+  } catch (error) {
+    console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", error);
   }
 }
 
@@ -1960,23 +1975,15 @@ export async function forwardChatMessage(authorId: string, targetConversationId:
 
 export async function createChatConversation(authorId: string, name: string, description: string, kind: "group" | "direct", memberIds: string[], imageUrl?: string) {
   if (!supabase) throw new Error("Chats benötigen die Supabase-Verbindung.");
-  const { data: conversation, error } = await supabase.from("chat_conversations").insert({
-    name: name.trim(),
-    description: description.trim(),
-    image_url: imageUrl || null,
-    kind,
-    created_by: authorId
-  }).select("id").single();
+  const { data: conversationId, error } = await supabase.rpc("create_chat_conversation", {
+    conversation_name: name.trim(),
+    conversation_description: description.trim(),
+    conversation_kind: kind,
+    conversation_image_url: imageUrl || null,
+    member_profile_ids: memberIds
+  });
   if (error) throw new Error(error.message);
-  const members = Array.from(new Set([authorId, ...memberIds]));
-  const { error: ownMemberError } = await supabase.from("chat_conversation_members").insert({ conversation_id: conversation.id, profile_id: authorId });
-  if (ownMemberError) throw new Error(ownMemberError.message);
-  const otherMembers = members.filter((profileId) => profileId !== authorId);
-  if (otherMembers.length) {
-    const { error: memberError } = await supabase.from("chat_conversation_members").insert(otherMembers.map((profileId) => ({ conversation_id: conversation.id, profile_id: profileId })));
-    if (memberError) throw new Error(memberError.message);
-  }
-  return conversation.id as string;
+  return conversationId as string;
 }
 
 export async function updateChatConversation(conversationId: string, patch: { name?: string; description?: string; imageUrl?: string; memberIds?: string[] }) {

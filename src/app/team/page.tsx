@@ -22,6 +22,7 @@ export default function TeamPage() {
   const [xpProfileId, setXpProfileId] = useState<string | null>(null);
   const [xpAmount, setXpAmount] = useState("25");
   const [xpReason, setXpReason] = useState("");
+  const [profileToDelete, setProfileToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
   const visibleProfiles = data.profiles.filter((profile) => !isPlaceholderProfile(profile));
 
   async function handleRoleChange(profileId: string, role: UserRole) {
@@ -132,7 +133,7 @@ export default function TeamPage() {
               {visibleProfiles.map((profile) => (
                 <article className="team-row" key={profile.id}>
                   <div className="avatar">
-                    {profile.role === "admin" ? <Shield size={18} /> : <UserRound size={18} />}
+                    {profile.avatarUrl ? <img src={profile.avatarUrl} alt={`Profilbild von ${profile.name}`} /> : profile.role === "admin" ? <Shield size={18} /> : <UserRound size={18} />}
                   </div>
                   <div>
                     <strong>{profile.name}</strong>
@@ -156,7 +157,7 @@ export default function TeamPage() {
                       type="button"
                       aria-label={`${profile.name} entfernen`}
                       disabled={profile.id === session?.id}
-                      onClick={() => handleDeleteProfile(profile.id)}
+                      onClick={() => setProfileToDelete({ id: profile.id, name: profile.name, email: profile.email })}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -175,6 +176,7 @@ export default function TeamPage() {
           </section>
         </section>
       </AppShell>
+      {profileToDelete ? <div className="chat-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileToDelete(null); }}><section className="profile-delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="profile-delete-title"><h2 id="profile-delete-title">Techniker endgültig löschen?</h2><p><strong>{profileToDelete.name}</strong> ({profileToDelete.email}) wird aus dem Team entfernt. Diese Aktion kann nicht rückgängig gemacht werden.</p><div><button className="button ghost" type="button" onClick={() => setProfileToDelete(null)}>Abbrechen</button><button className="button danger" type="button" onClick={async () => { const selected = profileToDelete; setProfileToDelete(null); try { await handleDeleteProfile(selected.id); } catch (error) { setActionError(error instanceof Error ? error.message : "Techniker konnte nicht gelöscht werden."); } }}>Endgültig löschen</button></div></section></div> : null}
     </RouteGuard>
   );
 }

@@ -1,17 +1,13 @@
 import type { AssignmentRole, Event as CalendarEvent, EventAssignment, EventAttendance, EventPreparationRating, Profile, XpAward } from "@/lib/types";
 
 export const rankLadder = [
-  { name: "Rookie", min: 0 },
-  { name: "Kabelträger", min: 120 },
-  { name: "Backstage Scout", min: 300 },
-  { name: "Cue Runner", min: 650 },
-  { name: "Operator", min: 1150 },
-  { name: "Show Captain", min: 2100 },
-  { name: "Regieprofi", min: 3800 },
-  { name: "Techniklegende", min: 7500 },
-  { name: "Headliner", min: 12000 },
-  { name: "Mythic Crew", min: 20000 },
-  { name: "Hall of Fame", min: 35000 },
+  { name: "Kevin", min: 0 },
+  { name: "Kabelwickler", min: 120 },
+  { name: "Mini-Techniker", min: 300 },
+  { name: "Techniker", min: 650 },
+  { name: "Technikleitung", min: 2100 },
+  { name: "Technik-Profi", min: 3800 },
+  { name: "Technik-Legende", min: 7500 },
   { name: "Unantastbar", min: 60000 }
 ];
 
@@ -200,7 +196,7 @@ export const questDefinitions = [
 export function eventMaxXp(event: CalendarEvent) {
   const typeLimit = eventTypeXpLimit(event);
   if (typeLimit !== null) {
-    return typeLimit;
+    return typeLimit + durationXp(event);
   }
   const bestRoleXp = Math.max(...Object.values(roleXp));
   return eventBaseXp(event) + durationXp(event) + afterSchoolXp(event) + bestRoleXp + 20;
@@ -210,9 +206,10 @@ export function assignmentXp(event: CalendarEvent, role: AssignmentRole, attende
   if (isEventType(event, "Termin") || role === "Teilnehmer") {
     return isEventType(event, "Vorbereiten") ? Math.min(100, Math.max(0, preparationXp)) : 0;
   }
-  const rawXp = eventBaseXp(event) + durationXp(event) + afterSchoolXp(event) + roleXp[role] + (attended ? 20 : 0);
+  const rawXp = eventBaseXp(event) + afterSchoolXp(event) + roleXp[role] + (attended ? 20 : 0);
+  const durationBonus = durationXp(event);
   const typeLimit = eventTypeXpLimit(event);
-  return typeLimit === null ? rawXp : Math.min(typeLimit, rawXp);
+  return (typeLimit === null ? rawXp : Math.min(typeLimit, rawXp)) + durationBonus;
 }
 
 export function eventBaseXp(event: CalendarEvent) {
@@ -227,7 +224,7 @@ export function eventBaseXp(event: CalendarEvent) {
 
 export function durationXp(event: CalendarEvent) {
   const durationHours = Math.max(0, (new Date(event.endsAt).getTime() - new Date(event.startsAt).getTime()) / 3_600_000);
-  return Math.round(durationHours * 18);
+  return Math.round(durationHours * 28);
 }
 
 export function afterSchoolXp(event: CalendarEvent) {
