@@ -78,7 +78,6 @@ export function NotificationDispatcher() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, ({ new: inserted }) => {
         const message = inserted as { attachments?: unknown[]; author_id?: string; body?: string; id?: string };
         if (!message.id || message.author_id === session.id) return;
-        if (vapidPublicKey) return;
         const notificationId = `chat:${message.id}`;
         const chatSeenKey = `${seenKey}:chat`;
         const author = profilesRef.current.find((profile) => profile.id === message.author_id);
