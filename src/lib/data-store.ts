@@ -1499,16 +1499,16 @@ export async function updateEvent(eventId: string, patch: Partial<CalendarEvent>
 
 export async function updateProfile(profileId: string, patch: Partial<Pick<Profile, "avatarUrl" | "name" | "phone">>) {
   if (hasSupabaseConfig && supabase) {
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        ...(patch.avatarUrl !== undefined ? { avatar_url: patch.avatarUrl } : {}),
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.phone !== undefined ? { phone: patch.phone } : {})
-      })
-      .eq("id", profileId);
-    if (error) {
-      throw new Error(error.message);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Bitte melde dich erneut an, um dein Profil zu speichern.");
+    const response = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(result?.error ?? "Profil konnte nicht gespeichert werden.");
     }
   }
 

@@ -8,7 +8,14 @@ export const rankLadder = [
   { name: "Technikleitung", min: 2100 },
   { name: "Technik-Profi", min: 3800 },
   { name: "Technik-Legende", min: 7500 },
-  { name: "Unantastbar", min: 60000 }
+  { name: "Unantastbar", min: 60000 },
+  { name: "Kabel-Kobold", min: 75000 },
+  { name: "Pult-Pilot", min: 90000 },
+  { name: "Signalzauberer", min: 110000 },
+  { name: "Bühnenboss", min: 135000 },
+  { name: "Frequenz-Fürst", min: 165000 },
+  { name: "Lichtgott", min: 200000 },
+  { name: "Technik-Titan", min: 250000 }
 ];
 
 export const roleXp: Record<AssignmentRole, number> = {

@@ -23,6 +23,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ emailChatMessages: body.emailChatMessages });
   } catch (error) {
     if (error instanceof Response) return error;
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "42P01") {
+      return NextResponse.json({ error: "Die E-Mail-Einstellungen fehlen noch in der Supabase-Datenbank. Bitte spiele die Migration 20260925103000_chat_groups_email_preferences.sql auf dem NAS ein." }, { status: 503 });
+    }
+    console.error("E-Mail-Präferenz konnte nicht gespeichert werden:", error);
     return NextResponse.json({ error: "E-Mail-Auswahl konnte nicht gespeichert werden." }, { status: 500 });
   }
 }
