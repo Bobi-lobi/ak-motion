@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const user = await requireUserFromRequest(request);
     const { data, error } = await supabaseAdmin!.from("email_notification_preferences").select("chat_messages").eq("profile_id", user.id).maybeSingle();
     if (error) throw error;
-    return NextResponse.json({ emailChatMessages: data?.chat_messages ?? false, configured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL) });
+    return NextResponse.json({ emailChatMessages: data?.chat_messages ?? false, configured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_FROM_EMAIL) });
   } catch (error) {
     return emailPreferenceError(error, "geladen");
   }
