@@ -9,6 +9,8 @@ drop policy if exists "members manage own email preferences" on public.email_not
 create policy "members manage own email preferences" on public.email_notification_preferences
   for all to authenticated using (profile_id = auth.uid()) with check (profile_id = auth.uid());
 grant select, insert, update, delete on public.email_notification_preferences to authenticated;
+grant usage on schema public to service_role;
+grant select, insert, update, delete on public.email_notification_preferences to service_role;
 
 create or replace function public.create_chat_conversation(
   conversation_name text,

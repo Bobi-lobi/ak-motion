@@ -22,7 +22,8 @@ function emailPreferenceError(error: unknown, action: string) {
     return NextResponse.json({ error: `Die Supabase-API hat einen veralteten Schema-Cache (${code}). Die Datenbankmigration ist nicht zwingend fehlend; der PostgREST-Schema-Cache muss neu geladen werden.` }, { status: 503 });
   }
   if (code === "42501") {
-    return NextResponse.json({ error: "Supabase verweigert den Datenbankzugriff. Bitte prüfe den SUPABASE_SERVICE_ROLE_KEY in Vercel." }, { status: 503 });
+    console.error(`E-Mail-Präferenz konnte nicht ${action} werden: PostgreSQL verweigert den Tabellenzugriff.`, error);
+    return NextResponse.json({ error: "PostgreSQL verweigert dem Server den Zugriff auf die E-Mail-Einstellungen (42501). Die Tabellenrechte für service_role fehlen möglicherweise; die Migration muss aktualisiert auf dem NAS ausgeführt werden." }, { status: 503 });
   }
   console.error(`E-Mail-Präferenz konnte nicht ${action} werden:`, error);
   return NextResponse.json({ error: `E-Mail-Auswahl konnte nicht ${action} werden${code ? ` (Supabase-Fehler ${code})` : ""}.` }, { status: 500 });
