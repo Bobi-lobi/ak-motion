@@ -9,14 +9,23 @@ function emailPreferenceError(error: unknown, action: string) {
     ? error as { code?: unknown; message?: unknown }
     : {};
   const code = typeof details.code === "string" ? details.code : "";
-  if (code === "42P01" || code === "PGRST205" || (typeof details.message === "string" && details.message.includes("email_notification_preferences"))) {
-    return NextResponse.json({ error: "Die E-Mail-Einstellungen fehlen noch in der Supabase-Datenbank. Bitte spiele die Migration 20260925103000_chat_groups_email_preferences.sql auf dem NAS ein." }, { status: 503 });
+  if (code === "42P01") {
+    console.error(`E-Mail-Präferenz konnte nicht ${action} werden: Tabelle fehlt in PostgreSQL.`, error);
+    return NextResponse.json({ error: `Die Tabelle fehlt tatsächlich in der Datenbank (${code}). Die Migration 20260925103000_chat_groups_email_preferences.sql muss auf der von der App verwendeten Datenbank eingespielt werden.` }, { status: 503 });
+  }
+  if (code === "PGRST205") {
+    console.error(`E-Mail-Präferenz konnte nicht ${action} werden: Tabelle fehlt im PostgREST-Schema-Cache.`, error);
+    return NextResponse.json({ error: `Die Tabelle ist für die Supabase-API nicht im Schema sichtbar (${code}). Die Migration wurde möglicherweise bereits ausgeführt; dann muss der PostgREST-Schema-Cache der NAS-Instanz neu geladen werden.` }, { status: 503 });
+  }
+  if (code === "PGRST204") {
+    console.error(`E-Mail-Präferenz konnte nicht ${action} werden: Spalte fehlt im PostgREST-Schema-Cache.`, error);
+    return NextResponse.json({ error: `Die Supabase-API hat einen veralteten Schema-Cache (${code}). Die Datenbankmigration ist nicht zwingend fehlend; der PostgREST-Schema-Cache muss neu geladen werden.` }, { status: 503 });
   }
   if (code === "42501") {
     return NextResponse.json({ error: "Supabase verweigert den Datenbankzugriff. Bitte prüfe den SUPABASE_SERVICE_ROLE_KEY in Vercel." }, { status: 503 });
   }
   console.error(`E-Mail-Präferenz konnte nicht ${action} werden:`, error);
-  return NextResponse.json({ error: `E-Mail-Auswahl konnte nicht ${action} werden${code ? ` (${code})` : ""}.` }, { status: 500 });
+  return NextResponse.json({ error: `E-Mail-Auswahl konnte nicht ${action} werden${code ? ` (Supabase-Fehler ${code})` : ""}.` }, { status: 500 });
 }
 
 export async function GET(request: Request) {
