@@ -51,24 +51,54 @@ export function NotificationDispatcher() {
   useEffect(() => {
     if (!sessionId || !supabase || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
     let cancelled = false;
-    void (async () => {
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      const existing = await registration.pushManager.getSubscription();
-      if (!preferences.browserNotifications || !preferences.notifyChatMessages || Notification.permission !== "granted") {
-        if (existing) {
+    let inFlight = false;
+    const syncSubscription = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js");
+        const existing = await registration.pushManager.getSubscription();
+        if (!preferences.browserNotifications || !preferences.notifyChatMessages || Notification.permission !== "granted") {
+          if (existing) {
+            await updatePushSubscription("DELETE", existing);
+            await existing.unsubscribe();
+          }
+          return;
+        }
+        if (!vapidPublicKey || cancelled) return;
+        const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+        const existingKey = existing?.options.applicationServerKey;
+        const keyMatches = existingKey && equalBytes(new Uint8Array(existingKey), applicationServerKey);
+        if (existing && !keyMatches) {
           await updatePushSubscription("DELETE", existing);
           await existing.unsubscribe();
         }
-        return;
+        const subscription = existing && keyMatches ? existing : await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey
+        });
+        if (!cancelled) await updatePushSubscription("POST", subscription);
+      } catch (error) {
+        console.warn("Push-Anmeldung fehlgeschlagen:", error);
+      } finally {
+        inFlight = false;
+        window.dispatchEvent(new Event("ak-motion-push-status"));
       }
-      if (!vapidPublicKey || cancelled) return;
-      const subscription = existing ?? await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
-      });
-      if (!cancelled) await updatePushSubscription("POST", subscription);
-    })().catch((error) => console.warn("Push-Anmeldung fehlgeschlagen:", error));
-    return () => { cancelled = true; };
+    };
+    void syncSubscription();
+    const onFocus = () => { void syncSubscription(); };
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") void syncSubscription(); };
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(() => { void syncSubscription(); }, 0);
+    });
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelled = true;
+      authListener.subscription.unsubscribe();
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [preferences.browserNotifications, preferences.notifyChatMessages, sessionId]);
 
   useEffect(() => {
@@ -101,8 +131,8 @@ export function NotificationDispatcher() {
 async function updatePushSubscription(method: "DELETE" | "POST", subscription: PushSubscription) {
   if (!supabase) return;
   const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) return;
+  const token = data.session?.access_token ?? (await supabase.auth.refreshSession()).data.session?.access_token;
+  if (!token) throw new Error("Keine gültige Supabase-Sitzung für die Push-Anmeldung.");
   const value = subscription.toJSON();
   const response = await fetch("/api/push/subscribe", {
     method,
@@ -110,6 +140,10 @@ async function updatePushSubscription(method: "DELETE" | "POST", subscription: P
     body: JSON.stringify(method === "DELETE" ? { endpoint: subscription.endpoint } : value)
   });
   if (!response.ok) throw new Error(`Push-Anmeldung wurde mit HTTP ${response.status} abgelehnt.`);
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array) {
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
 }
 
 function urlBase64ToUint8Array(value: string) {

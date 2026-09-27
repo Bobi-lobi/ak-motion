@@ -10,7 +10,10 @@ export async function POST(request: Request) {
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
     const subject = process.env.VAPID_SUBJECT ?? "mailto:admin@simonpaulitsch.de";
-    if (!publicKey || !privateKey) return NextResponse.json({ configured: false, sent: 0 });
+    if (!publicKey || !privateKey) {
+      console.error("Chat-Push: VAPID-Konfiguration fehlt", { messageId, hasPublicKey: Boolean(publicKey), hasPrivateKey: Boolean(privateKey) });
+      return NextResponse.json({ configured: false, sent: 0 });
+    }
 
     const [{ data: message, error: messageError }, { data: profile, error: profileError }] = await Promise.all([
       supabaseAdmin!.from("chat_messages").select("id, author_id, conversation_id, body, attachments, chat_conversations(name)").eq("id", messageId).maybeSingle(),
@@ -25,6 +28,7 @@ export async function POST(request: Request) {
       ? await supabaseAdmin!.from("push_subscriptions").select("id, endpoint, p256dh, auth").in("profile_id", memberIds)
       : { data: [], error: null };
     if (subscriptionError) throw subscriptionError;
+    if (!subscriptions?.length && memberIds.length) console.info("Chat-Push: keine registrierten Empfängergeräte", { messageId, members: memberIds.length });
 
     webpush.setVapidDetails(subject, publicKey, privateKey);
     const attachments = Array.isArray(message.attachments) ? message.attachments : [];
@@ -52,6 +56,7 @@ export async function POST(request: Request) {
       }
     }));
     const sent = results.filter((result) => result.status === "fulfilled" && result.value).length;
+    console.info("Chat-Push: Versand abgeschlossen", { messageId, sent, failed: results.length - sent });
     return NextResponse.json({ configured: true, sent, failed: results.length - sent });
   } catch (error) {
     if (error instanceof Response) return error;

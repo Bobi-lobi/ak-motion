@@ -1862,7 +1862,7 @@ export async function sendChatMessage(authorId: string, conversationId: string, 
     reply_to_message_id: replyToMessageId ?? null
   }).select("id").single();
   if (error) throw new Error(error.message);
-  await Promise.all([notifyChatSubscribers(message.id), notifyChatByEmail(message.id)]);
+  return notifyChatDelivery(message.id);
 }
 
 export async function sendChatPoll(authorId: string, conversationId: string, question: string, labels: string[], allowMultiple: boolean) {
@@ -1892,7 +1892,7 @@ export async function sendChatPoll(authorId: string, conversationId: string, que
     await supabase.from("chat_messages").delete().eq("id", message.id);
     throw new Error(optionError.message);
   }
-  await Promise.all([notifyChatSubscribers(message.id), notifyChatByEmail(message.id)]);
+  return notifyChatDelivery(message.id);
 }
 
 export async function voteChatPoll(pollId: string, optionId: string, profileId: string, allowMultiple: boolean, selected: boolean) {
@@ -1912,7 +1912,12 @@ export async function voteChatPoll(pollId: string, optionId: string, profileId: 
   if (error) throw new Error(error.message);
 }
 
-async function notifyChatSubscribers(messageId: string) {
+async function notifyChatDelivery(messageId: string) {
+  const [pushWarning, emailWarning] = await Promise.all([notifyChatSubscribers(messageId), notifyChatByEmail(messageId)]);
+  return [pushWarning, emailWarning].filter(Boolean).join(" ");
+}
+
+async function notifyChatSubscribers(messageId: string): Promise<string> {
   try {
     const response = await fetch("/api/push/chat", {
       method: "POST",
@@ -1920,16 +1925,21 @@ async function notifyChatSubscribers(messageId: string) {
       body: JSON.stringify({ messageId }),
       keepalive: true
     });
-    const result = await response.json().catch(() => ({})) as { configured?: boolean; failed?: number };
+    const result = await response.json().catch(() => ({})) as { configured?: boolean; failed?: number; error?: string };
     if (!response.ok || result.configured === false || result.failed) {
       console.warn("Chat-Push konnte nicht vollständig zugestellt werden:", response.status, result);
+      if (result.configured === false) return "Gerätehinweise sind auf dem Server noch nicht eingerichtet.";
+      if (!response.ok) return `Gerätehinweise konnten nicht verschickt werden (${result.error ?? `HTTP ${response.status}`}).`;
+      return `${result.failed} Gerätehinweis(e) konnten nicht zugestellt werden.`;
     }
   } catch (error) {
     console.warn("Chat-Push konnte nicht ausgelöst werden:", error);
+    return "Gerätehinweise konnten nicht ausgelöst werden.";
   }
+  return "";
 }
 
-async function notifyChatByEmail(messageId: string) {
+async function notifyChatByEmail(messageId: string): Promise<string> {
   try {
     const response = await fetch("/api/email/chat", {
       method: "POST",
@@ -1940,10 +1950,14 @@ async function notifyChatByEmail(messageId: string) {
     const result = await response.json().catch(() => ({})) as { configured?: boolean; error?: string };
     if (!response.ok || result.configured === false) {
       console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", response.status, result.error ?? "Versand nicht konfiguriert");
+      if (result.configured === false) return "E-Mail-Versand ist auf dem Server noch nicht eingerichtet.";
+      return `E-Mail-Benachrichtigung fehlgeschlagen (${result.error ?? `HTTP ${response.status}`}).`;
     }
   } catch (error) {
     console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", error);
+    return "E-Mail-Benachrichtigung konnte nicht ausgelöst werden.";
   }
+  return "";
 }
 
 export async function deleteChatMessage(messageId: string) {

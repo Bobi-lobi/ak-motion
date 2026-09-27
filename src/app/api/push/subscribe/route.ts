@@ -6,6 +6,22 @@ type SubscriptionBody = {
   keys?: { auth?: string; p256dh?: string };
 };
 
+export async function GET(request: Request) {
+  try {
+    const user = await requireUserFromRequest(request);
+    const { count, error } = await supabaseAdmin!.from("push_subscriptions")
+      .select("id", { count: "exact", head: true }).eq("profile_id", user.id);
+    if (error) throw error;
+    return NextResponse.json({
+      configured: Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+      subscriptions: count ?? 0
+    });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return NextResponse.json({ error: "Push-Status konnte nicht geprüft werden." }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const user = await requireUserFromRequest(request);

@@ -10,6 +10,7 @@ import { defaultPreferences, loadPreferences, savePreferences, type AppPreferenc
 import { supabase } from "@/lib/supabase";
 
 type CalendarFeed = { url: string; webcalUrl: string };
+type PushStatus = { configured: boolean; subscriptions: number };
 type CalendarFilterKind = "eventTypes" | "locations" | "profiles";
 const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Feier", "Vortrag", "Aufführung", "Konzert", "Vorbereiten", "Termin", "Sonstiges"];
 
@@ -34,6 +35,7 @@ export default function SettingsPage() {
   const [announcementError, setAnnouncementError] = useState("");
   const [emailPreferenceError, setEmailPreferenceError] = useState("");
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
   const [calendarFilters, setCalendarFilters] = useState<CalendarFilterKind[]>([]);
 
   useEffect(() => {
@@ -46,6 +48,30 @@ export default function SettingsPage() {
   useEffect(() => {
     if (ready && session) void loadEmailChatPreference();
   }, [ready, session?.id]);
+
+  useEffect(() => {
+    if (!ready || !session) return;
+    const check = () => { void loadPushStatus(); };
+    check();
+    window.addEventListener("ak-motion-push-status", check);
+    window.addEventListener("focus", check);
+    return () => {
+      window.removeEventListener("ak-motion-push-status", check);
+      window.removeEventListener("focus", check);
+    };
+  }, [ready, session?.id]);
+
+  async function loadPushStatus() {
+    try {
+      const token = await emailAccessToken();
+      if (!token) return;
+      const response = await fetch("/api/push/subscribe", { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) return;
+      setPushStatus(await response.json() as PushStatus);
+    } catch {
+      // A transient connection error should not overwrite the last known status.
+    }
+  }
 
   async function loadEmailChatPreference() {
     try {
@@ -200,6 +226,8 @@ export default function SettingsPage() {
             <div className="settings-options">
               <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Wenn du eingeteilt wirst oder ein Einsatz bald beginnt." checked={preferences.notifyAssignments} onChange={(checked) => updatePreference("notifyAssignments", checked)} />
               <SettingToggle label="Neue Chatnachrichten" description="Zeigt neue Nachrichten des Teams als Gerätehinweis an." checked={preferences.notifyChatMessages} onChange={(checked) => updatePreference("notifyChatMessages", checked)} />
+              {preferences.browserNotifications && preferences.notifyChatMessages && pushStatus?.configured === false ? <p className="settings-inline-note">Web-Push ist auf dem Server noch nicht eingerichtet (VAPID-Schlüssel fehlen). Hinweise funktionieren dann nur, solange die App aktiv ist.</p> : null}
+              {preferences.browserNotifications && preferences.notifyChatMessages && pushStatus?.configured && pushStatus.subscriptions === 0 ? <p className="settings-inline-note">Dieses Konto hat noch kein registriertes Push-Gerät. Öffne Motion auf dem gewünschten Gerät und erlaube dort Benachrichtigungen. Auf iPhone/iPad muss Motion als Home-Bildschirm-App geöffnet werden.</p> : null}
               <SettingToggle label="Chatnachrichten per E-Mail" description="Sende dir eine E-Mail, wenn du eine neue Chatnachricht erhältst. Benötigt die konfigurierte Mailzustellung." checked={preferences.emailChatMessages} onChange={(checked) => void updateEmailChatPreference(checked)} />
               {emailConfigured === false ? <p className="settings-inline-note">E-Mail-Versand ist noch nicht konfiguriert. Der Schalter wird gespeichert, Nachrichten werden bis zur Mailanbieter-Einrichtung aber nicht zugestellt.</p> : null}
               {emailPreferenceError ? <p className="error-text">{emailPreferenceError}</p> : null}

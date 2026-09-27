@@ -156,7 +156,7 @@ export default function ChatPage() {
     if (!session || sending || (!body.trim() && !attachments.length)) return;
     const nextBody = body; const nextAttachments = attachments; const nextReply = replyingTo;
     setBody(""); setAttachments([]); setReplyingTo(null); setSending(true); setError("");
-    try { await sendChatMessage(session.id, activeId, nextBody, nextAttachments, nextReply?.id); await Promise.all([refreshMessages(), refreshConversations()]); }
+    try { const warning = await sendChatMessage(session.id, activeId, nextBody, nextAttachments, nextReply?.id); await Promise.all([refreshMessages(), refreshConversations()]); if (warning) setError(`Nachricht gespeichert. ${warning}`); }
     catch (caught) { setBody(nextBody); setAttachments(nextAttachments); setReplyingTo(nextReply); setError(caught instanceof Error ? caught.message : "Nachricht konnte nicht gesendet werden."); }
     finally { setSending(false); }
   }
@@ -165,7 +165,7 @@ export default function ChatPage() {
     const options = pollOptions.map((option) => option.trim()).filter(Boolean);
     if (!session || !pollQuestion.trim() || options.length < 2 || sending) return;
     setSending(true); setError("");
-    try { await sendChatPoll(session.id, activeId, pollQuestion, options, pollMultiple); setPollQuestion(""); setPollOptions(["", ""]); setPollMultiple(false); setPollOpen(false); await refreshMessages(); }
+    try { const warning = await sendChatPoll(session.id, activeId, pollQuestion, options, pollMultiple); setPollQuestion(""); setPollOptions(["", ""]); setPollMultiple(false); setPollOpen(false); await refreshMessages(); if (warning) setError(`Umfrage gespeichert. ${warning}`); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "Umfrage konnte nicht erstellt werden."); }
     finally { setSending(false); }
   }
