@@ -19,7 +19,13 @@ export async function POST(request: Request) {
       supabaseAdmin!.from("chat_messages").select("id, author_id, conversation_id, body, attachments, chat_conversations(name)").eq("id", messageId).maybeSingle(),
       supabaseAdmin!.from("profiles").select("name").eq("id", user.id).maybeSingle()
     ]);
-    if (messageError || !message || message.author_id !== user.id) return NextResponse.json({ error: "Nachricht wurde nicht gefunden." }, { status: 404 });
+    if (messageError) {
+      console.error("Chat-Push: Nachricht konnte nicht gelesen werden:", messageError);
+      return NextResponse.json({ error: messageError.code === "42501"
+        ? "Der Server hat noch keinen Zugriff auf Chatnachrichten. Bitte die Migration 20260927200000_chat_notification_service_role_access.sql auf dem NAS ausführen."
+        : `Die Chatnachricht konnte nicht geprüft werden (${messageError.code}).` }, { status: 503 });
+    }
+    if (!message || message.author_id !== user.id) return NextResponse.json({ error: "Nachricht wurde nicht gefunden." }, { status: 404 });
     if (profileError) throw profileError;
     const { data: members, error: memberError } = await supabaseAdmin!.from("chat_conversation_members").select("profile_id").eq("conversation_id", message.conversation_id).neq("profile_id", user.id);
     if (memberError) throw memberError;

@@ -7,7 +7,16 @@ export async function POST(request: Request) {
     const { messageId } = await request.json() as { messageId?: string };
     if (!messageId) return NextResponse.json({ error: "Nachricht fehlt." }, { status: 400 });
     const { data: message, error: messageError } = await supabaseAdmin!.from("chat_messages").select("id, author_id, conversation_id").eq("id", messageId).maybeSingle();
-    if (messageError || !message || message.author_id !== sender.id) return NextResponse.json({ error: "Nachricht wurde nicht gefunden." }, { status: 404 });
+    if (messageError) {
+      console.error("Chat-E-Mail: Nachricht konnte nicht gelesen werden:", messageError);
+      return NextResponse.json({ error: messageError.code === "42501"
+        ? "Der Server hat noch keinen Zugriff auf Chatnachrichten. Bitte die Migration 20260927200000_chat_notification_service_role_access.sql auf dem NAS ausführen."
+        : `Die Chatnachricht konnte nicht geprüft werden (${messageError.code}).` }, { status: 503 });
+    }
+    if (!message || message.author_id !== sender.id) {
+      console.warn("Chat-E-Mail: Nachricht fehlt oder Absender stimmt nicht", { messageId, found: Boolean(message), senderMatches: message?.author_id === sender.id });
+      return NextResponse.json({ error: "Nachricht wurde nicht gefunden." }, { status: 404 });
+    }
     const { data: members, error: membersError } = await supabaseAdmin!.from("chat_conversation_members").select("profile_id").eq("conversation_id", message.conversation_id).neq("profile_id", sender.id);
     if (membersError) throw membersError;
     const memberIds = (members ?? []).map((member) => member.profile_id);
