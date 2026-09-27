@@ -24,6 +24,7 @@ const TEAM_CHAT_ID = "00000000-0000-0000-0000-000000000001";
 
 export default function ChatPage() {
   const { data, isAdmin, session } = useApp();
+  const sessionId = session?.id;
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeId, setActiveId] = useState(TEAM_CHAT_ID);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -55,6 +56,7 @@ export default function ChatPage() {
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
   const swipeStartRef = useRef<{ id: string; x: number; y: number } | null>(null);
+  const messagesRequestRef = useRef(0);
   const profilesById = useMemo(() => new Map(data.profiles.map((profile) => [profile.id, profile])), [data.profiles]);
   const activeConversation = conversations.find((conversation) => conversation.id === activeId);
   const referenceQuery = eventReferenceQuery(body);
@@ -67,20 +69,22 @@ export default function ChatPage() {
     .filter((profile) => profile.name.toLocaleLowerCase("de").includes(mentionQuery.toLocaleLowerCase("de"))).slice(0, 6), [activeConversation?.memberIds, data.profiles, mentionQuery]);
 
   const refreshConversations = useCallback(async () => {
-    if (!session) return;
-    const next = await loadChatConversations(session.id);
+    if (!sessionId) return;
+    const next = await loadChatConversations(sessionId);
     setConversations(next);
     if (next.length && !next.some((conversation) => conversation.id === activeId)) setActiveId(next[0].id);
-  }, [activeId, session]);
+  }, [activeId, sessionId]);
 
   const refreshMessages = useCallback(async () => {
     if (!activeId) return;
+    const requestId = ++messagesRequestRef.current;
     try {
       const [nextMessages, nextReceipts] = await Promise.all([loadChatMessages(activeId), loadChatReadReceipts(activeId).catch(() => [])]);
+      if (requestId !== messagesRequestRef.current) return;
       setMessages(nextMessages); setReceipts(nextReceipts); setError("");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Der Chat konnte nicht geladen werden.");
-    } finally { setLoading(false); }
+      if (requestId === messagesRequestRef.current) setError(caught instanceof Error ? caught.message : "Der Chat konnte nicht geladen werden.");
+    } finally { if (requestId === messagesRequestRef.current) setLoading(false); }
   }, [activeId]);
 
   useEffect(() => { void refreshConversations().catch(() => undefined); }, [refreshConversations]);
@@ -89,15 +93,36 @@ export default function ChatPage() {
   useEffect(() => {
     if (!supabase) return;
     const client = supabase;
-    const channel = client.channel(`ak-motion-chats-${session?.id ?? "guest"}`)
+    const channel = client.channel(`ak-motion-chats-${sessionId ?? "guest"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, () => { void refreshMessages(); void refreshConversations(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts" }, () => { void refreshMessages(); void refreshConversations(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_poll_votes" }, () => void refreshMessages())
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_message_reactions" }, () => void refreshMessages())
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversations" }, () => void refreshConversations())
-      .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversation_members" }, () => void refreshConversations()).subscribe();
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversation_members" }, () => void refreshConversations())
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") { void refreshMessages(); void refreshConversations(); }
+      });
     return () => { void client.removeChannel(channel); };
-  }, [refreshConversations, refreshMessages, session?.id]);
+  }, [refreshConversations, refreshMessages, sessionId]);
+
+  useEffect(() => {
+    const refreshVisibleChat = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshMessages();
+      void refreshConversations();
+    };
+    window.addEventListener("focus", refreshVisibleChat);
+    window.addEventListener("pageshow", refreshVisibleChat);
+    document.addEventListener("visibilitychange", refreshVisibleChat);
+    const timer = window.setInterval(refreshVisibleChat, 20000);
+    return () => {
+      window.removeEventListener("focus", refreshVisibleChat);
+      window.removeEventListener("pageshow", refreshVisibleChat);
+      document.removeEventListener("visibilitychange", refreshVisibleChat);
+      window.clearInterval(timer);
+    };
+  }, [refreshConversations, refreshMessages]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth" });

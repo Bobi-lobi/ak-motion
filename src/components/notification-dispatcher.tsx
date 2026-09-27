@@ -10,9 +10,10 @@ const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 export function NotificationDispatcher() {
   const { data, session } = useApp();
+  const sessionId = session?.id;
   const [preferences, setPreferences] = useState<AppPreferences>(() => loadPreferences());
   const notifications = useMemo(() => buildNotifications(data, session), [data, session]);
-  const seenKey = session?.id ? `ak-motion-device-notifications:${session.id}` : "";
+  const seenKey = sessionId ? `ak-motion-device-notifications:${sessionId}` : "";
   const profilesRef = useRef(data.profiles);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function NotificationDispatcher() {
   }, [notifications, preferences, seenKey]);
 
   useEffect(() => {
-    if (!session || !supabase || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (!sessionId || !supabase || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
     let cancelled = false;
     void (async () => {
       const registration = await navigator.serviceWorker.register("/sw.js");
@@ -68,16 +69,16 @@ export function NotificationDispatcher() {
       if (!cancelled) await updatePushSubscription("POST", subscription);
     })().catch((error) => console.warn("Push-Anmeldung fehlgeschlagen:", error));
     return () => { cancelled = true; };
-  }, [preferences.browserNotifications, preferences.notifyChatMessages, session]);
+  }, [preferences.browserNotifications, preferences.notifyChatMessages, sessionId]);
 
   useEffect(() => {
-    if (!session || !supabase) return;
+    if (!sessionId || !supabase) return;
     const client = supabase;
     const channel = client
-      .channel(`ak-motion-chat-notifications-${session.id}`)
+      .channel(`ak-motion-chat-notifications-${sessionId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, ({ new: inserted }) => {
         const message = inserted as { attachments?: unknown[]; author_id?: string; body?: string; id?: string };
-        if (!message.id || message.author_id === session.id) return;
+        if (!message.id || message.author_id === sessionId) return;
         const notificationId = `chat:${message.id}`;
         const chatSeenKey = `${seenKey}:chat`;
         const author = profilesRef.current.find((profile) => profile.id === message.author_id);
@@ -92,7 +93,7 @@ export function NotificationDispatcher() {
       })
       .subscribe();
     return () => { void client.removeChannel(channel); };
-  }, [preferences.browserNotifications, preferences.notifyChatMessages, seenKey, session]);
+  }, [preferences.browserNotifications, preferences.notifyChatMessages, seenKey, sessionId]);
 
   return null;
 }
@@ -103,11 +104,12 @@ async function updatePushSubscription(method: "DELETE" | "POST", subscription: P
   const token = data.session?.access_token;
   if (!token) return;
   const value = subscription.toJSON();
-  await fetch("/api/push/subscribe", {
+  const response = await fetch("/api/push/subscribe", {
     method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(method === "DELETE" ? { endpoint: subscription.endpoint } : value)
   });
+  if (!response.ok) throw new Error(`Push-Anmeldung wurde mit HTTP ${response.status} abgelehnt.`);
 }
 
 function urlBase64ToUint8Array(value: string) {

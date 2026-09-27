@@ -13,8 +13,16 @@ type CalendarFeed = { url: string; webcalUrl: string };
 type CalendarFilterKind = "eventTypes" | "locations" | "profiles";
 const eventTypeOptions = ["Schulische Veranstaltung", "Probe", "Feier", "Vortrag", "Aufführung", "Konzert", "Vorbereiten", "Termin", "Sonstiges"];
 
+async function emailAccessToken() {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  if (data.session?.access_token) return data.session.access_token;
+  const refreshed = await supabase.auth.refreshSession();
+  return refreshed.data.session?.access_token ?? null;
+}
+
 export default function SettingsPage() {
-  const { data, isAdmin, refresh, session } = useApp();
+  const { data, isAdmin, ready, refresh, session } = useApp();
   const [preferences, setPreferences] = useState<AppPreferences>(defaultPreferences);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
   const [calendarFeed, setCalendarFeed] = useState<CalendarFeed | null>(null);
@@ -33,35 +41,51 @@ export default function SettingsPage() {
     setPreferences(loadedPreferences);
     setCalendarFilters(calendarFilterKinds(loadedPreferences));
     setPermission("Notification" in window ? Notification.permission : "unsupported");
-    void loadEmailChatPreference();
   }, []);
 
+  useEffect(() => {
+    if (ready && session) void loadEmailChatPreference();
+  }, [ready, session?.id]);
+
   async function loadEmailChatPreference() {
-    const auth = await supabase?.auth.getSession();
-    const token = auth?.data.session?.access_token;
-    if (!token) return;
-    const response = await fetch("/api/email-preferences", { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) return;
-    const result = await response.json() as { emailChatMessages?: boolean; configured?: boolean };
-    if (typeof result.configured === "boolean") setEmailConfigured(result.configured);
-    if (typeof result.emailChatMessages === "boolean") setPreferences((current) => ({ ...current, emailChatMessages: result.emailChatMessages! }));
+    try {
+      const token = await emailAccessToken();
+      if (!token) {
+        setEmailPreferenceError("Deine Supabase-Anmeldung ist auf diesem Gerät abgelaufen. Bitte melde dich in Motion einmal ab und erneut an.");
+        return;
+      }
+      const response = await fetch("/api/email-preferences", { headers: { Authorization: `Bearer ${token}` } });
+      const result = await response.json().catch(() => ({})) as { emailChatMessages?: boolean; configured?: boolean; error?: string };
+      if (!response.ok) {
+        setEmailPreferenceError(result.error ?? "Die E-Mail-Einstellung konnte nicht geladen werden.");
+        return;
+      }
+      setEmailPreferenceError("");
+      if (typeof result.configured === "boolean") setEmailConfigured(result.configured);
+      if (typeof result.emailChatMessages === "boolean") setPreferences((current) => ({ ...current, emailChatMessages: result.emailChatMessages! }));
+    } catch {
+      setEmailPreferenceError("Die E-Mail-Einstellung konnte nicht geladen werden. Bitte prüfe die Verbindung.");
+    }
   }
 
   async function updateEmailChatPreference(enabled: boolean) {
-    const auth = await supabase?.auth.getSession();
-    const token = auth?.data.session?.access_token;
-    if (!token) {
-      setEmailPreferenceError("Bitte melde dich erneut an, um die E-Mail-Auswahl zu speichern.");
-      return;
+    try {
+      const token = await emailAccessToken();
+      if (!token) {
+        setEmailPreferenceError("Deine Supabase-Anmeldung ist auf diesem Gerät abgelaufen. Bitte melde dich in Motion einmal ab und erneut an.");
+        return;
+      }
+      const response = await fetch("/api/email-preferences", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ emailChatMessages: enabled }) });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as { error?: string };
+        setEmailPreferenceError(result.error ?? "E-Mail-Auswahl konnte nicht gespeichert werden.");
+        return;
+      }
+      setEmailPreferenceError("");
+      setPreferences((current) => ({ ...current, emailChatMessages: enabled }));
+    } catch {
+      setEmailPreferenceError("E-Mail-Auswahl konnte nicht gespeichert werden. Bitte prüfe die Verbindung.");
     }
-    const response = await fetch("/api/email-preferences", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ emailChatMessages: enabled }) });
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({})) as { error?: string };
-      setEmailPreferenceError(result.error ?? "E-Mail-Auswahl konnte nicht gespeichert werden.");
-      return;
-    }
-    setEmailPreferenceError("");
-    setPreferences((current) => ({ ...current, emailChatMessages: enabled }));
   }
 
   function updatePreference<K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) {

@@ -40,13 +40,19 @@ export async function POST(request: Request) {
     const results = await Promise.allSettled((subscriptions ?? []).map(async (subscription) => {
       try {
         await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { auth: subscription.auth, p256dh: subscription.p256dh } }, payload);
+        return true;
       } catch (error) {
         const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0;
-        if (statusCode === 404 || statusCode === 410) await supabaseAdmin!.from("push_subscriptions").delete().eq("id", subscription.id);
-        else throw error;
+        if (statusCode === 404 || statusCode === 410) {
+          await supabaseAdmin!.from("push_subscriptions").delete().eq("id", subscription.id);
+          return false;
+        }
+        console.error("Chat-Push-Zustellung fehlgeschlagen:", statusCode || "unbekannter Fehler");
+        throw error;
       }
     }));
-    return NextResponse.json({ configured: true, sent: results.filter((result) => result.status === "fulfilled").length });
+    const sent = results.filter((result) => result.status === "fulfilled" && result.value).length;
+    return NextResponse.json({ configured: true, sent, failed: results.length - sent });
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: error instanceof Error ? error.message : "Push-Nachricht fehlgeschlagen." }, { status: 500 });

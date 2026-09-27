@@ -1862,8 +1862,7 @@ export async function sendChatMessage(authorId: string, conversationId: string, 
     reply_to_message_id: replyToMessageId ?? null
   }).select("id").single();
   if (error) throw new Error(error.message);
-  void notifyChatSubscribers(message.id);
-  void notifyChatByEmail(message.id);
+  await Promise.all([notifyChatSubscribers(message.id), notifyChatByEmail(message.id)]);
 }
 
 export async function sendChatPoll(authorId: string, conversationId: string, question: string, labels: string[], allowMultiple: boolean) {
@@ -1893,8 +1892,7 @@ export async function sendChatPoll(authorId: string, conversationId: string, que
     await supabase.from("chat_messages").delete().eq("id", message.id);
     throw new Error(optionError.message);
   }
-  void notifyChatSubscribers(message.id);
-  void notifyChatByEmail(message.id);
+  await Promise.all([notifyChatSubscribers(message.id), notifyChatByEmail(message.id)]);
 }
 
 export async function voteChatPoll(pollId: string, optionId: string, profileId: string, allowMultiple: boolean, selected: boolean) {
@@ -1916,11 +1914,16 @@ export async function voteChatPoll(pollId: string, optionId: string, profileId: 
 
 async function notifyChatSubscribers(messageId: string) {
   try {
-    await fetch("/api/push/chat", {
+    const response = await fetch("/api/push/chat", {
       method: "POST",
       headers: await authHeaders(),
-      body: JSON.stringify({ messageId })
+      body: JSON.stringify({ messageId }),
+      keepalive: true
     });
+    const result = await response.json().catch(() => ({})) as { configured?: boolean; failed?: number };
+    if (!response.ok || result.configured === false || result.failed) {
+      console.warn("Chat-Push konnte nicht vollständig zugestellt werden:", response.status, result);
+    }
   } catch (error) {
     console.warn("Chat-Push konnte nicht ausgelöst werden:", error);
   }
@@ -1931,9 +1934,13 @@ async function notifyChatByEmail(messageId: string) {
     const response = await fetch("/api/email/chat", {
       method: "POST",
       headers: { ...(await authHeaders()), "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId })
+      body: JSON.stringify({ messageId }),
+      keepalive: true
     });
-    if (!response.ok) console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", response.status);
+    const result = await response.json().catch(() => ({})) as { configured?: boolean; error?: string };
+    if (!response.ok || result.configured === false) {
+      console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", response.status, result.error ?? "Versand nicht konfiguriert");
+    }
   } catch (error) {
     console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", error);
   }

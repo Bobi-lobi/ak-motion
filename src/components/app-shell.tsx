@@ -47,6 +47,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const { data, session, isAdmin, logout, refresh } = useApp();
+  const sessionId = session?.id;
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getInitialSidebarCollapsed());
   const [profileOpen, setProfileOpen] = useState(false);
@@ -62,18 +63,27 @@ export function AppShell({
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!session) { setChatUnreadCount(0); return; }
-    const update = () => void loadChatUnreadCount(session.id).then(setChatUnreadCount);
+    if (!sessionId) { setChatUnreadCount(0); return; }
+    const update = () => void loadChatUnreadCount(sessionId).then(setChatUnreadCount);
     update();
     if (!supabase) return;
     const client = supabase;
-    const channel = client.channel(`ak-motion-nav-chat-${session.id}`)
+    const channel = client.channel(`ak-motion-nav-chat-${sessionId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, update)
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts" }, update)
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_conversation_members" }, update)
-      .subscribe();
-    return () => { void client.removeChannel(channel); };
-  }, [session]);
+      .subscribe((status) => { if (status === "SUBSCRIBED") update(); });
+    const refreshIfVisible = () => { if (document.visibilityState === "visible") update(); };
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    const timer = window.setInterval(refreshIfVisible, 20000);
+    return () => {
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      window.clearInterval(timer);
+      void client.removeChannel(channel);
+    };
+  }, [sessionId]);
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
@@ -291,7 +301,7 @@ export function AppShell({
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
       <NotificationDispatcher />
-      <MobileUndoRedo />
+      {pathname !== "/chat" ? <MobileUndoRedo /> : null}
       {sidebarCollapsed ? (
         <button
           className="sidebar-show-button"
