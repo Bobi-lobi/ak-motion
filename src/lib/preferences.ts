@@ -1,6 +1,11 @@
 export type AppPreferences = {
   browserNotifications: boolean;
   emailChatMessages: boolean;
+  emailAssignments: boolean;
+  emailUnstaffed: boolean;
+  emailAchievements: boolean;
+  emailAdminUpdates: boolean;
+  emailAnnouncements: boolean;
   calendarFeedEventTypes: string[];
   calendarFeedLocations: string[];
   calendarFeedProfileIds: string[];
@@ -17,6 +22,11 @@ export type AppPreferences = {
 export const defaultPreferences: AppPreferences = {
   browserNotifications: false,
   emailChatMessages: false,
+  emailAssignments: false,
+  emailUnstaffed: false,
+  emailAchievements: false,
+  emailAdminUpdates: false,
+  emailAnnouncements: true,
   calendarFeedEventTypes: [],
   calendarFeedLocations: [],
   calendarFeedProfileIds: [],

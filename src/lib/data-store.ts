@@ -1734,7 +1734,7 @@ export async function loadChatConversations(profileId: string): Promise<ChatConv
   }
   const [conversationResult, memberResult, messageResult, receiptResult] = await Promise.all([
     supabase.from("chat_conversations").select("id, name, description, image_url, kind, created_by, created_at").order("created_at"),
-    supabase.from("chat_conversation_members").select("conversation_id, profile_id"),
+    supabase.from("chat_conversation_members").select("conversation_id, profile_id, cleared_at"),
     supabase.from("chat_messages").select("id, conversation_id, author_id, body, attachments, created_at").order("created_at", { ascending: false }).limit(500),
     supabase.from("chat_read_receipts").select("conversation_id, message_id").eq("profile_id", profileId)
   ]);
@@ -1744,7 +1744,8 @@ export async function loadChatConversations(profileId: string): Promise<ChatConv
   const receiptByConversation = new Map((receiptResult.data ?? []).map((receipt) => [receipt.conversation_id, receipt.message_id]));
   const messageById = new Map((messageResult.data ?? []).map((message) => [message.id, message]));
   return (conversationResult.data ?? []).map((conversation) => {
-    const messages = (messageResult.data ?? []).filter((message) => message.conversation_id === conversation.id);
+    const clearedAt = (memberResult.data ?? []).find((member) => member.conversation_id === conversation.id && member.profile_id === profileId)?.cleared_at ?? undefined;
+    const messages = (messageResult.data ?? []).filter((message) => message.conversation_id === conversation.id && (!clearedAt || new Date(message.created_at).getTime() > new Date(clearedAt).getTime()));
     const last = messages[0];
     const readMessage = messageById.get(receiptByConversation.get(conversation.id) ?? "");
     const readAt = readMessage ? new Date(readMessage.created_at).getTime() : 0;
@@ -1757,6 +1758,7 @@ export async function loadChatConversations(profileId: string): Promise<ChatConv
       memberIds: (memberResult.data ?? []).filter((member) => member.conversation_id === conversation.id).map((member) => member.profile_id),
       createdBy: conversation.created_by ?? undefined,
       createdAt: conversation.created_at,
+      clearedAt,
       lastMessage: last ? {
         id: last.id,
         authorId: last.author_id,
@@ -1766,8 +1768,8 @@ export async function loadChatConversations(profileId: string): Promise<ChatConv
       unreadCount: messages.filter((message) => message.author_id !== profileId && new Date(message.created_at).getTime() > readAt).length
     } satisfies ChatConversation;
   }).sort((left, right) => {
-    const leftLast = (messageResult.data ?? []).find((message) => message.conversation_id === left.id)?.created_at ?? left.createdAt;
-    const rightLast = (messageResult.data ?? []).find((message) => message.conversation_id === right.id)?.created_at ?? right.createdAt;
+    const leftLast = left.lastMessage ? (messageById.get(left.lastMessage.id)?.created_at ?? left.createdAt) : left.createdAt;
+    const rightLast = right.lastMessage ? (messageById.get(right.lastMessage.id)?.created_at ?? right.createdAt) : right.createdAt;
     return new Date(rightLast).getTime() - new Date(leftLast).getTime();
   });
 }
@@ -1781,10 +1783,12 @@ export async function loadChatUnreadCount(profileId: string) {
   }
 }
 
-export async function loadChatMessages(conversationId: string, limit = 120): Promise<ChatMessage[]> {
+export async function loadChatMessages(conversationId: string, limit = 120, clearedAt?: string): Promise<ChatMessage[]> {
   if (!hasSupabaseConfig || !supabase) return [];
+  let messageQuery = supabase.from("chat_messages").select("id, conversation_id, author_id, body, attachments, reply_to_message_id, edited_at, pinned_at, pinned_by, created_at").eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(limit);
+  if (clearedAt) messageQuery = messageQuery.gt("created_at", clearedAt);
   const [messageResult, pollResult, optionResult, voteResult, reactionResult] = await Promise.all([
-    supabase.from("chat_messages").select("id, conversation_id, author_id, body, attachments, reply_to_message_id, edited_at, pinned_at, pinned_by, created_at").eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(limit),
+    messageQuery,
     supabase.from("chat_polls").select("message_id, question, allow_multiple"),
     supabase.from("chat_poll_options").select("id, poll_id, label, position").order("position"),
     supabase.from("chat_poll_votes").select("poll_id, option_id, profile_id"),
@@ -1849,6 +1853,12 @@ export async function markChatRead(profileId: string, conversationId: string, me
     { profile_id: profileId, conversation_id: conversationId, message_id: messageId, read_at: now() },
     { onConflict: "conversation_id,profile_id" }
   );
+  if (error) throw new Error(error.message);
+}
+
+export async function clearDirectChatHistory(conversationId: string) {
+  if (!supabase) throw new Error("Chats benötigen die Supabase-Verbindung.");
+  const { error } = await supabase.rpc("clear_direct_chat_history", { conversation_uuid: conversationId });
   if (error) throw new Error(error.message);
 }
 

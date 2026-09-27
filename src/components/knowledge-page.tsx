@@ -144,7 +144,7 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                     <strong>{suggestion.authorName}</strong>
                     <span>{new Date(suggestion.createdAt).toLocaleDateString("de-DE")}</span>
                   </div>
-                  <div className="knowledge-suggestion-content" dangerouslySetInnerHTML={{ __html: suggestion.content }} />
+                  <div className="knowledge-suggestion-content" style={{ whiteSpace: "pre-wrap" }}>{suggestion.content}</div>
                   {isAdmin ? (
                     <div className="request-actions">
                       <button

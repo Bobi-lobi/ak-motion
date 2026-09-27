@@ -1,13 +1,13 @@
 "use client";
 
-import { BellRing, CalendarDays, Check, Copy, Filter, LockKeyhole, MapPin, Megaphone, Settings2, Tags, Trash2, UsersRound, X } from "lucide-react";
+import { BellRing, CalendarDays, Check, Copy, Filter, LockKeyhole, Mail, MapPin, Megaphone, Settings2, Tags, Trash2, UsersRound, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp } from "@/components/app-provider";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
 import { createAnnouncement, deleteAnnouncement } from "@/lib/data-store";
 import { defaultPreferences, loadPreferences, savePreferences, type AppPreferences } from "@/lib/preferences";
-import { supabase } from "@/lib/supabase";
+import { hasSupabaseConfig, supabase } from "@/lib/supabase";
 
 type CalendarFeed = { url: string; webcalUrl: string };
 type PushStatus = { configured: boolean; subscriptions: number };
@@ -46,7 +46,7 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (ready && session) void loadEmailChatPreference();
+    if (ready && session) void loadEmailPreferences();
   }, [ready, session?.id]);
 
   useEffect(() => {
@@ -73,7 +73,8 @@ export default function SettingsPage() {
     }
   }
 
-  async function loadEmailChatPreference() {
+  async function loadEmailPreferences() {
+    if (!hasSupabaseConfig) return;
     try {
       const token = await emailAccessToken();
       if (!token) {
@@ -81,34 +82,42 @@ export default function SettingsPage() {
         return;
       }
       const response = await fetch("/api/email-preferences", { headers: { Authorization: `Bearer ${token}` } });
-      const result = await response.json().catch(() => ({})) as { emailChatMessages?: boolean; configured?: boolean; error?: string };
+      const result = await response.json().catch(() => ({})) as Partial<AppPreferences> & { configured?: boolean; error?: string };
       if (!response.ok) {
         setEmailPreferenceError(result.error ?? "Die E-Mail-Einstellung konnte nicht geladen werden.");
         return;
       }
       setEmailPreferenceError("");
       if (typeof result.configured === "boolean") setEmailConfigured(result.configured);
-      if (typeof result.emailChatMessages === "boolean") setPreferences((current) => ({ ...current, emailChatMessages: result.emailChatMessages! }));
+      setPreferences((current) => ({
+        ...current,
+        ...Object.fromEntries((["emailChatMessages", "emailAssignments", "emailUnstaffed", "emailAchievements", "emailAdminUpdates", "emailAnnouncements"] as const)
+          .filter((key) => typeof result[key] === "boolean").map((key) => [key, result[key]]))
+      }));
     } catch {
       setEmailPreferenceError("Die E-Mail-Einstellung konnte nicht geladen werden. Bitte prüfe die Verbindung.");
     }
   }
 
-  async function updateEmailChatPreference(enabled: boolean) {
+  async function updateEmailPreference(key: "emailChatMessages" | "emailAssignments" | "emailUnstaffed" | "emailAchievements" | "emailAdminUpdates" | "emailAnnouncements", enabled: boolean) {
+    if (!hasSupabaseConfig) {
+      setEmailPreferenceError("E-Mail-Hinweise stehen im Demo-Modus nicht zur Verfügung.");
+      return;
+    }
     try {
       const token = await emailAccessToken();
       if (!token) {
         setEmailPreferenceError("Deine Supabase-Anmeldung ist auf diesem Gerät abgelaufen. Bitte melde dich in Motion einmal ab und erneut an.");
         return;
       }
-      const response = await fetch("/api/email-preferences", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ emailChatMessages: enabled }) });
+      const response = await fetch("/api/email-preferences", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ [key]: enabled }) });
       if (!response.ok) {
         const result = await response.json().catch(() => ({})) as { error?: string };
         setEmailPreferenceError(result.error ?? "E-Mail-Auswahl konnte nicht gespeichert werden.");
         return;
       }
       setEmailPreferenceError("");
-      setPreferences((current) => ({ ...current, emailChatMessages: enabled }));
+      setPreferences((current) => ({ ...current, [key]: enabled }));
     } catch {
       setEmailPreferenceError("E-Mail-Auswahl konnte nicht gespeichert werden. Bitte prüfe die Verbindung.");
     }
@@ -225,12 +234,9 @@ export default function SettingsPage() {
             </header>
             <div className="settings-options">
               <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Wenn du eingeteilt wirst oder ein Einsatz bald beginnt." checked={preferences.notifyAssignments} onChange={(checked) => updatePreference("notifyAssignments", checked)} />
-              <SettingToggle label="Neue Chatnachrichten" description="Zeigt neue Nachrichten des Teams als Gerätehinweis an." checked={preferences.notifyChatMessages} onChange={(checked) => updatePreference("notifyChatMessages", checked)} />
+              <SettingToggle label="Neue Chatnachrichten" description="Zeigt neue Nachrichten aus deinen Gruppen- und Einzelchats als Gerätehinweis an." checked={preferences.notifyChatMessages} onChange={(checked) => updatePreference("notifyChatMessages", checked)} />
               {preferences.browserNotifications && preferences.notifyChatMessages && pushStatus?.configured === false ? <p className="settings-inline-note">Web-Push ist auf dem Server noch nicht eingerichtet (VAPID-Schlüssel fehlen). Hinweise funktionieren dann nur, solange die App aktiv ist.</p> : null}
               {preferences.browserNotifications && preferences.notifyChatMessages && pushStatus?.configured && pushStatus.subscriptions === 0 ? <p className="settings-inline-note">Dieses Konto hat noch kein registriertes Push-Gerät. Öffne Motion auf dem gewünschten Gerät und erlaube dort Benachrichtigungen. Auf iPhone/iPad muss Motion als Home-Bildschirm-App geöffnet werden.</p> : null}
-              <SettingToggle label="Chatnachrichten per E-Mail" description="Sende dir eine E-Mail, wenn du eine neue Chatnachricht erhältst. Benötigt die konfigurierte Mailzustellung." checked={preferences.emailChatMessages} onChange={(checked) => void updateEmailChatPreference(checked)} />
-              {emailConfigured === false ? <p className="settings-inline-note">E-Mail-Versand ist noch nicht konfiguriert. Der Schalter wird gespeichert, Nachrichten werden bis zur Mailanbieter-Einrichtung aber nicht zugestellt.</p> : null}
-              {emailPreferenceError ? <p className="error-text">{emailPreferenceError}</p> : null}
               <SettingToggle label="Fehlende Besetzung" description="Hinweis auf baldige Veranstaltungen, für die noch Leute fehlen." checked={preferences.notifyUnstaffed} onChange={(checked) => updatePreference("notifyUnstaffed", checked)} />
               <SettingToggle label="Erfolge" description="Hinweise bei neuen Meilensteinen im Levelsystem." checked={preferences.notifyAchievements} onChange={(checked) => updatePreference("notifyAchievements", checked)} />
               <div className="setting-toggle setting-fixed"><span><strong>Mitteilungen der Teamleitung</strong><span>Verpflichtende Nachrichten, die von der Teamleitung an alle gesendet werden.</span></span><span className="setting-required"><LockKeyhole size={14} /> Immer aktiv</span></div>
@@ -249,6 +255,24 @@ export default function SettingsPage() {
               }} disabled={permission === "denied" || permission === "unsupported"}>
                 <BellRing size={16} /> {preferences.browserNotifications ? "Deaktivieren" : "Aktivieren"}
               </button>
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <header className="settings-section-head">
+              <Mail size={22} />
+              <div><h2>Hinweise per E-Mail</h2><p>Wähle aus, welche Benachrichtigungen zusätzlich an deine hinterlegte E-Mail-Adresse gesendet werden.</p></div>
+            </header>
+            <div className="settings-options">
+              <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Neue Einteilung und Erinnerung an einen bevorstehenden Einsatz." checked={preferences.emailAssignments} onChange={(checked) => void updateEmailPreference("emailAssignments", checked)} />
+              <SettingToggle label="Neue Chatnachrichten" description="Eine neutrale E-Mail ohne Chatinhalt für neue Nachrichten in deinen Chats." checked={preferences.emailChatMessages} onChange={(checked) => void updateEmailPreference("emailChatMessages", checked)} />
+              <SettingToggle label="Fehlende Besetzung" description="Hinweise für Admins auf baldige Veranstaltungen ohne vollständige Einteilung." checked={preferences.emailUnstaffed} onChange={(checked) => void updateEmailPreference("emailUnstaffed", checked)} />
+              <SettingToggle label="Erfolge" description="Neue Meilensteine im Levelsystem." checked={preferences.emailAchievements} onChange={(checked) => void updateEmailPreference("emailAchievements", checked)} />
+              <div className="setting-toggle setting-fixed"><span><strong>Mitteilungen der Teamleitung</strong><span>Verpflichtende Nachrichten der Teamleitung.</span></span><span className="setting-required"><LockKeyhole size={14} /> Immer aktiv</span></div>
+              <SettingToggle label="Neue Anfragen und Vorschläge" description="Neue Formulare, Bewerbungen und Regelvorschläge für Admins." checked={preferences.emailAdminUpdates} onChange={(checked) => void updateEmailPreference("emailAdminUpdates", checked)} />
+              {emailConfigured === false ? <p className="settings-inline-note">E-Mail-Versand ist noch nicht konfiguriert. Die Auswahl wird gespeichert, aber noch nicht zugestellt.</p> : null}
+              {emailPreferenceError ? <p className="error-text">{emailPreferenceError}</p> : null}
+              <p className="settings-inline-note">Chat-E-Mails werden direkt ausgelöst. Andere E-Mails werden durch den Server-Job gesammelt; Erinnerungen können daher verzögert eintreffen.</p>
             </div>
           </section>
 

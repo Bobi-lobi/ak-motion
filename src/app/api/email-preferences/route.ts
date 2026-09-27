@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { requireUserFromRequest, supabaseAdmin } from "@/lib/supabase-admin";
 
+const emailFields = {
+  emailChatMessages: "chat_messages",
+  emailAssignments: "assignments",
+  emailUnstaffed: "unstaffed",
+  emailAchievements: "achievements",
+  emailAdminUpdates: "admin_updates",
+  emailAnnouncements: "announcements"
+} as const;
+
 function emailPreferenceError(error: unknown, action: string) {
   if (error instanceof Response) {
     return NextResponse.json({ error: error.status === 500 ? "Die serverseitige Supabase-Admin-Verbindung ist nicht konfiguriert." : "Bitte melde dich erneut an." }, { status: error.status });
@@ -32,9 +41,10 @@ function emailPreferenceError(error: unknown, action: string) {
 export async function GET(request: Request) {
   try {
     const user = await requireUserFromRequest(request);
-    const { data, error } = await supabaseAdmin!.from("email_notification_preferences").select("chat_messages").eq("profile_id", user.id).maybeSingle();
+    const { data, error } = await supabaseAdmin!.from("email_notification_preferences").select(Object.values(emailFields).join(",")).eq("profile_id", user.id).maybeSingle();
     if (error) throw error;
-    return NextResponse.json({ emailChatMessages: data?.chat_messages ?? false, configured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_FROM_EMAIL) });
+    const values = Object.fromEntries(Object.entries(emailFields).map(([key, column]) => [key, key === "emailAnnouncements" ? true : (data as Record<string, boolean> | null)?.[column] ?? false]));
+    return NextResponse.json({ ...values, configured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_FROM_EMAIL) });
   } catch (error) {
     return emailPreferenceError(error, "geladen");
   }
@@ -43,11 +53,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUserFromRequest(request);
-    const body = await request.json() as { emailChatMessages?: boolean };
-    if (typeof body.emailChatMessages !== "boolean") return NextResponse.json({ error: "Ungültige Auswahl." }, { status: 400 });
-    const { error } = await supabaseAdmin!.from("email_notification_preferences").upsert({ profile_id: user.id, chat_messages: body.emailChatMessages, updated_at: new Date().toISOString() }, { onConflict: "profile_id" });
+    const body = await request.json() as Record<string, unknown>;
+    const entries = Object.entries(emailFields).filter(([key]) => key in body);
+    if (entries.length !== 1 || typeof body[entries[0][0]] !== "boolean") return NextResponse.json({ error: "Ungültige Auswahl." }, { status: 400 });
+    const [key, column] = entries[0];
+    if (key === "emailAnnouncements") return NextResponse.json({ error: "Mitteilungen der Teamleitung sind immer aktiv." }, { status: 400 });
+    const { error } = await supabaseAdmin!.from("email_notification_preferences").upsert({ profile_id: user.id, [column]: body[key], updated_at: new Date().toISOString() }, { onConflict: "profile_id" });
     if (error) throw error;
-    return NextResponse.json({ emailChatMessages: body.emailChatMessages });
+    return NextResponse.json({ [key]: body[key] });
   } catch (error) {
     return emailPreferenceError(error, "gespeichert");
   }

@@ -51,32 +51,19 @@ export async function POST(request: Request) {
     if (listError) {
       return NextResponse.json({ error: listError.message }, { status: 400 });
     }
-    const existingUser = users.users.find((user) => user.email?.toLowerCase() === email);
-
-    let authUserId = existingUser?.id;
-    let createdAuthUser = false;
-
-    if (authUserId) {
-      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
-        password,
-        user_metadata: { name }
-      });
-      if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 400 });
-      }
-    } else {
-      const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { name }
-      });
-      if (createError || !created.user) {
-        return NextResponse.json({ error: createError?.message ?? "Account konnte nicht erstellt werden." }, { status: 400 });
-      }
-      authUserId = created.user.id;
-      createdAuthUser = true;
+    if (users.users.some((user) => user.email?.toLowerCase() === email)) {
+      return NextResponse.json({ error: "Für diese E-Mail existiert bereits ein Konto. Bitte wende dich an die Teamleitung." }, { status: 409 });
     }
+    const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name }
+    });
+    if (createError || !created.user) {
+      return NextResponse.json({ error: createError?.message ?? "Account konnte nicht erstellt werden." }, { status: 400 });
+    }
+    const authUserId = created.user.id;
 
     const { error: insertError } = await supabaseAdmin.from("registration_requests").insert({
       auth_user_id: authUserId,
@@ -87,9 +74,7 @@ export async function POST(request: Request) {
       status: "pending"
     });
     if (insertError) {
-      if (createdAuthUser && authUserId) {
-        await supabaseAdmin.auth.admin.deleteUser(authUserId);
-      }
+      await supabaseAdmin.auth.admin.deleteUser(authUserId);
       return NextResponse.json({ error: insertError.message }, { status: 400 });
     }
 

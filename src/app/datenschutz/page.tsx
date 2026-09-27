@@ -41,6 +41,9 @@ export default function DatenschutzPage() {
             <li>Equipmentverwaltung</li>
             <li>interne Wissensseiten</li>
             <li>Bearbeitung von Veranstaltungsanfragen</li>
+            <li>interne Einzel- und Gruppenchats mit Dateien, Umfragen, Reaktionen, Lesebestätigungen und persönlichen Verlaufseinstellungen</li>
+            <li>Geräte- und E-Mail-Benachrichtigungen nach den in der App gewählten Einstellungen</li>
+            <li>Level, XP und Auszeichnungen aus Einsätzen und Bewertungen</li>
             <li>Gewährleistung eines sicheren und stabilen Betriebs der Anwendung</li>
           </ul>
         </section>
@@ -97,6 +100,24 @@ export default function DatenschutzPage() {
             <li>Startseitentexte</li>
             <li>Bilder</li>
           </ul>
+
+          <h3>Chat und Benachrichtigungen</h3>
+          <p>
+            Im Chat werden Nachrichten, Anhänge, Gruppenzugehörigkeiten, Umfragestimmen, Reaktionen, angepinnte Nachrichten sowie
+            Lesezeitpunkte mit dem jeweiligen Benutzerkonto verknüpft. Andere Mitglieder desselben Chats können Nachrichten,
+            Umfragestimmen und Lesebestätigungen sehen. Wenn ein Einzelchat-Verlauf „nur für mich“ ausgeblendet wird, bleiben
+            die Nachrichten für die andere Person und auf dem Server erhalten.
+          </p>
+          <p>
+            Hochgeladene Chat-Dateien werden derzeit in einem öffentlich lesbaren Medienbereich gespeichert. Wer den genauen Dateilink kennt,
+            kann die Datei auch außerhalb des Chats aufrufen. Deshalb sollten dort bis zur Umstellung auf geschützte Dateien keine
+            vertraulichen Dokumente geteilt werden.
+          </p>
+          <p>
+            Für Hinweise werden Benachrichtigungseinstellungen, technische Push-Abonnements und zur Vermeidung doppelter E-Mails
+            Versandkennungen gespeichert. E-Mails enthalten nur einen neutralen Hinweis und einen Link zur App, keinen Nachrichtentext.
+            Push-Nachrichten zu Chats können Absender, Chatname und eine kurze Nachrichtenvorschau enthalten.
+          </p>
         </section>
 
         <section>
@@ -132,13 +153,19 @@ export default function DatenschutzPage() {
           <p>Für den Betrieb der Webanwendung werden externe Dienstleister eingesetzt.</p>
 
           <h3>Supabase</h3>
-          <p>Supabase wird für Authentifizierung, Datenbank und Dateispeicherung eingesetzt.</p>
+          <p>Die selbst betriebene Supabase-Instanz auf dem NAS wird für Authentifizierung, Datenbank, Echtzeitfunktionen und Dateispeicherung eingesetzt.</p>
 
           <h3>Vercel</h3>
           <p>
             Vercel wird für das Hosting der Webanwendung eingesetzt. Hierbei können technisch notwendige Server- und Protokolldaten verarbeitet
             werden.
           </p>
+          <h3>Cloudflare</h3>
+          <p>Cloudflare vermittelt den Zugriff auf die Supabase-API. Dabei können technische Verbindungsdaten wie IP-Adresse und Anfragezeitpunkt verarbeitet werden.</p>
+          <h3>Brevo</h3>
+          <p>Für aktivierte E-Mail-Hinweise wird die hinterlegte E-Mail-Adresse zusammen mit dem neutralen Hinweis an Brevo zur Zustellung übermittelt.</p>
+          <h3>Web-Push</h3>
+          <p>Bei erlaubten Gerätehinweisen erfolgt die Zustellung über die Push-Infrastruktur des jeweiligen Browsers oder Betriebssystems. Dabei wird ein Push-Endpunkt des Geräts gespeichert.</p>
           <p>Soweit gesetzlich erforderlich, werden mit eingesetzten Dienstleistern geeignete Vereinbarungen zur Auftragsverarbeitung abgeschlossen.</p>
         </section>
 
@@ -161,6 +188,7 @@ export default function DatenschutzPage() {
             <li>Login-Sitzungen</li>
             <li>Sicherheitstoken</li>
             <li>lokale Benutzereinstellungen</li>
+            <li>lokaler Abgleich bereits angezeigter Gerätehinweise</li>
           </ul>
           <p>Diese sind für den Betrieb der Anwendung erforderlich.</p>
         </section>
@@ -197,7 +225,7 @@ export default function DatenschutzPage() {
 
         <section>
           <h2>12. Stand</h2>
-          <p>Stand: Juni 2026</p>
+          <p>Stand: September 2026</p>
         </section>
       </article>
     </main>

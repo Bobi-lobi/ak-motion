@@ -147,6 +147,7 @@ export type ChatConversation = {
   memberIds: string[];
   createdBy?: string;
   createdAt: string;
+  clearedAt?: string;
   lastMessage?: ChatMessagePreview;
   unreadCount: number;
 };
