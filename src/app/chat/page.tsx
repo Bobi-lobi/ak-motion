@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  BarChart3, CalendarDays, Camera, Check, ChevronRight, Copy, FileText, Film, Forward,
+  ArrowDown, BarChart3, CalendarDays, Camera, Check, ChevronRight, Copy, FileText, Film, Forward,
   Image as ImageIcon, Info, LoaderCircle, MessageCircle, Mic, MoreHorizontal,
   Paperclip, Pencil, Pin, PinOff, Plus, Reply, Search, Send, SmilePlus, Square, Trash2, Upload, Users, X
 } from "lucide-react";
@@ -11,7 +11,7 @@ import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
 import {
-  clearDirectChatHistory, createChatConversation, deleteChatMessage, forwardChatMessage, loadChatConversations, loadChatMessages,
+  clearDirectChatHistory, createChatConversation, deleteChatMessage, forwardChatMessage, leaveChatConversation, loadChatConversations, loadChatMessages,
   loadChatReadReceipts, markChatRead, sendChatMessage, sendChatPoll, toggleChatMessagePin,
   toggleChatReaction, updateChatConversation, updateChatMessage, voteChatPoll
 } from "@/lib/data-store";
@@ -52,6 +52,9 @@ export default function ChatPage() {
   const [swiping, setSwiping] = useState<{ id: string; offset: number } | null>(null);
   const [typingIds, setTypingIds] = useState<string[]>([]);
   const typingSentAtRef = useRef(0);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const streamRef = useRef<HTMLDivElement>(null);
+  const initialScrollPendingRef = useRef(true);
   const [error, setError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -91,10 +94,23 @@ export default function ChatPage() {
   }, [activeId, activeConversation?.clearedAt]);
 
   useEffect(() => { void refreshConversations().catch(() => undefined); }, [refreshConversations]);
-  useEffect(() => { setLoading(true); setMessages([]); setReplyingTo(null); void refreshMessages(); }, [refreshMessages]);
+  useEffect(() => { initialScrollPendingRef.current = true; setLoading(true); setMessages([]); setReplyingTo(null); void refreshMessages(); }, [refreshMessages]);
+
+  useEffect(() => {
+    if (loading || !initialScrollPendingRef.current || !streamRef.current) return;
+    initialScrollPendingRef.current = false;
+    const stream = streamRef.current;
+    window.requestAnimationFrame(() => { stream.scrollTop = stream.scrollHeight; setShowJumpToLatest(false); });
+  }, [activeId, loading]);
+
+  function updateJumpToLatest() {
+    const stream = streamRef.current;
+    if (stream) setShowJumpToLatest(stream.scrollHeight - stream.scrollTop - stream.clientHeight > 90);
+  }
 
   useEffect(() => {
     if (!supabase || !sessionId || !activeId) return;
+    typingSentAtRef.current = 0;
     const client = supabase;
     let disposed = false;
     const refreshTyping = async () => {
@@ -106,7 +122,7 @@ export default function ChatPage() {
     const channel = client.channel(`ak-motion-typing-${activeId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_typing_status", filter: `conversation_id=eq.${activeId}` }, () => void refreshTyping())
       .subscribe();
-    const timer = window.setInterval(() => void refreshTyping(), 4000);
+    const timer = window.setInterval(() => void refreshTyping(), 2000);
     return () => {
       disposed = true;
       window.clearInterval(timer);
@@ -115,6 +131,17 @@ export default function ChatPage() {
       setTypingIds([]);
     };
   }, [activeId, sessionId]);
+
+  useEffect(() => {
+    if (!supabase || !sessionId || !activeId || !body.trim()) return;
+    const client = supabase;
+    const timer = window.setInterval(() => {
+      if (document.activeElement !== textareaRef.current) return;
+      typingSentAtRef.current = Date.now();
+      void client.from("chat_typing_status").upsert({ conversation_id: activeId, profile_id: sessionId, updated_at: new Date().toISOString() });
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [activeId, body, sessionId]);
 
   function updateBody(value: string) {
     setBody(value);
@@ -163,7 +190,6 @@ export default function ChatPage() {
   }, [refreshConversations, refreshMessages]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth" });
     const latest = messages.at(-1);
     if (!session || !latest || document.visibilityState !== "visible") return;
     if (receipts.some((receipt) => receipt.profileId === session.id && receipt.messageId === latest.id)) return;
@@ -261,6 +287,22 @@ export default function ChatPage() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Verlauf konnte nicht ausgeblendet werden."); }
   }
 
+  async function leaveConversation() {
+    if (!activeConversation || activeConversation.id === TEAM_CHAT_ID) return;
+    const title = conversationTitle(activeConversation, profilesById, sessionId);
+    if (!window.confirm(`„${title}“ wirklich verlassen und aus deiner Chatliste entfernen? Andere Mitglieder behalten ihre Nachrichten.`)) return;
+    try {
+      await leaveChatConversation(activeConversation.id);
+      setDetailsOpen(false); setMessages([]); setReceipts([]);
+      const next = await loadChatConversations(sessionId ?? "");
+      setConversations(next);
+      setActiveId(next.find((conversation) => conversation.id === TEAM_CHAT_ID)?.id ?? next[0]?.id ?? "");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Chat konnte nicht verlassen werden."); }
+  }
+
+  const typingNames = [...new Set(typingIds)].map((id) => profilesById.get(id)?.name ?? "Jemand");
+  const typingLabel = typingNames.length === 1 ? `${typingNames[0]} schreibt…` : typingNames.length > 1 ? `${typingNames.join(", ")} schreiben…` : "";
+
   const pinnedMessages = messages.filter((message) => message.pinnedAt);
   useEffect(() => { window.scrollTo(0, 0); }, []);
   return (
@@ -272,9 +314,9 @@ export default function ChatPage() {
           <nav>{conversations.map((conversation) => <button className={conversation.id === activeId ? "is-active" : ""} type="button" key={conversation.id} onClick={() => selectConversation(conversation.id)}><ChatAvatar conversation={conversation} profiles={profilesById} sessionId={session?.id} /><span><strong>{conversationTitle(conversation, profilesById, session?.id)}</strong><small>{conversation.lastMessage ? conversation.lastMessage.body || `${conversation.lastMessage.attachmentCount} Datei(en)` : conversation.description || "Noch keine Nachrichten"}</small></span>{conversation.unreadCount ? <b>{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</b> : null}</button>)}</nav>
         </aside>
         <section className={dragActive ? "team-chat is-dragging" : "team-chat"} aria-label={activeConversation?.name ?? "Chat"} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; setDragActive(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }} onDrop={(event) => { event.preventDefault(); setDragActive(false); void addFiles(event.dataTransfer.files); }}>
-          <header className="chat-topbar">{activeConversation ? <button className="chat-topbar-details" type="button" onClick={() => setDetailsOpen(true)}><ChatAvatar conversation={activeConversation} profiles={profilesById} sessionId={session?.id} /><span><strong>{conversationTitle(activeConversation, profilesById, session?.id)}</strong><small>{typingIds.length ? `${typingIds.map((id) => profilesById.get(id)?.name ?? "Jemand").join(", ")} schreibt …` : `${activeConversation.memberIds.length} Teilnehmer`}</small></span><ChevronRight size={17} /></button> : <LoaderCircle className="spin" size={20} />}<button className="chat-list-toggle" type="button" aria-label="Zwischen Chats wechseln" onClick={() => setChatListOpen(true)}><MessageCircle size={20} /><span>Chats</span></button></header>
+          <header className="chat-topbar">{activeConversation ? <button className="chat-topbar-details" type="button" onClick={() => setDetailsOpen(true)}><ChatAvatar conversation={activeConversation} profiles={profilesById} sessionId={session?.id} /><span><strong>{conversationTitle(activeConversation, profilesById, session?.id)}</strong><small>{activeConversation.memberIds.length} Teilnehmer</small></span><ChevronRight size={17} /></button> : <LoaderCircle className="spin" size={20} />}<button className="chat-list-toggle" type="button" aria-label="Zwischen Chats wechseln" onClick={() => setChatListOpen(true)}><MessageCircle size={20} /><span>Chats</span></button></header>
           {pinnedMessages.length ? <button className="chat-pinned-banner" type="button" onClick={() => document.getElementById(`chat-message-${pinnedMessages.at(-1)?.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}><Pin size={14} /><span><strong>Angepinnte Nachricht</strong><small>{pinnedMessages.at(-1)?.body || "Datei oder Umfrage"}</small></span></button> : null}
-          <div className="chat-stream" onClick={() => { setOpenReaders(null); setContextMenu(null); }}>
+          <div className="chat-stream" ref={streamRef} onScroll={updateJumpToLatest} onClick={() => { setOpenReaders(null); setContextMenu(null); }}>
             {loading ? <div className="chat-loading"><LoaderCircle className="spin" size={24} /> Chat wird geladen...</div> : null}
             {!loading && !messages.length ? <div className="chat-welcome"><MessageCircle size={25} /><strong>Noch keine Nachrichten</strong><span>Starte die Unterhaltung.</span></div> : null}
             {messages.map((message) => {
@@ -294,7 +336,9 @@ export default function ChatPage() {
               </div>;
             })}<div ref={endRef} />
           </div>
+          {showJumpToLatest ? <button className="chat-jump-latest" type="button" aria-label="Zur neuesten Nachricht" onClick={() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}><ArrowDown size={20} /></button> : null}
           <div className="chat-composer">
+            {typingLabel ? <div className="chat-typing-indicator" role="status" aria-live="polite"><span className="chat-typing-dots" aria-hidden="true">•••</span>{typingLabel}</div> : null}
             {pollOpen ? <PollComposer question={pollQuestion} options={pollOptions} multiple={pollMultiple} sending={sending} onQuestion={setPollQuestion} onOptions={setPollOptions} onMultiple={setPollMultiple} onClose={() => setPollOpen(false)} onSubmit={() => void submitPoll()} /> : null}
             {replyingTo ? <div className="chat-compose-reply"><Reply size={15} /><span><strong>Antwort an {profilesById.get(replyingTo.authorId)?.name}</strong><small>{replyingTo.body || "Datei oder Umfrage"}</small></span><button type="button" aria-label="Antwort abbrechen" onClick={() => setReplyingTo(null)}><X size={16} /></button></div> : null}
             {attachments.length ? <div className="chat-upload-list">{attachments.map((file, index) => <span key={`${file.url}-${index}`}><Paperclip size={13} />{file.name}<button type="button" aria-label={`${file.name} entfernen`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={13} /></button></span>)}</div> : null}
@@ -306,7 +350,7 @@ export default function ChatPage() {
         </section>
       </div>
       {contextMenu ? <MessageContextMenu menu={contextMenu} own={contextMenu.message.authorId === session?.id} canDelete={contextMenu.message.authorId === session?.id || isAdmin} onReact={(emoji) => void react(contextMenu.message, emoji)} onReply={() => { setReplyingTo(contextMenu.message); setContextMenu(null); textareaRef.current?.focus(); }} onCopy={() => { void navigator.clipboard.writeText(contextMenu.message.body); setContextMenu(null); }} onEdit={() => void editMessage(contextMenu.message)} onDelete={() => void removeMessage(contextMenu.message)} onPin={() => void pinMessage(contextMenu.message)} onForward={() => { setForwardMessage(contextMenu.message); setContextMenu(null); }} /> : null}
-      {detailsOpen && activeConversation ? <ChatDetails conversation={activeConversation} profiles={data.profiles} sessionId={session?.id} editable={isAdmin || activeConversation.createdBy === session?.id} onClose={() => setDetailsOpen(false)} onClear={() => void clearHistory()} onSaved={async () => { await refreshConversations(); setDetailsOpen(false); }} /> : null}
+      {detailsOpen && activeConversation ? <ChatDetails conversation={activeConversation} profiles={data.profiles} sessionId={session?.id} editable={isAdmin || activeConversation.createdBy === session?.id} onClose={() => setDetailsOpen(false)} onClear={() => void clearHistory()} onLeave={() => void leaveConversation()} onSaved={async () => { await refreshConversations(); setDetailsOpen(false); }} /> : null}
       {previewImage ? <div className="chat-image-backdrop" role="presentation" onClick={() => setPreviewImage(null)}><section className="chat-image-preview" role="dialog" aria-modal="true" aria-label={previewImage.name} onClick={(event) => event.stopPropagation()}><header><strong>{previewImage.name}</strong><button type="button" aria-label="Bild schließen" onClick={() => setPreviewImage(null)}><X size={22} /></button></header><img src={previewImage.url} alt={previewImage.name} /></section></div> : null}
       {createOpen && session ? <CreateChatModal profiles={data.profiles} sessionId={session.id} conversations={conversations} onClose={() => setCreateOpen(false)} onCreated={async (id) => { await refreshConversations(); setActiveId(id); setCreateOpen(false); }} /> : null}
       {forwardMessage && session ? <PickerModal title="Weiterleiten an" conversations={conversations} profiles={profilesById} sessionId={session.id} onClose={() => setForwardMessage(null)} onPick={async (conversation) => { await forwardChatMessage(session.id, conversation.id, forwardMessage); setForwardMessage(null); setActiveId(conversation.id); await refreshConversations(); }} /> : null}
@@ -316,11 +360,11 @@ export default function ChatPage() {
 
 function MessageContextMenu({ menu, own, canDelete, onReact, onReply, onCopy, onEdit, onDelete, onPin, onForward }: { menu: { message: ChatMessage; x: number; y: number }; own: boolean; canDelete: boolean; onReact: (emoji: string) => void; onReply: () => void; onCopy: () => void; onEdit: () => void; onDelete: () => void; onPin: () => void; onForward: () => void }) { return <div className="chat-context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}><div className="chat-quick-reactions">{QUICK_REACTIONS.map((emoji) => <button type="button" key={emoji} onClick={() => onReact(emoji)}>{emoji}</button>)}</div><button type="button" onClick={onReply}><Reply size={16} />Antworten</button><button type="button" onClick={() => onReact("👍")}><SmilePlus size={16} />Reagieren</button><button type="button" onClick={onCopy}><Copy size={16} />Kopieren</button><button type="button" onClick={onPin}>{menu.message.pinnedAt ? <PinOff size={16} /> : <Pin size={16} />}{menu.message.pinnedAt ? "Lösen" : "Anpinnen"}</button><button type="button" onClick={onForward}><Forward size={16} />Weiterleiten</button>{own && menu.message.body ? <button type="button" onClick={onEdit}><Pencil size={16} />Bearbeiten</button> : null}{canDelete ? <button className="is-danger" type="button" onClick={onDelete}><Trash2 size={16} />Löschen</button> : null}</div>; }
 
-function ChatDetails({ conversation, profiles, sessionId, editable, onClose, onClear, onSaved }: { conversation: ChatConversation; profiles: Profile[]; sessionId?: string; editable: boolean; onClose: () => void; onClear: () => void; onSaved: () => void }) {
+function ChatDetails({ conversation, profiles, sessionId, editable, onClose, onClear, onLeave, onSaved }: { conversation: ChatConversation; profiles: Profile[]; sessionId?: string; editable: boolean; onClose: () => void; onClear: () => void; onLeave: () => void; onSaved: () => void }) {
   const [name, setName] = useState(conversation.name); const [description, setDescription] = useState(conversation.description); const [imageUrl, setImageUrl] = useState(conversation.imageUrl ?? ""); const [memberIds, setMemberIds] = useState(conversation.memberIds); const [saving, setSaving] = useState(false); const [uploading, setUploading] = useState(false); const [error, setError] = useState("");
   async function upload(file?: File) { if (!file) return; setUploading(true); try { setImageUrl(await uploadAppMedia(file, "chat")); } catch (caught) { setError(caught instanceof Error ? caught.message : "Bild konnte nicht hochgeladen werden."); } finally { setUploading(false); } }
   async function save() { setSaving(true); setError(""); try { await updateChatConversation(conversation.id, { name, description, imageUrl, memberIds }); onSaved(); } catch (caught) { setError(caught instanceof Error ? caught.message : "Chatdetails konnten nicht gespeichert werden."); } finally { setSaving(false); } }
-  return <div className="chat-modal-backdrop" onClick={onClose}><section className="chat-details-panel" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}><header><div><Info size={19} /><strong>Chatdetails</strong></div><button type="button" onClick={onClose}><X size={19} /></button></header><div className="chat-details-content"><div className="chat-details-hero"><span>{imageUrl ? <img src={imageUrl} alt="" /> : <Users size={30} />}</span>{editable && conversation.kind === "group" ? <label className="button"><Upload size={15} />{uploading ? "Wird geladen…" : "Gruppenbild ändern"}<input className="visually-hidden" type="file" accept="image/*" onChange={(event) => { void upload(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} /></label> : null}</div><label><span>Name</span><input value={name} disabled={!editable || conversation.kind === "direct"} onChange={(event) => setName(event.target.value)} /></label><label><span>Beschreibung</span><textarea value={description} disabled={!editable || conversation.kind === "direct"} onChange={(event) => setDescription(event.target.value)} rows={3} /></label><div className="chat-members"><strong>{conversation.memberIds.length} Teilnehmer</strong>{profiles.filter((profile) => conversation.memberIds.includes(profile.id) || (editable && conversation.kind === "group")).map((profile) => <label key={profile.id}><ProfileAvatar profile={profile} /><span><strong>{profile.name}</strong><small>{profile.role === "admin" ? "Admin" : "Techniker"}</small></span>{editable && conversation.kind === "group" ? <input type="checkbox" checked={memberIds.includes(profile.id)} disabled={profile.id === sessionId} onChange={(event) => setMemberIds((current) => event.target.checked ? [...current, profile.id] : current.filter((id) => id !== profile.id))} /> : null}</label>)}</div>{error ? <p className="error-text">{error}</p> : null}</div>{conversation.kind === "direct" ? <footer><button className="button danger" type="button" onClick={onClear}><Trash2 size={16} />Verlauf nur für mich ausblenden</button></footer> : editable ? <footer><button className="button primary" type="button" disabled={saving || uploading || !name.trim()} onClick={() => void save()}>{saving ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}Speichern</button></footer> : null}</section></div>;
+  return <div className="chat-modal-backdrop" onClick={onClose}><section className="chat-details-panel" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}><header><div><Info size={19} /><strong>Chatdetails</strong></div><button type="button" onClick={onClose}><X size={19} /></button></header><div className="chat-details-content"><div className="chat-details-hero"><span>{imageUrl ? <img src={imageUrl} alt="" /> : <Users size={30} />}</span>{editable && conversation.kind === "group" ? <label className="button"><Upload size={15} />{uploading ? "Wird geladen…" : "Gruppenbild ändern"}<input className="visually-hidden" type="file" accept="image/*" onChange={(event) => { void upload(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} /></label> : null}</div><label><span>Name</span><input value={name} disabled={!editable || conversation.kind === "direct"} onChange={(event) => setName(event.target.value)} /></label><label><span>Beschreibung</span><textarea value={description} disabled={!editable || conversation.kind === "direct"} onChange={(event) => setDescription(event.target.value)} rows={3} /></label><div className="chat-members"><strong>{conversation.memberIds.length} Teilnehmer</strong>{profiles.filter((profile) => conversation.memberIds.includes(profile.id) || (editable && conversation.kind === "group")).map((profile) => <label key={profile.id}><ProfileAvatar profile={profile} /><span><strong>{profile.name}</strong><small>{profile.role === "admin" ? "Admin" : "Techniker"}</small></span>{editable && conversation.kind === "group" ? <input type="checkbox" checked={memberIds.includes(profile.id)} disabled={profile.id === sessionId} onChange={(event) => setMemberIds((current) => event.target.checked ? [...current, profile.id] : current.filter((id) => id !== profile.id))} /> : null}</label>)}</div>{error ? <p className="error-text">{error}</p> : null}</div><footer className="chat-details-actions">{conversation.kind === "direct" ? <button className="button" type="button" onClick={onClear}>Verlauf nur für mich ausblenden</button> : editable ? <button className="button primary" type="button" disabled={saving || uploading || !name.trim()} onClick={() => void save()}>{saving ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}Speichern</button> : null}{conversation.id !== TEAM_CHAT_ID ? <button className="button danger" type="button" onClick={onLeave}><Trash2 size={16} />Chat verlassen</button> : null}</footer></section></div>;
 }
 
 function CreateChatModal({ profiles, sessionId, conversations, onClose, onCreated }: { profiles: Profile[]; sessionId: string; conversations: ChatConversation[]; onClose: () => void; onCreated: (id: string) => void }) {
@@ -346,7 +390,18 @@ function ProfileAvatar({ profile }: { profile: Profile }) { return <span classNa
 function conversationTitle(conversation: ChatConversation, profiles: Map<string, Profile>, sessionId?: string) { if (conversation.kind !== "direct") return conversation.name; return profiles.get(conversation.memberIds.find((id) => id !== sessionId) ?? "")?.name ?? conversation.name; }
 
 function renderMessageBody(body: string, events: Event[], profiles: Profile[]) { const names = profiles.map((profile) => profile.name).sort((a, b) => b.length - a.length).map(escapeRegExp); const pattern = new RegExp(`(\\[\\[[^\\]]+\\]\\]|\\[[^\\[\\]]+\\]${names.length ? `|@(?:${names.join("|")})` : ""})`, "gi"); return <p>{body.split(pattern).filter(Boolean).map((part, index) => { if (part.startsWith("[") && part.endsWith("]")) { const title = part.startsWith("[[") ? part.slice(2, -2) : part.slice(1, -1); const event = events.find((item) => item.title.toLocaleLowerCase("de") === title.trim().toLocaleLowerCase("de")); return event ? <Link className="chat-event-link" href={`/calendar?event=${encodeURIComponent(event.id)}`} key={`${part}-${index}`}><CalendarDays size={14} />{event.title}</Link> : part; } const profile = part.startsWith("@") ? profiles.find((item) => `@${item.name}`.toLocaleLowerCase("de") === part.toLocaleLowerCase("de")) : undefined; return profile ? <span className="chat-mention" key={`${part}-${index}`}>@{profile.name}</span> : part; })}</p>; }
-function renderAttachment(file: AttachmentFile, index: number, onPreview: (file: AttachmentFile) => void) { if (file.type.startsWith("image/")) return <button type="button" key={`${file.url}-${index}`} className="chat-image" aria-label={`${file.name} vergrößern`} onClick={(event) => { event.stopPropagation(); onPreview(file); }} onTouchEnd={(event) => { event.preventDefault(); event.stopPropagation(); onPreview(file); }}><img src={file.url} alt={file.name} /><span><ImageIcon size={14} />{file.name}</span></button>; if (file.type.startsWith("video/")) return <div className="chat-video" key={`${file.url}-${index}`}><video src={file.url} controls playsInline /><span><Film size={14} />{file.name}</span></div>; if (file.type.startsWith("audio/")) return <div className="chat-audio" key={`${file.url}-${index}`}><audio src={file.url} controls preload="metadata" /><span><Mic size={14} />Sprachnachricht</span></div>; return <a href={file.url} target="_blank" rel="noreferrer" download={file.name} key={`${file.url}-${index}`}><FileText size={16} />{file.name}</a>; }
+function ChatImageAttachment({ file, onPreview }: { file: AttachmentFile; onPreview: (file: AttachmentFile) => void }) {
+  const touchRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  return <button type="button" className="chat-image" aria-label={`${file.name} vergrößern`}
+    onTouchStart={(event) => { const touch = event.touches[0]; touchRef.current = { x: touch.clientX, y: touch.clientY, moved: false }; suppressClickRef.current = false; }}
+    onTouchMove={(event) => { const start = touchRef.current; const touch = event.touches[0]; if (start && touch && Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 8) { start.moved = true; suppressClickRef.current = true; } }}
+    onTouchEnd={(event) => { const start = touchRef.current; touchRef.current = null; if (!start || start.moved) return; event.preventDefault(); event.stopPropagation(); onPreview(file); }}
+    onClick={(event) => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } onPreview(file); }}>
+    <img src={file.url} alt={file.name} /><span><ImageIcon size={14} />{file.name}</span>
+  </button>;
+}
+function renderAttachment(file: AttachmentFile, index: number, onPreview: (file: AttachmentFile) => void) { if (file.type.startsWith("image/")) return <ChatImageAttachment key={`${file.url}-${index}`} file={file} onPreview={onPreview} />; if (file.type.startsWith("video/")) return <div className="chat-video" key={`${file.url}-${index}`}><video src={file.url} controls playsInline /><span><Film size={14} />{file.name}</span></div>; if (file.type.startsWith("audio/")) return <div className="chat-audio" key={`${file.url}-${index}`}><audio src={file.url} controls preload="metadata" /><span><Mic size={14} />Sprachnachricht</span></div>; return <a href={file.url} target="_blank" rel="noreferrer" download={file.name} key={`${file.url}-${index}`}><FileText size={16} />{file.name}</a>; }
 function eventReferenceQuery(value: string) { const match = value.match(/\[{1,2}([^\[\]\n]*)$/); return match ? match[1] : null; }
 function personMentionQuery(value: string) { const match = value.match(/(?:^|\s)@([^@\n]*)$/); return match ? match[1] : null; }
 function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }

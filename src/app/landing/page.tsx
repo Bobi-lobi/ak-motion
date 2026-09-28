@@ -23,8 +23,10 @@ export default function LandingEditorPage() {
   const [editingImpressionId, setEditingImpressionId] = useState<string | null>(null);
   const savedRange = useRef<Range | null>(null);
   const contentRef = useRef(content);
+  const draftDirtyRef = useRef(false);
 
   useEffect(() => {
+    if (draftDirtyRef.current) return;
     setContent(data.landingContent);
     contentRef.current = data.landingContent;
     setSelectedImpressionId((current) => current || data.landingContent.impressions[0]?.id || "");
@@ -54,6 +56,7 @@ export default function LandingEditorPage() {
     content.impressions.find((impression) => impression.id === editingImpressionId) ?? null;
 
   function patchContent(patch: Partial<LandingContent>) {
+    draftDirtyRef.current = true;
     setContent((current) => {
       const next = { ...current, ...patch };
       contentRef.current = next;
@@ -62,6 +65,7 @@ export default function LandingEditorPage() {
   }
 
   function updateImpression(id: string, patch: Partial<LandingImpression>) {
+    draftDirtyRef.current = true;
     setContent((current) => {
       const next = {
         ...current,
@@ -76,6 +80,7 @@ export default function LandingEditorPage() {
     if (!images.length) {
       return;
     }
+    draftDirtyRef.current = true;
     setContent((current) => {
       const next = {
         ...current,
@@ -97,7 +102,7 @@ export default function LandingEditorPage() {
           id,
           title: "Neue Veranstaltung",
           text: "Kurzer Eindruck der Veranstaltung.",
-          images: [content.eventImages[0] ?? ""]
+          images: []
         }
       ]
     });
@@ -247,6 +252,7 @@ export default function LandingEditorPage() {
           images: impression.images.map((item) => item.trim()).filter(Boolean)
         }))
       });
+      draftDirtyRef.current = false;
       refresh();
     } catch (error) {
       setSaveError(
@@ -611,7 +617,7 @@ export default function LandingEditorPage() {
           </section>
 
           {editingImpression ? (
-            <div className="page-modal-backdrop landing-editor-modal-backdrop" role="presentation" onClick={() => setEditingImpressionId(null)}>
+            <div className="page-modal-backdrop landing-editor-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setEditingImpressionId(null); }}>
               <section
                 className="impression-modal landing-editor-impression-modal"
                 role="dialog"
@@ -690,6 +696,8 @@ export default function LandingEditorPage() {
                     <Trash2 size={15} />
                     Eindruck entfernen
                   </button>
+                  {uploadingImages > 0 ? <p role="status">{uploadingImages} Bild{uploadingImages === 1 ? " wird" : "er werden"} hochgeladen…</p> : null}
+                  {saveError ? <p className="error-text" role="alert">{saveError}</p> : null}
                 </div>
               </section>
             </div>

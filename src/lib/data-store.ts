@@ -1870,6 +1870,12 @@ export async function clearDirectChatHistory(conversationId: string) {
   if (error) throw new Error(error.message);
 }
 
+export async function leaveChatConversation(conversationId: string) {
+  if (!supabase) throw new Error("Chats benötigen die Supabase-Verbindung.");
+  const { error } = await supabase.rpc("leave_chat_conversation", { conversation_uuid: conversationId });
+  if (error) throw new Error(error.message);
+}
+
 export async function sendChatMessage(authorId: string, conversationId: string, body: string, attachments: AttachmentFile[], replyToMessageId?: string) {
   if (!supabase) throw new Error("Der Teamchat benötigt die Supabase-Verbindung.");
   const { data: message, error } = await supabase.from("chat_messages").insert({
@@ -1935,14 +1941,23 @@ async function notifyChatDelivery(messageId: string) {
   return [pushWarning, emailWarning].filter(Boolean).join(" ");
 }
 
+async function postChatNotification(path: string, messageId: string) {
+  const send = (headers: Record<string, string>) => fetch(path, {
+    method: "POST", headers, body: JSON.stringify({ messageId }), keepalive: true
+  });
+  let response = await send(await authHeaders());
+  if (response.status === 401 && supabase) {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (!error && data.session?.access_token) {
+      response = await send({ Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" });
+    }
+  }
+  return response;
+}
+
 async function notifyChatSubscribers(messageId: string): Promise<string> {
   try {
-    const response = await fetch("/api/push/chat", {
-      method: "POST",
-      headers: await authHeaders(),
-      body: JSON.stringify({ messageId }),
-      keepalive: true
-    });
+    const response = await postChatNotification("/api/push/chat", messageId);
     const result = await response.json().catch(() => ({})) as { configured?: boolean; failed?: number; error?: string };
     if (!response.ok || result.configured === false || result.failed) {
       console.warn("Chat-Push konnte nicht vollständig zugestellt werden:", response.status, result);
@@ -1959,12 +1974,7 @@ async function notifyChatSubscribers(messageId: string): Promise<string> {
 
 async function notifyChatByEmail(messageId: string): Promise<string> {
   try {
-    const response = await fetch("/api/email/chat", {
-      method: "POST",
-      headers: { ...(await authHeaders()), "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId }),
-      keepalive: true
-    });
+    const response = await postChatNotification("/api/email/chat", messageId);
     const result = await response.json().catch(() => ({})) as { configured?: boolean; error?: string };
     if (!response.ok || result.configured === false) {
       console.warn("Chat-E-Mail konnte nicht ausgelöst werden:", response.status, result.error ?? "Versand nicht konfiguriert");
