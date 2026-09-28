@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ configured: true, sent: 0 });
     }
     const [{ data: preferences, error: preferencesError }, { data: profiles, error: profilesError }] = await Promise.all([
-      supabaseAdmin!.from("email_notification_preferences").select("profile_id").eq("chat_messages", true).in("profile_id", memberIds),
+      supabaseAdmin!.from("email_notification_preferences").select("profile_id").eq("enabled", true).eq("chat_messages", true).in("profile_id", memberIds),
       supabaseAdmin!.from("profiles").select("id, email").in("id", memberIds)
     ]);
     if (preferencesError) throw preferencesError;

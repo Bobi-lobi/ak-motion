@@ -30,6 +30,27 @@ export async function uploadAppMedia(file: File, scope: "chat" | "editor" | "pro
   return supabase.storage.from(APP_MEDIA_BUCKET).getPublicUrl(objectPath).data.publicUrl;
 }
 
+export async function prepareChatImage(file: File) {
+  // Animated GIFs and vector images must keep their original format.
+  if (!/^(image\/jpeg|image\/png|image\/webp|image\/heic|image\/heif)$/.test(file.type)) return file;
+  try {
+    const source = await loadImage(file);
+    const scale = Math.min(1, 1600 / Math.max(source.naturalWidth, source.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    const outputType = file.type === "image/png" || file.type === "image/webp" ? "image/webp" : "image/jpeg";
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, outputType, 0.82));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.${outputType === "image/webp" ? "webp" : "jpg"}`, { type: outputType, lastModified: Date.now() });
+  } catch {
+    return file;
+  }
+}
+
 async function prepareProfileImage(file: File) {
   const imageExtension = /\.(avif|gif|heic|heif|jpe?g|png|webp)$/i.test(file.name);
   if (!file.type.startsWith("image/") && !imageExtension) {

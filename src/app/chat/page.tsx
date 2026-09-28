@@ -15,7 +15,7 @@ import {
   loadChatReadReceipts, markChatRead, sendChatMessage, sendChatPoll, toggleChatMessagePin,
   toggleChatReaction, updateChatConversation, updateChatMessage, voteChatPoll
 } from "@/lib/data-store";
-import { uploadAppMedia } from "@/lib/media-storage";
+import { prepareChatImage, uploadAppMedia } from "@/lib/media-storage";
 import { supabase } from "@/lib/supabase";
 import type { AttachmentFile, ChatConversation, ChatMessage, ChatReadReceipt, Event, Profile } from "@/lib/types";
 
@@ -50,6 +50,8 @@ export default function ChatPage() {
   const [chatListOpen, setChatListOpen] = useState(false);
   const [composeMenuOpen, setComposeMenuOpen] = useState(false);
   const [swiping, setSwiping] = useState<{ id: string; offset: number } | null>(null);
+  const [typingIds, setTypingIds] = useState<string[]>([]);
+  const typingSentAtRef = useRef(0);
   const [error, setError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -90,6 +92,41 @@ export default function ChatPage() {
 
   useEffect(() => { void refreshConversations().catch(() => undefined); }, [refreshConversations]);
   useEffect(() => { setLoading(true); setMessages([]); setReplyingTo(null); void refreshMessages(); }, [refreshMessages]);
+
+  useEffect(() => {
+    if (!supabase || !sessionId || !activeId) return;
+    const client = supabase;
+    let disposed = false;
+    const refreshTyping = async () => {
+      const { data: rows } = await client.from("chat_typing_status").select("profile_id, updated_at")
+        .eq("conversation_id", activeId).gte("updated_at", new Date(Date.now() - 6000).toISOString());
+      if (!disposed) setTypingIds((rows ?? []).filter((row) => row.profile_id !== sessionId).map((row) => row.profile_id));
+    };
+    void refreshTyping();
+    const channel = client.channel(`ak-motion-typing-${activeId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_typing_status", filter: `conversation_id=eq.${activeId}` }, () => void refreshTyping())
+      .subscribe();
+    const timer = window.setInterval(() => void refreshTyping(), 4000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      void client.from("chat_typing_status").delete().eq("conversation_id", activeId).eq("profile_id", sessionId);
+      void client.removeChannel(channel);
+      setTypingIds([]);
+    };
+  }, [activeId, sessionId]);
+
+  function updateBody(value: string) {
+    setBody(value);
+    if (!supabase || !sessionId) return;
+    if (!value.trim()) {
+      void supabase.from("chat_typing_status").delete().eq("conversation_id", activeId).eq("profile_id", sessionId);
+      return;
+    }
+    if (Date.now() - typingSentAtRef.current < 2200) return;
+    typingSentAtRef.current = Date.now();
+    void supabase.from("chat_typing_status").upsert({ conversation_id: activeId, profile_id: sessionId, updated_at: new Date().toISOString() });
+  }
 
   useEffect(() => {
     if (!supabase) return;
@@ -153,7 +190,10 @@ export default function ChatPage() {
     const selectedFiles = Array.from(files); if (!selectedFiles.length) return;
     setSending(true); setError("");
     try {
-      const uploaded = await Promise.all(selectedFiles.map(async (file) => ({ name: file.name, type: file.type || "application/octet-stream", url: await uploadAppMedia(file, "chat") })));
+      const uploaded = await Promise.all(selectedFiles.map(async (file) => {
+        const prepared = await prepareChatImage(file);
+        return { name: prepared.name, type: prepared.type || "application/octet-stream", url: await uploadAppMedia(prepared, "chat") };
+      }));
       setAttachments((current) => [...current, ...uploaded]);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Datei konnte nicht hochgeladen werden."); }
     finally { setSending(false); }
@@ -163,6 +203,7 @@ export default function ChatPage() {
     if (!session || sending || (!body.trim() && !attachments.length)) return;
     const nextBody = body; const nextAttachments = attachments; const nextReply = replyingTo;
     setBody(""); setAttachments([]); setReplyingTo(null); setSending(true); setError("");
+    void supabase?.from("chat_typing_status").delete().eq("conversation_id", activeId).eq("profile_id", session.id);
     try { const warning = await sendChatMessage(session.id, activeId, nextBody, nextAttachments, nextReply?.id); await Promise.all([refreshMessages(), refreshConversations()]); if (warning) setError(`Nachricht gespeichert. ${warning}`); }
     catch (caught) { setBody(nextBody); setAttachments(nextAttachments); setReplyingTo(nextReply); setError(caught instanceof Error ? caught.message : "Nachricht konnte nicht gesendet werden."); }
     finally { setSending(false); }
@@ -204,7 +245,7 @@ export default function ChatPage() {
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Das Mikrofon konnte nicht geöffnet werden."); }
   }
 
-  function insertEventReference(event: Event) { const start = body.lastIndexOf("[["); if (start < 0) return; setBody(`${body.slice(0, start)}[[${event.title}]] `); window.requestAnimationFrame(() => textareaRef.current?.focus()); }
+  function insertEventReference(event: Event) { const match = body.match(/\[{1,2}([^\[\]\n]*)$/); if (!match) return; setBody(`${body.slice(0, -match[0].length)}[[${event.title}]] `); window.requestAnimationFrame(() => textareaRef.current?.focus()); }
   function insertMention(profile: Profile) { const match = body.match(/(?:^|\s)@([^@\n]*)$/); if (!match) return; const at = body.lastIndexOf("@"); setBody(`${body.slice(0, at)}@${profile.name} `); window.requestAnimationFrame(() => textareaRef.current?.focus()); }
   function selectConversation(id: string) { setActiveId(id); setChatListOpen(false); setDetailsOpen(false); }
   async function editMessage(message: ChatMessage) { setContextMenu(null); const next = window.prompt("Nachricht bearbeiten", message.body); if (next === null || !next.trim() || next.trim() === message.body) return; await updateChatMessage(message.id, next).then(refreshMessages).catch((caught) => setError(caught instanceof Error ? caught.message : "Nachricht konnte nicht bearbeitet werden.")); }
@@ -231,7 +272,7 @@ export default function ChatPage() {
           <nav>{conversations.map((conversation) => <button className={conversation.id === activeId ? "is-active" : ""} type="button" key={conversation.id} onClick={() => selectConversation(conversation.id)}><ChatAvatar conversation={conversation} profiles={profilesById} sessionId={session?.id} /><span><strong>{conversationTitle(conversation, profilesById, session?.id)}</strong><small>{conversation.lastMessage ? conversation.lastMessage.body || `${conversation.lastMessage.attachmentCount} Datei(en)` : conversation.description || "Noch keine Nachrichten"}</small></span>{conversation.unreadCount ? <b>{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</b> : null}</button>)}</nav>
         </aside>
         <section className={dragActive ? "team-chat is-dragging" : "team-chat"} aria-label={activeConversation?.name ?? "Chat"} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; setDragActive(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }} onDrop={(event) => { event.preventDefault(); setDragActive(false); void addFiles(event.dataTransfer.files); }}>
-          <header className="chat-topbar">{activeConversation ? <button className="chat-topbar-details" type="button" onClick={() => setDetailsOpen(true)}><ChatAvatar conversation={activeConversation} profiles={profilesById} sessionId={session?.id} /><span><strong>{conversationTitle(activeConversation, profilesById, session?.id)}</strong><small>{activeConversation.memberIds.length} Teilnehmer</small></span><ChevronRight size={17} /></button> : <LoaderCircle className="spin" size={20} />}<button className="chat-list-toggle" type="button" aria-label="Zwischen Chats wechseln" onClick={() => setChatListOpen(true)}><MessageCircle size={20} /><span>Chats</span></button></header>
+          <header className="chat-topbar">{activeConversation ? <button className="chat-topbar-details" type="button" onClick={() => setDetailsOpen(true)}><ChatAvatar conversation={activeConversation} profiles={profilesById} sessionId={session?.id} /><span><strong>{conversationTitle(activeConversation, profilesById, session?.id)}</strong><small>{typingIds.length ? `${typingIds.map((id) => profilesById.get(id)?.name ?? "Jemand").join(", ")} schreibt …` : `${activeConversation.memberIds.length} Teilnehmer`}</small></span><ChevronRight size={17} /></button> : <LoaderCircle className="spin" size={20} />}<button className="chat-list-toggle" type="button" aria-label="Zwischen Chats wechseln" onClick={() => setChatListOpen(true)}><MessageCircle size={20} /><span>Chats</span></button></header>
           {pinnedMessages.length ? <button className="chat-pinned-banner" type="button" onClick={() => document.getElementById(`chat-message-${pinnedMessages.at(-1)?.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}><Pin size={14} /><span><strong>Angepinnte Nachricht</strong><small>{pinnedMessages.at(-1)?.body || "Datei oder Umfrage"}</small></span></button> : null}
           <div className="chat-stream" onClick={() => { setOpenReaders(null); setContextMenu(null); }}>
             {loading ? <div className="chat-loading"><LoaderCircle className="spin" size={24} /> Chat wird geladen...</div> : null}
@@ -258,7 +299,7 @@ export default function ChatPage() {
             {replyingTo ? <div className="chat-compose-reply"><Reply size={15} /><span><strong>Antwort an {profilesById.get(replyingTo.authorId)?.name}</strong><small>{replyingTo.body || "Datei oder Umfrage"}</small></span><button type="button" aria-label="Antwort abbrechen" onClick={() => setReplyingTo(null)}><X size={16} /></button></div> : null}
             {attachments.length ? <div className="chat-upload-list">{attachments.map((file, index) => <span key={`${file.url}-${index}`}><Paperclip size={13} />{file.name}<button type="button" aria-label={`${file.name} entfernen`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={13} /></button></span>)}</div> : null}
             {recording ? <div className="chat-recording-status"><span /><strong>Aufnahme läuft</strong><time>{formatRecordingTime(recordingSeconds)}</time></div> : null}{error ? <p className="error-text">{error}</p> : null}
-            <div className="chat-compose-row"><textarea ref={textareaRef} value={body} onChange={(event) => setBody(event.target.value)} placeholder="Nachricht schreiben..." rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }} /><div className="chat-compose-tools"><div className="chat-add-control"><button className="icon-button chat-tool-button" type="button" aria-label="Dateien oder Abstimmung hinzufügen" aria-expanded={composeMenuOpen} onClick={() => setComposeMenuOpen((open) => !open)}><Plus size={19} /></button>{composeMenuOpen ? <div className="chat-add-menu"><label><Paperclip size={17} /><span>Datei oder Bild</span><input className="visually-hidden" type="file" multiple onChange={(event) => { if (event.currentTarget.files) void addFiles(event.currentTarget.files); event.currentTarget.value = ""; setComposeMenuOpen(false); }} /></label><button type="button" onClick={() => { setPollOpen(true); setComposeMenuOpen(false); }}><BarChart3 size={17} /><span>Abstimmung</span></button></div> : null}</div><label className="icon-button chat-tool-button" title="Foto aufnehmen"><Camera size={18} /><input className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={(event) => { if (event.currentTarget.files) void addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} /></label><button className={recording ? "icon-button chat-tool-button is-recording" : "icon-button chat-tool-button"} type="button" aria-label={recording ? "Aufnahme beenden" : "Sprachnachricht aufnehmen"} onClick={() => void toggleRecording()}>{recording ? <Square size={15} fill="currentColor" /> : <Mic size={18} />}</button><button className="icon-button primary chat-send-button" type="button" aria-label="Nachricht senden" disabled={sending || (!body.trim() && !attachments.length)} onClick={() => void submit()}>{sending ? <LoaderCircle className="spin" size={19} /> : <Send size={18} />}</button></div></div>
+            <div className="chat-compose-row"><textarea ref={textareaRef} value={body} onChange={(event) => updateBody(event.target.value)} placeholder="Nachricht schreiben..." rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }} /><div className="chat-compose-tools"><div className="chat-add-control"><button className="icon-button chat-tool-button" type="button" aria-label="Dateien oder Abstimmung hinzufügen" aria-expanded={composeMenuOpen} onClick={() => setComposeMenuOpen((open) => !open)}><Plus size={19} /></button>{composeMenuOpen ? <div className="chat-add-menu"><label><Paperclip size={17} /><span>Datei oder Bild</span><input className="visually-hidden" type="file" multiple onChange={(event) => { if (event.currentTarget.files) void addFiles(event.currentTarget.files); event.currentTarget.value = ""; setComposeMenuOpen(false); }} /></label><button type="button" onClick={() => { setPollOpen(true); setComposeMenuOpen(false); }}><BarChart3 size={17} /><span>Abstimmung</span></button></div> : null}</div><label className="icon-button chat-tool-button" title="Foto aufnehmen"><Camera size={18} /><input className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={(event) => { if (event.currentTarget.files) void addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} /></label><button className={recording ? "icon-button chat-tool-button is-recording" : "icon-button chat-tool-button"} type="button" aria-label={recording ? "Aufnahme beenden" : "Sprachnachricht aufnehmen"} onClick={() => void toggleRecording()}>{recording ? <Square size={15} fill="currentColor" /> : <Mic size={18} />}</button><button className="icon-button primary chat-send-button" type="button" aria-label="Nachricht senden" disabled={sending || (!body.trim() && !attachments.length)} onClick={() => void submit()}>{sending ? <LoaderCircle className="spin" size={19} /> : <Send size={18} />}</button></div></div>
             {referenceQuery !== null && eventSuggestions.length ? <SuggestionList title="Veranstaltung verlinken">{eventSuggestions.map((event) => <button type="button" key={event.id} onClick={() => insertEventReference(event)}><CalendarDays size={15} /><span><strong>{event.title}</strong><small>{formatEventDate(event.startsAt)}</small></span></button>)}</SuggestionList> : null}
             {mentionQuery !== null && mentionSuggestions.length ? <SuggestionList title="Person erwähnen">{mentionSuggestions.map((profile) => <button type="button" key={profile.id} onClick={() => insertMention(profile)}><ProfileAvatar profile={profile} /><span><strong>{profile.name}</strong><small>@{profile.name}</small></span></button>)}</SuggestionList> : null}
           </div>{dragActive ? <div className="chat-drop-overlay"><Paperclip size={32} /><strong>Dateien hier ablegen</strong></div> : null}
@@ -304,9 +345,9 @@ function ChatAvatar({ conversation, profiles, sessionId }: { conversation: ChatC
 function ProfileAvatar({ profile }: { profile: Profile }) { return <span className="chat-profile-avatar">{profile.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : initials(profile.name)}</span>; }
 function conversationTitle(conversation: ChatConversation, profiles: Map<string, Profile>, sessionId?: string) { if (conversation.kind !== "direct") return conversation.name; return profiles.get(conversation.memberIds.find((id) => id !== sessionId) ?? "")?.name ?? conversation.name; }
 
-function renderMessageBody(body: string, events: Event[], profiles: Profile[]) { const names = profiles.map((profile) => profile.name).sort((a, b) => b.length - a.length).map(escapeRegExp); const pattern = new RegExp(`(\\[\\[[^\\]]+\\]\\]${names.length ? `|@(?:${names.join("|")})` : ""})`, "gi"); return <p>{body.split(pattern).filter(Boolean).map((part, index) => { if (part.startsWith("[[") && part.endsWith("]]")) { const title = part.slice(2, -2); const event = events.find((item) => item.title.toLocaleLowerCase("de") === title.trim().toLocaleLowerCase("de")); return event ? <Link className="chat-event-link" href={`/calendar?event=${encodeURIComponent(event.id)}`} key={`${part}-${index}`}><CalendarDays size={14} />{event.title}</Link> : part; } const profile = part.startsWith("@") ? profiles.find((item) => `@${item.name}`.toLocaleLowerCase("de") === part.toLocaleLowerCase("de")) : undefined; return profile ? <span className="chat-mention" key={`${part}-${index}`}>@{profile.name}</span> : part; })}</p>; }
-function renderAttachment(file: AttachmentFile, index: number, onPreview: (file: AttachmentFile) => void) { if (file.type.startsWith("image/")) return <button type="button" key={`${file.url}-${index}`} className="chat-image" aria-label={`${file.name} vergrößern`} onClick={() => onPreview(file)}><img src={file.url} alt={file.name} /><span><ImageIcon size={14} />{file.name}</span></button>; if (file.type.startsWith("video/")) return <div className="chat-video" key={`${file.url}-${index}`}><video src={file.url} controls playsInline /><span><Film size={14} />{file.name}</span></div>; if (file.type.startsWith("audio/")) return <div className="chat-audio" key={`${file.url}-${index}`}><audio src={file.url} controls preload="metadata" /><span><Mic size={14} />Sprachnachricht</span></div>; return <a href={file.url} target="_blank" rel="noreferrer" download={file.name} key={`${file.url}-${index}`}><FileText size={16} />{file.name}</a>; }
-function eventReferenceQuery(value: string) { const start = value.lastIndexOf("[["); return start < 0 || value.slice(start + 2).includes("]]" ) ? null : value.slice(start + 2); }
+function renderMessageBody(body: string, events: Event[], profiles: Profile[]) { const names = profiles.map((profile) => profile.name).sort((a, b) => b.length - a.length).map(escapeRegExp); const pattern = new RegExp(`(\\[\\[[^\\]]+\\]\\]|\\[[^\\[\\]]+\\]${names.length ? `|@(?:${names.join("|")})` : ""})`, "gi"); return <p>{body.split(pattern).filter(Boolean).map((part, index) => { if (part.startsWith("[") && part.endsWith("]")) { const title = part.startsWith("[[") ? part.slice(2, -2) : part.slice(1, -1); const event = events.find((item) => item.title.toLocaleLowerCase("de") === title.trim().toLocaleLowerCase("de")); return event ? <Link className="chat-event-link" href={`/calendar?event=${encodeURIComponent(event.id)}`} key={`${part}-${index}`}><CalendarDays size={14} />{event.title}</Link> : part; } const profile = part.startsWith("@") ? profiles.find((item) => `@${item.name}`.toLocaleLowerCase("de") === part.toLocaleLowerCase("de")) : undefined; return profile ? <span className="chat-mention" key={`${part}-${index}`}>@{profile.name}</span> : part; })}</p>; }
+function renderAttachment(file: AttachmentFile, index: number, onPreview: (file: AttachmentFile) => void) { if (file.type.startsWith("image/")) return <button type="button" key={`${file.url}-${index}`} className="chat-image" aria-label={`${file.name} vergrößern`} onClick={(event) => { event.stopPropagation(); onPreview(file); }} onTouchEnd={(event) => { event.preventDefault(); event.stopPropagation(); onPreview(file); }}><img src={file.url} alt={file.name} /><span><ImageIcon size={14} />{file.name}</span></button>; if (file.type.startsWith("video/")) return <div className="chat-video" key={`${file.url}-${index}`}><video src={file.url} controls playsInline /><span><Film size={14} />{file.name}</span></div>; if (file.type.startsWith("audio/")) return <div className="chat-audio" key={`${file.url}-${index}`}><audio src={file.url} controls preload="metadata" /><span><Mic size={14} />Sprachnachricht</span></div>; return <a href={file.url} target="_blank" rel="noreferrer" download={file.name} key={`${file.url}-${index}`}><FileText size={16} />{file.name}</a>; }
+function eventReferenceQuery(value: string) { const match = value.match(/\[{1,2}([^\[\]\n]*)$/); return match ? match[1] : null; }
 function personMentionQuery(value: string) { const match = value.match(/(?:^|\s)@([^@\n]*)$/); return match ? match[1] : null; }
 function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function isEmojiOnly(value: string) { const trimmed = value.trim(); return Boolean(trimmed) && trimmed.length <= 32 && /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|\uFE0F|\u200D|\s)+$/u.test(trimmed); }

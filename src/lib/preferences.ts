@@ -1,5 +1,7 @@
 export type AppPreferences = {
   browserNotifications: boolean;
+  emailNotifications: boolean;
+  notifyNewEvents: boolean;
   emailChatMessages: boolean;
   emailAssignments: boolean;
   emailUnstaffed: boolean;
@@ -21,6 +23,8 @@ export type AppPreferences = {
 
 export const defaultPreferences: AppPreferences = {
   browserNotifications: false,
+  emailNotifications: false,
+  notifyNewEvents: true,
   emailChatMessages: false,
   emailAssignments: false,
   emailUnstaffed: false,

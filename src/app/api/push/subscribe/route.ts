@@ -4,6 +4,8 @@ import { requireUserFromRequest, supabaseAdmin } from "@/lib/supabase-admin";
 type SubscriptionBody = {
   endpoint?: string;
   keys?: { auth?: string; p256dh?: string };
+  chatMessagesEnabled?: boolean;
+  newEventsEnabled?: boolean;
 };
 
 export async function GET(request: Request) {
@@ -34,6 +36,8 @@ export async function POST(request: Request) {
       endpoint: body.endpoint,
       p256dh: body.keys.p256dh,
       auth: body.keys.auth,
+      chat_messages_enabled: body.chatMessagesEnabled === true,
+      new_events_enabled: body.newEventsEnabled === true,
       updated_at: new Date().toISOString()
     }, { onConflict: "endpoint" });
     if (error) throw error;

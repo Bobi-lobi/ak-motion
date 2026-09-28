@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     if (memberError) throw memberError;
     const memberIds = (members ?? []).map((member) => member.profile_id);
     const { data: subscriptions, error: subscriptionError } = memberIds.length
-      ? await supabaseAdmin!.from("push_subscriptions").select("id, endpoint, p256dh, auth").in("profile_id", memberIds)
+      ? await supabaseAdmin!.from("push_subscriptions").select("id, endpoint, p256dh, auth").eq("chat_messages_enabled", true).in("profile_id", memberIds)
       : { data: [], error: null };
     if (subscriptionError) throw subscriptionError;
     if (!subscriptions?.length && memberIds.length) console.info("Chat-Push: keine registrierten Empfängergeräte", { messageId, members: memberIds.length });

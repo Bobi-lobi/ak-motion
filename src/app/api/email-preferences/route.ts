@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { requireUserFromRequest, supabaseAdmin } from "@/lib/supabase-admin";
 
 const emailFields = {
-  emailChatMessages: "chat_messages",
-  emailAssignments: "assignments",
-  emailUnstaffed: "unstaffed",
-  emailAchievements: "achievements",
-  emailAdminUpdates: "admin_updates",
-  emailAnnouncements: "announcements"
+  notifyChatMessages: "chat_messages",
+  notifyAssignments: "assignments",
+  notifyUnstaffed: "unstaffed",
+  notifyAchievements: "achievements",
+  notifyAdminUpdates: "admin_updates",
+  notifyNewEvents: "new_events"
 } as const;
 
 function emailPreferenceError(error: unknown, action: string) {
@@ -41,10 +41,10 @@ function emailPreferenceError(error: unknown, action: string) {
 export async function GET(request: Request) {
   try {
     const user = await requireUserFromRequest(request);
-    const { data, error } = await supabaseAdmin!.from("email_notification_preferences").select(Object.values(emailFields).join(",")).eq("profile_id", user.id).maybeSingle();
+    const { data, error } = await supabaseAdmin!.from("email_notification_preferences").select(["enabled", "shared_topics_initialized", ...Object.values(emailFields)].join(",")).eq("profile_id", user.id).maybeSingle();
     if (error) throw error;
-    const values = Object.fromEntries(Object.entries(emailFields).map(([key, column]) => [key, key === "emailAnnouncements" ? true : (data as Record<string, boolean> | null)?.[column] ?? false]));
-    return NextResponse.json({ ...values, configured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_FROM_EMAIL) });
+    const values = Object.fromEntries(Object.entries(emailFields).map(([key, column]) => [key, (data as Record<string, boolean> | null)?.[column]]));
+    return NextResponse.json({ ...values, emailNotifications: (data as Record<string, boolean> | null)?.enabled ?? false, hasPreferences: Boolean((data as Record<string, boolean> | null)?.shared_topics_initialized), configured: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_FROM_EMAIL) });
   } catch (error) {
     return emailPreferenceError(error, "geladen");
   }
@@ -54,13 +54,14 @@ export async function POST(request: Request) {
   try {
     const user = await requireUserFromRequest(request);
     const body = await request.json() as Record<string, unknown>;
-    const entries = Object.entries(emailFields).filter(([key]) => key in body);
-    if (entries.length !== 1 || typeof body[entries[0][0]] !== "boolean") return NextResponse.json({ error: "Ungültige Auswahl." }, { status: 400 });
-    const [key, column] = entries[0];
-    if (key === "emailAnnouncements") return NextResponse.json({ error: "Mitteilungen der Teamleitung sind immer aktiv." }, { status: 400 });
-    const { error } = await supabaseAdmin!.from("email_notification_preferences").upsert({ profile_id: user.id, [column]: body[key], updated_at: new Date().toISOString() }, { onConflict: "profile_id" });
+    const allowed = new Set<string>(["emailNotifications", ...Object.keys(emailFields)]);
+    if (!Object.keys(body).length || Object.entries(body).some(([key, value]) => !allowed.has(key) || typeof value !== "boolean")) return NextResponse.json({ error: "Ungültige Auswahl." }, { status: 400 });
+    const values = Object.fromEntries(Object.entries(emailFields).filter(([key]) => key in body).map(([key, column]) => [column, body[key]]));
+    if (Object.keys(values).length) values.shared_topics_initialized = true;
+    if ("emailNotifications" in body) values.enabled = body.emailNotifications;
+    const { error } = await supabaseAdmin!.from("email_notification_preferences").upsert({ profile_id: user.id, ...values, updated_at: new Date().toISOString() }, { onConflict: "profile_id" });
     if (error) throw error;
-    return NextResponse.json({ [key]: body[key] });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return emailPreferenceError(error, "gespeichert");
   }

@@ -3,6 +3,8 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { AppData, SessionUser } from "@/lib/types";
 
 type EmailChoice = {
+  enabled: boolean;
+  new_events: boolean;
   assignments: boolean;
   unstaffed: boolean;
   achievements: boolean;
@@ -18,10 +20,12 @@ function must<T>(result: { data: T; error: { message: string } | null }, name: s
 }
 
 function selected(notification: AppNotification, choice: EmailChoice) {
+  if (!choice.enabled) return false;
+  if (notification.kind === "event") return choice.new_events;
   if (notification.kind === "assignment") return choice.assignments;
   if (notification.kind === "attention") return choice.unstaffed;
   if (notification.kind === "achievement") return choice.achievements;
-  if (notification.kind === "announcement") return true;
+  if (notification.kind === "announcement") return choice.announcements;
   if (notification.kind === "admin") return choice.admin_updates;
   return false;
 }
@@ -34,8 +38,8 @@ export async function dispatchNonChatEmails(origin: string) {
 
   const [profilesResult, preferencesResult, eventsResult, assignmentsResult, announcementsResult, requestsResult, registrationsResult, suggestionsResult] = await Promise.all([
     supabaseAdmin.from("profiles").select("id, name, email, role"),
-    supabaseAdmin.from("email_notification_preferences").select("profile_id, assignments, unstaffed, achievements, admin_updates, announcements"),
-    supabaseAdmin.from("events").select("id, title, starts_at, ends_at, event_type, status"),
+    supabaseAdmin.from("email_notification_preferences").select("profile_id, enabled, new_events, assignments, unstaffed, achievements, admin_updates, announcements"),
+    supabaseAdmin.from("events").select("id, title, starts_at, ends_at, event_type, status, created_at"),
     supabaseAdmin.from("event_assignments").select("id, event_id, profile_id, role, created_at"),
     supabaseAdmin.from("announcements").select("id, title, body, created_at, expires_at"),
     supabaseAdmin.from("event_requests").select("id, title, contact_name, status, created_at"),
@@ -54,7 +58,7 @@ export async function dispatchNonChatEmails(origin: string) {
 
   const data = {
     announcements: announcements.map((row) => ({ id: row.id, title: row.title, body: row.body, expiresAt: row.expires_at, createdAt: row.created_at })),
-    events: events.map((row) => ({ id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at, eventType: row.event_type, status: row.status })),
+    events: events.map((row) => ({ id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at, eventType: row.event_type, status: row.status, createdAt: row.created_at })),
     assignments: assignments.map((row) => ({ id: row.id, eventId: row.event_id, profileId: row.profile_id, role: row.role, createdAt: row.created_at })),
     requests: requests.map((row) => ({ id: row.id, title: row.title, contactName: row.contact_name, status: row.status, createdAt: row.created_at })),
     registrationRequests: registrations.map((row) => ({ id: row.id, name: row.name, status: row.status, createdAt: row.created_at })),
@@ -77,12 +81,13 @@ export async function dispatchNonChatEmails(origin: string) {
 
   for (const profile of profiles) {
     if (!profile.email) continue;
-    const choice = preferenceById.get(profile.id) ?? { assignments: false, unstaffed: false, achievements: false, admin_updates: false, announcements: true };
+    const choice = preferenceById.get(profile.id) ?? { enabled: false, new_events: false, assignments: false, unstaffed: false, achievements: false, admin_updates: false, announcements: true };
     const user = { id: profile.id, email: profile.email, name: profile.name, role: profile.role } as SessionUser;
     const notifications = buildNotifications(data, user).filter((item) => selected(item, choice));
     for (const notification of notifications) {
       const [category, id] = notification.id.split(":", 2);
-      const createdAt = category === "announcement" ? announcementDate.get(id)
+      const createdAt = category === "event" ? new Date(eventById.get(id)?.created_at ?? 0).getTime()
+        : category === "announcement" ? announcementDate.get(id)
         : category === "request" ? requestDate.get(id)
         : category === "registration" ? registrationDate.get(id)
         : category === "rules-suggestion" ? suggestionDate.get(id) : undefined;
@@ -123,7 +128,7 @@ export async function dispatchNonChatEmails(origin: string) {
           body: JSON.stringify({
             sender: { email: from, name: process.env.BREVO_FROM_NAME || "AK-Motion" },
             to: [{ email: profile.email }],
-            subject: `Neuer Hinweis in AK-Motion: ${notification.kind === "announcement" ? "Teamleitung" : notification.kind === "assignment" ? "Einteilung oder Erinnerung" : notification.kind === "attention" ? "Besetzung" : notification.kind === "achievement" ? "Erfolg" : "Anfrage"}`,
+            subject: `Neuer Hinweis in AK-Motion: ${notification.kind === "announcement" ? "Teamleitung" : notification.kind === "event" ? "Veranstaltung" : notification.kind === "assignment" ? "Einteilung oder Erinnerung" : notification.kind === "attention" ? "Besetzung" : notification.kind === "achievement" ? "Erfolg" : "Anfrage"}`,
             textContent: `In AK-Motion gibt es einen neuen Hinweis für dich.\n\nÖffne die App, um ihn zu lesen: ${origin}${notification.href}`
           })
         });

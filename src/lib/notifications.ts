@@ -4,7 +4,7 @@ export type AppNotification = {
   body: string;
   href: string;
   id: string;
-  kind: "achievement" | "admin" | "announcement" | "assignment" | "attention" | "chat";
+  kind: "achievement" | "admin" | "announcement" | "assignment" | "attention" | "chat" | "event";
   title: string;
 };
 
@@ -26,6 +26,15 @@ export function buildNotifications(data: AppData, session: SessionUser | null) {
   const assignedEventIds = new Set(
     data.assignments.filter((assignment) => assignment.profileId === session.id).map((assignment) => assignment.eventId)
   );
+
+  data.events.filter((event) => event.createdAt && new Date(event.createdAt).getTime() >= new Date("2026-09-28T00:00:00Z").getTime())
+    .forEach((event) => notifications.push({
+      body: `${formatEventDate(event.startsAt)} · Eine neue Veranstaltung wurde eingetragen.`,
+      href: `/calendar?event=${encodeURIComponent(event.id)}`,
+      id: `event:${event.id}`,
+      kind: "event",
+      title: event.title
+    }));
 
   data.events
     .filter((event) => assignedEventIds.has(event.id) && new Date(event.endsAt).getTime() >= now)

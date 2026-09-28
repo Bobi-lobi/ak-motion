@@ -1232,6 +1232,14 @@ export async function createEvent(input: Omit<CalendarEvent, "id" | "createdAt">
       throw new Error(error?.message ?? "Veranstaltung konnte nicht erstellt werden.");
     }
     void broadcastRemoteDataChange("event-created");
+    void (async () => {
+      const response = await fetch("/api/push/event", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ eventId: data.id })
+      });
+      if (!response.ok) console.warn("Veranstaltungs-Hinweis fehlgeschlagen:", response.status);
+    })().catch((error) => console.warn("Veranstaltungs-Hinweis konnte nicht gestartet werden:", error));
     return {
       id: data.id,
       title: data.title,

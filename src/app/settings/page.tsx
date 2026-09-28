@@ -82,24 +82,37 @@ export default function SettingsPage() {
         return;
       }
       const response = await fetch("/api/email-preferences", { headers: { Authorization: `Bearer ${token}` } });
-      const result = await response.json().catch(() => ({})) as Partial<AppPreferences> & { configured?: boolean; error?: string };
+      const result = await response.json().catch(() => ({})) as Partial<AppPreferences> & { configured?: boolean; hasPreferences?: boolean; error?: string };
       if (!response.ok) {
         setEmailPreferenceError(result.error ?? "Die E-Mail-Einstellung konnte nicht geladen werden.");
         return;
       }
       setEmailPreferenceError("");
       if (typeof result.configured === "boolean") setEmailConfigured(result.configured);
-      setPreferences((current) => ({
-        ...current,
-        ...Object.fromEntries((["emailChatMessages", "emailAssignments", "emailUnstaffed", "emailAchievements", "emailAdminUpdates", "emailAnnouncements"] as const)
-          .filter((key) => typeof result[key] === "boolean").map((key) => [key, result[key]]))
-      }));
+      if (!result.hasPreferences) {
+        const local = loadPreferences();
+        void updateEmailPreference({
+          notifyAssignments: local.notifyAssignments,
+          notifyChatMessages: local.notifyChatMessages,
+          notifyNewEvents: local.notifyNewEvents,
+          notifyUnstaffed: local.notifyUnstaffed,
+          notifyAchievements: local.notifyAchievements,
+          notifyAdminUpdates: local.notifyAdminUpdates
+        });
+      }
+      setPreferences((current) => {
+        const keys = ["notifyChatMessages", "notifyAssignments", "notifyUnstaffed", "notifyAchievements", "notifyAdminUpdates", "notifyNewEvents"] as const;
+        const next = { ...current, emailNotifications: result.emailNotifications ?? false,
+          ...(result.hasPreferences ? Object.fromEntries(keys.filter((key) => typeof result[key] === "boolean").map((key) => [key, result[key]])) : {}) };
+        savePreferences(next);
+        return next;
+      });
     } catch {
       setEmailPreferenceError("Die E-Mail-Einstellung konnte nicht geladen werden. Bitte prüfe die Verbindung.");
     }
   }
 
-  async function updateEmailPreference(key: "emailChatMessages" | "emailAssignments" | "emailUnstaffed" | "emailAchievements" | "emailAdminUpdates" | "emailAnnouncements", enabled: boolean) {
+  async function updateEmailPreference(values: Partial<AppPreferences>) {
     if (!hasSupabaseConfig) {
       setEmailPreferenceError("E-Mail-Hinweise stehen im Demo-Modus nicht zur Verfügung.");
       return;
@@ -110,14 +123,13 @@ export default function SettingsPage() {
         setEmailPreferenceError("Deine Supabase-Anmeldung ist auf diesem Gerät abgelaufen. Bitte melde dich in Motion einmal ab und erneut an.");
         return;
       }
-      const response = await fetch("/api/email-preferences", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ [key]: enabled }) });
+      const response = await fetch("/api/email-preferences", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(values) });
       if (!response.ok) {
         const result = await response.json().catch(() => ({})) as { error?: string };
         setEmailPreferenceError(result.error ?? "E-Mail-Auswahl konnte nicht gespeichert werden.");
         return;
       }
       setEmailPreferenceError("");
-      setPreferences((current) => ({ ...current, [key]: enabled }));
     } catch {
       setEmailPreferenceError("E-Mail-Auswahl konnte nicht gespeichert werden. Bitte prüfe die Verbindung.");
     }
@@ -127,6 +139,9 @@ export default function SettingsPage() {
     const next = { ...preferences, [key]: value };
     setPreferences(next);
     savePreferences(next);
+    if (["notifyAssignments", "notifyChatMessages", "notifyNewEvents", "notifyUnstaffed", "notifyAchievements", "notifyAdminUpdates"].includes(key)) {
+      void updateEmailPreference({ [key]: value });
+    }
   }
 
   async function enableBrowserNotifications() {
@@ -230,11 +245,12 @@ export default function SettingsPage() {
           <section className="settings-section">
             <header className="settings-section-head">
               <BellRing size={22} />
-              <div><h2>Gerätehinweise</h2><p>Wähle aus, welche Hinweise auf diesem Gerät erscheinen dürfen.</p></div>
+              <div><h2>Benachrichtigungen</h2><p>Wähle einmal aus, worüber du informiert werden möchtest. Darunter aktivierst du Gerät und E-Mail unabhängig voneinander.</p></div>
             </header>
             <div className="settings-options">
               <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Wenn du eingeteilt wirst oder ein Einsatz bald beginnt." checked={preferences.notifyAssignments} onChange={(checked) => updatePreference("notifyAssignments", checked)} />
               <SettingToggle label="Neue Chatnachrichten" description="Zeigt neue Nachrichten aus deinen Gruppen- und Einzelchats als Gerätehinweis an." checked={preferences.notifyChatMessages} onChange={(checked) => updatePreference("notifyChatMessages", checked)} />
+              <SettingToggle label="Neue Veranstaltungen" description="Wenn eine Veranstaltung neu im Kalender eingetragen wird." checked={preferences.notifyNewEvents} onChange={(checked) => updatePreference("notifyNewEvents", checked)} />
               {preferences.browserNotifications && preferences.notifyChatMessages && pushStatus?.configured === false ? <p className="settings-inline-note">Web-Push ist auf dem Server noch nicht eingerichtet (VAPID-Schlüssel fehlen). Hinweise funktionieren dann nur, solange die App aktiv ist.</p> : null}
               {preferences.browserNotifications && preferences.notifyChatMessages && pushStatus?.configured && pushStatus.subscriptions === 0 ? <p className="settings-inline-note">Dieses Konto hat noch kein registriertes Push-Gerät. Öffne Motion auf dem gewünschten Gerät und erlaube dort Benachrichtigungen. Auf iPhone/iPad muss Motion als Home-Bildschirm-App geöffnet werden.</p> : null}
               <SettingToggle label="Fehlende Besetzung" description="Hinweis auf baldige Veranstaltungen, für die noch Leute fehlen." checked={preferences.notifyUnstaffed} onChange={(checked) => updatePreference("notifyUnstaffed", checked)} />
@@ -256,24 +272,25 @@ export default function SettingsPage() {
                 <BellRing size={16} /> {preferences.browserNotifications ? "Deaktivieren" : "Aktivieren"}
               </button>
             </div>
-          </section>
-
-          <section className="settings-section">
-            <header className="settings-section-head">
-              <Mail size={22} />
-              <div><h2>Hinweise per E-Mail</h2><p>Wähle aus, welche Benachrichtigungen zusätzlich an deine hinterlegte E-Mail-Adresse gesendet werden.</p></div>
-            </header>
-            <div className="settings-options">
-              <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Neue Einteilung und Erinnerung an einen bevorstehenden Einsatz." checked={preferences.emailAssignments} onChange={(checked) => void updateEmailPreference("emailAssignments", checked)} />
-              <SettingToggle label="Neue Chatnachrichten" description="Eine neutrale E-Mail ohne Chatinhalt für neue Nachrichten in deinen Chats." checked={preferences.emailChatMessages} onChange={(checked) => void updateEmailPreference("emailChatMessages", checked)} />
-              <SettingToggle label="Fehlende Besetzung" description="Hinweise für Admins auf baldige Veranstaltungen ohne vollständige Einteilung." checked={preferences.emailUnstaffed} onChange={(checked) => void updateEmailPreference("emailUnstaffed", checked)} />
-              <SettingToggle label="Erfolge" description="Neue Meilensteine im Levelsystem." checked={preferences.emailAchievements} onChange={(checked) => void updateEmailPreference("emailAchievements", checked)} />
-              <div className="setting-toggle setting-fixed"><span><strong>Mitteilungen der Teamleitung</strong><span>Verpflichtende Nachrichten der Teamleitung.</span></span><span className="setting-required"><LockKeyhole size={14} /> Immer aktiv</span></div>
-              <SettingToggle label="Neue Anfragen und Vorschläge" description="Neue Formulare, Bewerbungen und Regelvorschläge für Admins." checked={preferences.emailAdminUpdates} onChange={(checked) => void updateEmailPreference("emailAdminUpdates", checked)} />
-              {emailConfigured === false ? <p className="settings-inline-note">E-Mail-Versand ist noch nicht konfiguriert. Die Auswahl wird gespeichert, aber noch nicht zugestellt.</p> : null}
-              {emailPreferenceError ? <p className="error-text">{emailPreferenceError}</p> : null}
-              <p className="settings-inline-note">Chat-E-Mails werden direkt ausgelöst. Andere E-Mails werden durch den Server-Job gesammelt; Erinnerungen können daher verzögert eintreffen.</p>
+            <div className="settings-action-row">
+              <div><strong>Hinweise per E-Mail</strong><span>Alle oben ausgewählten Themen an deine hinterlegte E-Mail-Adresse senden.</span></div>
+              <button className={preferences.emailNotifications ? "button danger" : "button primary"} type="button" onClick={() => {
+                const enabled = !preferences.emailNotifications;
+                updatePreference("emailNotifications", enabled);
+                void updateEmailPreference({
+                  emailNotifications: enabled,
+                  notifyAssignments: preferences.notifyAssignments,
+                  notifyChatMessages: preferences.notifyChatMessages,
+                  notifyNewEvents: preferences.notifyNewEvents,
+                  notifyUnstaffed: preferences.notifyUnstaffed,
+                  notifyAchievements: preferences.notifyAchievements,
+                  notifyAdminUpdates: preferences.notifyAdminUpdates
+                });
+              }}><Mail size={16} /> {preferences.emailNotifications ? "Deaktivieren" : "Aktivieren"}</button>
             </div>
+            {emailConfigured === false ? <p className="settings-inline-note">E-Mail-Versand ist noch nicht konfiguriert. Die Auswahl wird gespeichert, aber noch nicht zugestellt.</p> : null}
+            {emailPreferenceError ? <p className="error-text">{emailPreferenceError}</p> : null}
+            <p className="settings-inline-note">Chat-E-Mails werden direkt ausgelöst. Andere Hinweise werden durch den Server-Job gesammelt und können verzögert eintreffen.</p>
           </section>
 
           <section className="settings-section">

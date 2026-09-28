@@ -58,7 +58,7 @@ export function NotificationDispatcher() {
       try {
         const registration = await navigator.serviceWorker.register("/sw.js");
         const existing = await registration.pushManager.getSubscription();
-        if (!preferences.browserNotifications || !preferences.notifyChatMessages || Notification.permission !== "granted") {
+        if (!preferences.browserNotifications || !(preferences.notifyChatMessages || preferences.notifyNewEvents) || Notification.permission !== "granted") {
           if (existing) {
             await updatePushSubscription("DELETE", existing);
             await existing.unsubscribe();
@@ -77,7 +77,7 @@ export function NotificationDispatcher() {
           userVisibleOnly: true,
           applicationServerKey
         });
-        if (!cancelled) await updatePushSubscription("POST", subscription);
+        if (!cancelled) await updatePushSubscription("POST", subscription, preferences);
       } catch (error) {
         console.warn("Push-Anmeldung fehlgeschlagen:", error);
       } finally {
@@ -99,7 +99,7 @@ export function NotificationDispatcher() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [preferences.browserNotifications, preferences.notifyChatMessages, sessionId]);
+  }, [preferences.browserNotifications, preferences.notifyChatMessages, preferences.notifyNewEvents, sessionId]);
 
   useEffect(() => {
     if (!sessionId || !supabase) return;
@@ -128,7 +128,7 @@ export function NotificationDispatcher() {
   return null;
 }
 
-async function updatePushSubscription(method: "DELETE" | "POST", subscription: PushSubscription) {
+async function updatePushSubscription(method: "DELETE" | "POST", subscription: PushSubscription, preferences?: AppPreferences) {
   if (!supabase) return;
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token ?? (await supabase.auth.refreshSession()).data.session?.access_token;
@@ -137,7 +137,7 @@ async function updatePushSubscription(method: "DELETE" | "POST", subscription: P
   const response = await fetch("/api/push/subscribe", {
     method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(method === "DELETE" ? { endpoint: subscription.endpoint } : value)
+    body: JSON.stringify(method === "DELETE" ? { endpoint: subscription.endpoint } : { ...value, chatMessagesEnabled: preferences?.notifyChatMessages ?? false, newEventsEnabled: preferences?.notifyNewEvents ?? false })
   });
   if (!response.ok) throw new Error(`Push-Anmeldung wurde mit HTTP ${response.status} abgelehnt.`);
 }
@@ -170,6 +170,7 @@ function notificationEnabled(notification: AppNotification, preferences: AppPref
   if (notification.kind === "achievement") return preferences.notifyAchievements;
   if (notification.kind === "announcement") return true;
   if (notification.kind === "chat") return preferences.notifyChatMessages;
+  if (notification.kind === "event") return preferences.notifyNewEvents;
   return preferences.notifyAdminUpdates;
 }
 
