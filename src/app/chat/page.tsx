@@ -108,15 +108,25 @@ export default function ChatPage() {
     if (stream) setShowJumpToLatest(stream.scrollHeight - stream.scrollTop - stream.clientHeight > 90);
   }
 
+  function publishTyping(conversationId: string, isTyping: boolean) {
+    if (!supabase) return;
+    void (async () => {
+      try {
+        const { error: typingError } = await supabase.rpc("set_chat_typing", { conversation_uuid: conversationId, is_typing: isTyping });
+        if (typingError) console.error("Schreibstatus konnte nicht gespeichert werden:", typingError);
+      } catch (typingError) { console.error("Schreibstatus konnte nicht gespeichert werden:", typingError); }
+    })();
+  }
+
   useEffect(() => {
     if (!supabase || !sessionId || !activeId) return;
     typingSentAtRef.current = 0;
     const client = supabase;
     let disposed = false;
     const refreshTyping = async () => {
-      const { data: rows } = await client.from("chat_typing_status").select("profile_id, updated_at")
-        .eq("conversation_id", activeId).gte("updated_at", new Date(Date.now() - 6000).toISOString());
-      if (!disposed) setTypingIds((rows ?? []).filter((row) => row.profile_id !== sessionId).map((row) => row.profile_id));
+      const { data: rows, error: typingError } = await client.rpc("get_chat_typing", { conversation_uuid: activeId });
+      if (typingError) { console.error("Schreibstatus konnte nicht geladen werden:", typingError); return; }
+      if (!disposed) setTypingIds((rows ?? []).map((row: { profile_id: string }) => row.profile_id));
     };
     void refreshTyping();
     const channel = client.channel(`ak-motion-typing-${activeId}`)
@@ -126,7 +136,7 @@ export default function ChatPage() {
     return () => {
       disposed = true;
       window.clearInterval(timer);
-      void client.from("chat_typing_status").delete().eq("conversation_id", activeId).eq("profile_id", sessionId);
+      void client.rpc("set_chat_typing", { conversation_uuid: activeId, is_typing: false });
       void client.removeChannel(channel);
       setTypingIds([]);
     };
@@ -134,11 +144,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!supabase || !sessionId || !activeId || !body.trim()) return;
-    const client = supabase;
     const timer = window.setInterval(() => {
       if (document.activeElement !== textareaRef.current) return;
       typingSentAtRef.current = Date.now();
-      void client.from("chat_typing_status").upsert({ conversation_id: activeId, profile_id: sessionId, updated_at: new Date().toISOString() });
+      publishTyping(activeId, true);
     }, 3000);
     return () => window.clearInterval(timer);
   }, [activeId, body, sessionId]);
@@ -147,12 +156,12 @@ export default function ChatPage() {
     setBody(value);
     if (!supabase || !sessionId) return;
     if (!value.trim()) {
-      void supabase.from("chat_typing_status").delete().eq("conversation_id", activeId).eq("profile_id", sessionId);
+      publishTyping(activeId, false);
       return;
     }
     if (Date.now() - typingSentAtRef.current < 2200) return;
     typingSentAtRef.current = Date.now();
-    void supabase.from("chat_typing_status").upsert({ conversation_id: activeId, profile_id: sessionId, updated_at: new Date().toISOString() });
+    publishTyping(activeId, true);
   }
 
   useEffect(() => {
@@ -229,7 +238,7 @@ export default function ChatPage() {
     if (!session || sending || (!body.trim() && !attachments.length)) return;
     const nextBody = body; const nextAttachments = attachments; const nextReply = replyingTo;
     setBody(""); setAttachments([]); setReplyingTo(null); setSending(true); setError("");
-    void supabase?.from("chat_typing_status").delete().eq("conversation_id", activeId).eq("profile_id", session.id);
+    publishTyping(activeId, false);
     try { const warning = await sendChatMessage(session.id, activeId, nextBody, nextAttachments, nextReply?.id); await Promise.all([refreshMessages(), refreshConversations()]); if (warning) setError(`Nachricht gespeichert. ${warning}`); }
     catch (caught) { setBody(nextBody); setAttachments(nextAttachments); setReplyingTo(nextReply); setError(caught instanceof Error ? caught.message : "Nachricht konnte nicht gesendet werden."); }
     finally { setSending(false); }
