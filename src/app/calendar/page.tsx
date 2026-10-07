@@ -240,6 +240,9 @@ export default function CalendarPage() {
               </div>
             </div>
             <div className="calendar-actions">
+              <button className="icon-button calendar-create-action" type="button" aria-label="Veranstaltung hinzufügen" title="Veranstaltung hinzufügen" onClick={() => createEventOnDay(new Date())}>
+                <Plus size={18} />
+              </button>
               <button className="button compact" type="button" onClick={() => setMonth(new Date())}>
                 Heute
               </button>

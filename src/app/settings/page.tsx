@@ -247,7 +247,9 @@ export default function SettingsPage() {
               <BellRing size={22} />
               <div><h2>Benachrichtigungen</h2><p>Wähle einmal aus, worüber du informiert werden möchtest. Darunter aktivierst du Gerät und E-Mail unabhängig voneinander.</p></div>
             </header>
-            <div className="settings-options">
+            <details className="settings-notification-details">
+              <summary>Benachrichtigungsarten auswählen</summary>
+              <div className="settings-options">
               <SettingToggle label="Neue Einteilungen und Erinnerungen" description="Wenn du eingeteilt wirst oder ein Einsatz bald beginnt." checked={preferences.notifyAssignments} onChange={(checked) => updatePreference("notifyAssignments", checked)} />
               <SettingToggle label="Neue Chatnachrichten" description="Zeigt neue Nachrichten aus deinen Gruppen- und Einzelchats als Gerätehinweis an." checked={preferences.notifyChatMessages} onChange={(checked) => updatePreference("notifyChatMessages", checked)} />
               <SettingToggle label="Neue Veranstaltungen" description="Wenn eine Veranstaltung neu im Kalender eingetragen wird." checked={preferences.notifyNewEvents} onChange={(checked) => updatePreference("notifyNewEvents", checked)} />
@@ -257,7 +259,8 @@ export default function SettingsPage() {
               <SettingToggle label="Erfolge" description="Hinweise bei neuen Meilensteinen im Levelsystem." checked={preferences.notifyAchievements} onChange={(checked) => updatePreference("notifyAchievements", checked)} />
               <div className="setting-toggle setting-fixed"><span><strong>Mitteilungen der Teamleitung</strong><span>Verpflichtende Nachrichten, die von der Teamleitung an alle gesendet werden.</span></span><span className="setting-required"><LockKeyhole size={14} /> Immer aktiv</span></div>
               <SettingToggle label="Neue Anfragen und Vorschläge" description="Neue Formulare, Bewerbungen und Regelvorschläge für Admins." checked={preferences.notifyAdminUpdates} onChange={(checked) => updatePreference("notifyAdminUpdates", checked)} />
-            </div>
+              </div>
+            </details>
             <div className="settings-action-row">
               <div><strong>Hinweise auf diesem Gerät</strong><span>{permissionLabel(permission, preferences.browserNotifications)}</span></div>
               <button className={preferences.browserNotifications ? "button danger" : "button primary"} type="button" onClick={() => {

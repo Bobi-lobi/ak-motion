@@ -52,9 +52,9 @@ export function CalendarWeekView({
         longPressDelay={450}
         eventLongPressDelay={450}
         selectLongPressDelay={450}
-        slotMinTime="07:00:00"
-        slotMaxTime="23:00:00"
-        scrollTime="11:00:00"
+        slotMinTime="00:00:00"
+        slotMaxTime="24:00:00"
+        scrollTime="07:00:00"
         slotDuration="00:15:00"
         slotLabelInterval="01:00:00"
         snapDuration="00:15:00"

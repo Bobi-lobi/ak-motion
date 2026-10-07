@@ -388,7 +388,7 @@ export function EventPageModal({ event, onClose }: { event: Event; onClose: () =
                 >
                   <option value="">Bitte auswählen</option>
                   {data.events
-                    .filter((item) => item.id !== event.id && item.eventType.trim().toLowerCase() !== "vorbereiten")
+                    .filter((item) => item.id !== event.id && item.eventType.trim().toLowerCase() !== "vorbereiten" && (item.id === draftEvent.relatedEventId || item.status !== "Abgeschlossen"))
                     .map((item) => <option key={item.id} value={item.id}>{format(parseISO(item.startsAt), "dd.MM.yyyy")} · {item.title}</option>)}
                 </select>
               </PropertyRow>
@@ -2311,8 +2311,8 @@ export function SlashRichTextEditor({
             className="table-add-column"
             type="button"
             aria-label="Spalte hinzufügen"
-            onMouseDown={(mouseEvent) => {
-              mouseEvent.preventDefault();
+            onPointerDown={(pointerEvent) => {
+              pointerEvent.preventDefault();
               appendTableColumn();
             }}
           >
@@ -2322,8 +2322,8 @@ export function SlashRichTextEditor({
             className="table-remove-column"
             type="button"
             aria-label="Spalte löschen"
-            onMouseDown={(mouseEvent) => {
-              mouseEvent.preventDefault();
+            onPointerDown={(pointerEvent) => {
+              pointerEvent.preventDefault();
               removeTableColumn();
             }}
           >
@@ -2333,8 +2333,8 @@ export function SlashRichTextEditor({
             className="table-add-row"
             type="button"
             aria-label="Zeile hinzufügen"
-            onMouseDown={(mouseEvent) => {
-              mouseEvent.preventDefault();
+            onPointerDown={(pointerEvent) => {
+              pointerEvent.preventDefault();
               appendTableRow();
             }}
           >
@@ -2344,8 +2344,8 @@ export function SlashRichTextEditor({
             className="table-remove-row"
             type="button"
             aria-label="Zeile löschen"
-            onMouseDown={(mouseEvent) => {
-              mouseEvent.preventDefault();
+            onPointerDown={(pointerEvent) => {
+              pointerEvent.preventDefault();
               removeTableRow();
             }}
           >
@@ -2926,6 +2926,15 @@ function restoreCaretTextOffset(container: HTMLElement, offset: number) {
   let current = walker.nextNode();
   let remaining = offset;
   const range = document.createRange();
+
+  if (!current) {
+    const firstEditable = container.querySelector<HTMLElement>("p, h1, h2, h3, summary, li") ?? container;
+    range.selectNodeContents(firstEditable);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return;
+  }
 
   while (current) {
     const length = current.textContent?.length ?? 0;
