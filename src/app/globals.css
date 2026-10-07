@@ -1364,6 +1364,8 @@ select:disabled {
   color: var(--ink);
 }
 
+.calendar-mobile-hint { display: none; }
+
 .context-scrim {
   position: fixed;
   inset: 0;
@@ -7320,15 +7322,11 @@ textarea {
   }
 
   .calendar-add-button {
-    display: grid;
-    height: 22px;
-    left: auto;
-    opacity: 1;
-    right: 1px;
-    top: 1px;
-    transform: none;
-    width: 22px;
+    display: none;
   }
+
+  .calendar-day { cursor: pointer; }
+  .calendar-mobile-hint { color: var(--muted); display: block; font-size: 12px; margin: 0 0 7px; }
 
   .calendar-event-pill {
     border-radius: 4px;

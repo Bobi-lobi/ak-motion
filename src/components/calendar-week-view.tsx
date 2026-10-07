@@ -83,7 +83,7 @@ export function CalendarWeekView({
         eventResize={handleDrop}
         eventTimeFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
         slotLabelFormat={{ hour: "2-digit", minute: "2-digit", hour12: false }}
-        dayHeaderFormat={{ weekday: "short", day: "2-digit", month: "2-digit" }}
+        dayHeaderFormat={{ weekday: "short" }}
       />
     </div>
   );

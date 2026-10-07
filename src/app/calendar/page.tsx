@@ -255,7 +255,7 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {view === "month" ? <div className="calendar-board" aria-label="Monatskalender">
+          {view === "month" ? <><p className="calendar-mobile-hint">Tag antippen, um eine Veranstaltung hinzuzufügen.</p><div className="calendar-board" aria-label="Monatskalender">
             {weekdays.map((weekday) => (
               <div className="calendar-weekday" key={weekday}>
                 {weekday}
@@ -282,6 +282,10 @@ export default function CalendarPage() {
                 <div
                   key={day.toISOString()}
                   className={dayClassName}
+                  onClick={(clickEvent) => {
+                    if (!window.matchMedia("(max-width: 700px)").matches || (clickEvent.target as HTMLElement).closest("button, a")) return;
+                    createEventOnDay(day);
+                  }}
                   onDragEnter={(dragEvent) => {
                     if (!draggingEventId) {
                       return;
@@ -309,18 +313,18 @@ export default function CalendarPage() {
                     void moveEventToDay(eventId, day);
                   }}
                 >
-                  <button
-                    className="calendar-add-button"
-                    type="button"
-                    aria-label={`Veranstaltung am ${format(day, "dd.MM.yyyy")} hinzufügen`}
-                    onClick={(clickEvent) => {
-                      clickEvent.stopPropagation();
-                      createEventOnDay(day);
-                    }}
-                  >
-                    <Plus size={20} />
-                  </button>
                   <div className="calendar-day-header">
+                    <button
+                      className="calendar-add-button"
+                      type="button"
+                      aria-label={`Veranstaltung am ${format(day, "dd.MM.yyyy")} hinzufügen`}
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        createEventOnDay(day);
+                      }}
+                    >
+                      <Plus size={16} />
+                    </button>
                     <span className="day-number">{format(day, "d")}</span>
                     <span>{weekdays[(day.getDay() + 6) % 7]}</span>
                   </div>
@@ -360,7 +364,7 @@ export default function CalendarPage() {
                 </div>
               );
             })}
-          </div> : (
+          </div></> : (
             <CalendarWeekView
               date={month}
               events={uniqueEvents(data.events)}
