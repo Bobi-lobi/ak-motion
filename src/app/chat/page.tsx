@@ -58,6 +58,7 @@ export default function ChatPage() {
   const ignoreNextClickRef = useRef(false);
   const streamRef = useRef<HTMLDivElement>(null);
   const initialScrollPendingRef = useRef(true);
+  const loadedConversationRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,14 +96,15 @@ export default function ChatPage() {
         const ownReadAt = nextReceipts.find((receipt) => receipt.profileId === sessionId)?.readAt;
         setFirstUnreadId(nextMessages.find((message) => message.authorId !== sessionId && (!ownReadAt || new Date(message.createdAt).getTime() > new Date(ownReadAt).getTime()))?.id ?? null);
       }
+      loadedConversationRef.current = activeId;
       setMessages(nextMessages); setReceipts(nextReceipts); setError("");
     } catch (caught) {
       if (requestId === messagesRequestRef.current) setError(caught instanceof Error ? caught.message : "Der Chat konnte nicht geladen werden.");
     } finally { if (requestId === messagesRequestRef.current) setLoading(false); }
-  }, [activeId, activeConversation?.clearedAt, activeConversation?.unreadCount, sessionId]);
+  }, [activeId, activeConversation?.id, activeConversation?.clearedAt, activeConversation?.unreadCount, sessionId]);
 
   useEffect(() => { void refreshConversations().catch(() => undefined); }, [refreshConversations]);
-  useEffect(() => { initialScrollPendingRef.current = true; setFirstUnreadId(null); setLoading(true); setMessages([]); setReplyingTo(null); }, [activeId]);
+  useEffect(() => { initialScrollPendingRef.current = true; loadedConversationRef.current = null; ++messagesRequestRef.current; setFirstUnreadId(null); setLoading(true); setMessages([]); setReplyingTo(null); }, [activeId]);
   useEffect(() => { void refreshMessages(); }, [refreshMessages]);
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -113,17 +115,31 @@ export default function ChatPage() {
   useEffect(() => () => { if (longPressRef.current) clearTimeout(longPressRef.current); }, []);
 
   useEffect(() => {
-    if (loading || !initialScrollPendingRef.current || !streamRef.current) return;
+    if (loading || loadedConversationRef.current !== activeId || !initialScrollPendingRef.current || !streamRef.current) return;
     initialScrollPendingRef.current = false;
     const stream = streamRef.current;
     window.requestAnimationFrame(() => {
-      const divider = stream.querySelector<HTMLElement>(".chat-unread-divider");
-      stream.scrollTop = divider && firstUnreadId
-        ? divider.getBoundingClientRect().top - stream.getBoundingClientRect().top + stream.scrollTop - 12
-        : stream.scrollHeight;
+      stream.scrollTop = stream.scrollHeight;
       updateJumpToLatest();
     });
-  }, [activeId, firstUnreadId, loading]);
+    // Loaded media may change the height after the first paint. Keep the initial
+    // position at the bottom until the user starts interacting with the stream.
+    let interrupted = false;
+    const stop = () => { interrupted = true; };
+    const align = () => { if (!interrupted && streamRef.current === stream) { stream.scrollTop = stream.scrollHeight; updateJumpToLatest(); } };
+    const images = Array.from(stream.querySelectorAll("img")).filter((image) => !image.complete);
+    images.forEach((image) => image.addEventListener("load", align));
+    stream.addEventListener("pointerdown", stop, { once: true });
+    stream.addEventListener("wheel", stop, { once: true });
+    stream.addEventListener("keydown", stop, { once: true });
+    return () => {
+      interrupted = true;
+      images.forEach((image) => image.removeEventListener("load", align));
+      stream.removeEventListener("pointerdown", stop);
+      stream.removeEventListener("wheel", stop);
+      stream.removeEventListener("keydown", stop);
+    };
+  }, [activeId, activeConversation, messages, loading]);
 
   function updateJumpToLatest() {
     const stream = streamRef.current;
@@ -351,17 +367,21 @@ export default function ChatPage() {
           <div className="chat-stream" ref={streamRef} onScroll={updateJumpToLatest} onClick={(event) => { if (ignoreNextClickRef.current) { ignoreNextClickRef.current = false; event.stopPropagation(); return; } setOpenReaders(null); setContextMenu(null); }}>
             {loading ? <div className="chat-loading"><LoaderCircle className="spin" size={24} /> Chat wird geladen...</div> : null}
             {!loading && !messages.length ? <div className="chat-welcome"><MessageCircle size={25} /><strong>Noch keine Nachrichten</strong><span>Starte die Unterhaltung.</span></div> : null}
-            {messages.map((message) => {
+            {messages.map((message, messageIndex) => {
               const author = profilesById.get(message.authorId); const own = message.authorId === session?.id; const emojiOnly = !message.poll && !message.attachments.length && isEmojiOnly(message.body);
+              const lastInRun = messages[messageIndex + 1]?.authorId !== message.authorId;
               const messageReaders = receipts.filter((receipt) => receipt.messageId === message.id);
               const readers = messageReaders.map((receipt) => profilesById.get(receipt.profileId)).filter((profile): profile is Profile => Boolean(profile));
               return <Fragment key={message.id}>{firstUnreadId === message.id ? <div className="chat-unread-divider" role="separator">Neue Nachrichten</div> : null}<div className={["chat-message-row", own ? "is-own" : "", swiping?.id === message.id ? "is-swiping" : ""].filter(Boolean).join(" ")} id={`chat-message-${message.id}`} onPointerDown={(event) => { swipeStartRef.current = { id: message.id, x: event.clientX, y: event.clientY }; if (event.pointerType === "touch" && !(event.target as HTMLElement).closest("button, a, input, video, audio")) { cancelLongPress(); const rect = event.currentTarget.getBoundingClientRect(); longPressRef.current = setTimeout(() => { ignoreNextClickRef.current = true; setContextMenu({ message, x: Math.max(8, Math.min(rect.right - 210, window.innerWidth - 220)), y: Math.max(8, Math.min(rect.top + 18, window.innerHeight - 330)) }); longPressRef.current = null; }, 550); } }} onPointerMove={(event) => { const start = swipeStartRef.current; if (start?.id === message.id) { if (Math.abs(event.clientX - start.x) > 10 || Math.abs(event.clientY - start.y) > 10) cancelLongPress(); if (event.clientX > start.x && Math.abs(event.clientY - start.y) < 45) setSwiping({ id: message.id, offset: Math.min(event.clientX - start.x, 92) }); } }} onPointerUp={(event) => { cancelLongPress(); const start = swipeStartRef.current; swipeStartRef.current = null; setSwiping(null); if (start?.id === message.id && event.clientX - start.x > 72 && Math.abs(event.clientY - start.y) < 45) { setReplyingTo(message); textareaRef.current?.focus(); } }} onPointerCancel={() => { cancelLongPress(); swipeStartRef.current = null; setSwiping(null); }}>
+                <div className={["chat-bubble-row", own ? "is-own" : "", lastInRun ? "is-last-in-run" : "", emojiOnly ? "is-emoji-only" : ""].filter(Boolean).join(" ")}>
+                  {lastInRun ? <span className="chat-author-avatar" title={author?.name ?? "Ehemaliges Mitglied"}>{author ? <ProfileAvatar profile={author} /> : <span className="chat-profile-avatar">?</span>}</span> : null}
                 <article className={["chat-message", own ? "is-own" : "", emojiOnly ? "is-emoji-only" : "", message.poll ? "has-poll" : "", message.attachments.some((file) => file.type.startsWith("image/")) ? "has-image" : ""].filter(Boolean).join(" ")} style={{ transform: swiping?.id === message.id ? `translateX(${swiping.offset}px)` : undefined }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setContextMenu({ message, x: Math.min(event.clientX, window.innerWidth - 230), y: Math.min(event.clientY, window.innerHeight - 330) }); }}>
                   <div className="chat-message-meta"><strong>{author?.name ?? "Ehemaliges Mitglied"}</strong>{message.editedAt ? <small>bearbeitet</small> : null}{message.pinnedAt ? <Pin size={11} /> : null}<span className="chat-message-meta-actions"><time>{formatMessageTime(message.createdAt)}</time><button className="chat-message-menu-button" type="button" aria-label="Nachrichtenaktionen" onClick={(event) => { event.stopPropagation(); const rect = event.currentTarget.getBoundingClientRect(); setContextMenu({ message, x: Math.max(8, Math.min(rect.right - 210, window.innerWidth - 220)), y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 330)) }); }}><MoreHorizontal size={17} /></button></span></div>
                   {message.replyTo ? <button className="chat-reply-preview" type="button" onClick={() => document.getElementById(`chat-message-${message.replyTo?.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}><Reply size={13} /><span><strong>{profilesById.get(message.replyTo.authorId)?.name ?? "Nachricht"}</strong><small>{message.replyTo.body || `${message.replyTo.attachmentCount} Datei(en)`}</small></span></button> : null}
                   {message.poll ? <ChatPollCard message={message} sessionId={session?.id} profiles={profilesById} onVote={(optionId) => void togglePollVote(message, optionId)} /> : message.body ? renderMessageBody(message.body, data.events, data.profiles) : null}
                   {message.attachments.length ? <div className="chat-attachments">{message.attachments.map((file, index) => renderAttachment(file, index, setPreviewImage))}</div> : null}
                 </article>
+                </div>
                 {message.reactions.length ? <div className="chat-reactions">{message.reactions.map((reaction) => <button className={reaction.profileIds.includes(session?.id ?? "") ? "is-own-reaction" : ""} type="button" key={reaction.emoji} title={reaction.profileIds.map((id) => profilesById.get(id)?.name).filter(Boolean).join(", ")} onClick={() => void react(message, reaction.emoji)}><span>{reaction.emoji}</span>{reaction.profileIds.length}</button>)}</div> : null}
                 {readers.length ? <ChatReaderAvatars readers={messageReaders} profiles={profilesById} open={openReaders === message.id} onToggle={(event) => { event.stopPropagation(); setOpenReaders((current) => current === message.id ? null : message.id); }} /> : null}
               </div></Fragment>;
@@ -372,7 +392,7 @@ export default function ChatPage() {
             {typingLabel ? <div className="chat-typing-indicator" role="status" aria-live="polite"><span className="chat-typing-dots" aria-hidden="true">•••</span>{typingLabel}</div> : null}
             {pollOpen ? <PollComposer question={pollQuestion} options={pollOptions} multiple={pollMultiple} sending={sending} onQuestion={setPollQuestion} onOptions={setPollOptions} onMultiple={setPollMultiple} onClose={() => setPollOpen(false)} onSubmit={() => void submitPoll()} /> : null}
             {replyingTo ? <div className="chat-compose-reply"><Reply size={15} /><span><strong>Antwort an {profilesById.get(replyingTo.authorId)?.name}</strong><small>{replyingTo.body || "Datei oder Umfrage"}</small></span><button type="button" aria-label="Antwort abbrechen" onClick={() => setReplyingTo(null)}><X size={16} /></button></div> : null}
-            {attachments.length ? <div className="chat-upload-list">{attachments.map((file, index) => <span key={`${file.url}-${index}`}><Paperclip size={13} />{file.name}<button type="button" aria-label={`${file.name} entfernen`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={13} /></button></span>)}</div> : null}
+            {attachments.length ? <div className="chat-upload-list">{attachments.map((file, index) => <div className={file.type.startsWith("image/") ? "chat-upload-item is-image" : "chat-upload-item"} key={`${file.url}-${index}`}>{file.type.startsWith("image/") ? <img src={file.url} alt={`Vorschau: ${file.name}`} /> : <Paperclip size={18} />}<span>{file.name}</span><button type="button" aria-label={`${file.name} entfernen`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={16} /></button></div>)}</div> : null}
             {recording ? <div className="chat-recording-status"><span /><strong>Aufnahme läuft</strong><time>{formatRecordingTime(recordingSeconds)}</time></div> : null}{error ? <p className="error-text">{error}</p> : null}
             <div className="chat-compose-row"><textarea ref={textareaRef} value={body} onChange={(event) => updateBody(event.target.value)} placeholder="Nachricht schreiben..." rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) { event.preventDefault(); void submit(); } }} /><div className="chat-compose-tools"><div className="chat-add-control"><button className="icon-button chat-tool-button" type="button" aria-label="Dateien oder Abstimmung hinzufügen" aria-expanded={composeMenuOpen} onClick={() => setComposeMenuOpen((open) => !open)}><Plus size={19} /></button>{composeMenuOpen ? <div className="chat-add-menu"><label><Paperclip size={17} /><span>Datei oder Bild</span><input className="visually-hidden" type="file" multiple onChange={(event) => { if (event.currentTarget.files) void addFiles(event.currentTarget.files); event.currentTarget.value = ""; setComposeMenuOpen(false); }} /></label><button type="button" onClick={() => { setPollOpen(true); setComposeMenuOpen(false); }}><BarChart3 size={17} /><span>Abstimmung</span></button></div> : null}</div><label className="icon-button chat-tool-button" title="Foto aufnehmen"><Camera size={18} /><input className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={(event) => { if (event.currentTarget.files) void addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} /></label><button className={recording ? "icon-button chat-tool-button is-recording" : "icon-button chat-tool-button"} type="button" aria-label={recording ? "Aufnahme beenden" : "Sprachnachricht aufnehmen"} onClick={() => void toggleRecording()}>{recording ? <Square size={15} fill="currentColor" /> : <Mic size={18} />}</button><button className="icon-button primary chat-send-button" type="button" aria-label="Nachricht senden" disabled={sending || (!body.trim() && !attachments.length)} onClick={() => void submit()}>{sending ? <LoaderCircle className="spin" size={19} /> : <Send size={18} />}</button></div></div>
             {referenceQuery !== null && eventSuggestions.length ? <SuggestionList title="Veranstaltung verlinken">{eventSuggestions.map((event) => <button type="button" key={event.id} onClick={() => insertEventReference(event)}><CalendarDays size={15} /><span><strong>{event.title}</strong><small>{formatEventDate(event.startsAt)}</small></span></button>)}</SuggestionList> : null}
@@ -425,7 +445,19 @@ function ChatAvatar({ conversation, profiles, sessionId }: { conversation: ChatC
 function ProfileAvatar({ profile }: { profile: Profile }) { return <span className="chat-profile-avatar">{profile.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : initials(profile.name)}</span>; }
 function conversationTitle(conversation: ChatConversation, profiles: Map<string, Profile>, sessionId?: string) { if (conversation.kind !== "direct") return conversation.name; return profiles.get(conversation.memberIds.find((id) => id !== sessionId) ?? "")?.name ?? conversation.name; }
 
-function renderMessageBody(body: string, events: Event[], profiles: Profile[]) { const names = profiles.map((profile) => profile.name).sort((a, b) => b.length - a.length).map(escapeRegExp); const pattern = new RegExp(`(\\[\\[[^\\]]+\\]\\]|\\[[^\\[\\]]+\\]${names.length ? `|@(?:${names.join("|")})` : ""})`, "gi"); return <p>{body.split(pattern).filter(Boolean).map((part, index) => { if (part.startsWith("[") && part.endsWith("]")) { const title = part.startsWith("[[") ? part.slice(2, -2) : part.slice(1, -1); const event = events.find((item) => item.title.toLocaleLowerCase("de") === title.trim().toLocaleLowerCase("de")); return event ? <Link className="chat-event-link" href={`/calendar?event=${encodeURIComponent(event.id)}`} key={`${part}-${index}`}><CalendarDays size={14} />{event.title}</Link> : part; } const profile = part.startsWith("@") ? profiles.find((item) => `@${item.name}`.toLocaleLowerCase("de") === part.toLocaleLowerCase("de")) : undefined; return profile ? <span className="chat-mention" key={`${part}-${index}`}>@{profile.name}</span> : part; })}</p>; }
+function renderMessageBody(body: string, events: Event[], profiles: Profile[]) { const names = profiles.map((profile) => profile.name).sort((a, b) => b.length - a.length).map(escapeRegExp); const pattern = new RegExp(`(\\[\\[[^\\]]+\\]\\]|\\[[^\\[\\]]+\\]${names.length ? `|@(?:${names.join("|")})` : ""})`, "gi"); return <p>{body.split(pattern).filter(Boolean).map((part, index) => { if (part.startsWith("[") && part.endsWith("]")) { const title = part.startsWith("[[") ? part.slice(2, -2) : part.slice(1, -1); const event = events.find((item) => item.title.toLocaleLowerCase("de") === title.trim().toLocaleLowerCase("de")); return event ? <Link className="chat-event-link" href={`/calendar?event=${encodeURIComponent(event.id)}`} key={`${part}-${index}`}><CalendarDays size={14} />{event.title}</Link> : part; } const profile = part.startsWith("@") ? profiles.find((item) => `@${item.name}`.toLocaleLowerCase("de") === part.toLocaleLowerCase("de")) : undefined; return profile ? <span className="chat-mention" key={`${part}-${index}`}>@{profile.name}</span> : renderWebLinks(part, index); })}</p>; }
+function renderWebLinks(text: string, segment: number) {
+  return text.split(/((?:https?:\/\/|www\.)[^\s<>]+)/gi).map((part, index) => {
+    if (!/^(?:https?:\/\/|www\.)/i.test(part)) return part;
+    let label = part.replace(/[.,!?;:]+$/, "");
+    while (label.endsWith(")") && (label.match(/\)/g)?.length ?? 0) > (label.match(/\(/g)?.length ?? 0)) label = label.slice(0, -1);
+    try {
+      const url = new URL(/^www\./i.test(label) ? `https://${label}` : label);
+      if (url.protocol !== "https:" && url.protocol !== "http:") return part;
+      return <Fragment key={`${segment}-${index}`}><a className="chat-web-link" href={url.href} target="_blank" rel="noopener noreferrer">{label}</a>{part.slice(label.length)}</Fragment>;
+    } catch { return part; }
+  });
+}
 function ChatImageAttachment({ file, onPreview }: { file: AttachmentFile; onPreview: (file: AttachmentFile) => void }) {
   const touchRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
