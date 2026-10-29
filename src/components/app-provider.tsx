@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import { cacheData, login as loginAction, getSession, loadData, loadRemoteData, saveSession } from "@/lib/data-store";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
+import { UploadProgress } from "@/components/upload-progress";
 import type { AppData, SessionUser } from "@/lib/types";
 
 type AppContextValue = {
@@ -230,7 +231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [data, ready, refresh, router, session, updateData]
   );
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={value}>{children}<UploadProgress /></AppContext.Provider>;
 }
 
 export function useApp() {

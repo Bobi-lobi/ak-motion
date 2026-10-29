@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { uploadStorageFile } from "@/lib/storage-upload";
 
 const LANDING_BUCKET = "landing-images";
 
@@ -18,15 +19,8 @@ export async function uploadLandingImage(file: File | Blob, fileName?: string) {
     .toLowerCase()
     .slice(0, 48) || "bild";
   const objectPath = `landing/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName}.${extension}`;
-  const { error } = await supabase.storage.from(LANDING_BUCKET).upload(objectPath, compressed, {
-    contentType: compressed.type,
-    cacheControl: "31536000",
-    upsert: false
-  });
-
-  if (error) {
-    throw new Error(storageErrorMessage(error.message));
-  }
+  try { await uploadStorageFile(LANDING_BUCKET, objectPath, compressed, sourceName); }
+  catch (error) { throw new Error(storageErrorMessage(error instanceof Error ? error.message : "Upload fehlgeschlagen.")); }
 
   const { data } = supabase.storage.from(LANDING_BUCKET).getPublicUrl(objectPath);
   return data.publicUrl;

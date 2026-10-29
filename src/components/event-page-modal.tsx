@@ -1,4 +1,5 @@
 "use client";
+import { safeHtml } from "@/lib/safe-html";
 
 import {
   ArrowLeft,
@@ -2527,7 +2528,7 @@ function normalizeNoteHtml(value: string) {
   }
 
   if (/<(p|br|h1|h2|h3|details|summary|ul|ol|li|table|tbody|tr|th|td|strong|em|div|figure|figcaption|img|video|audio|source|a|iframe|hr)\b/i.test(trimmed)) {
-    return trimmed;
+    return safeHtml(trimmed);
   }
 
   return textToHtml(decodeTextLikeHtml(value));
@@ -2707,7 +2708,7 @@ function sanitizeEditorHtml(editor: HTMLElement) {
     delete element.dataset.forkedFromBlockId;
     delete element.dataset.clientFork;
   });
-  return clone.innerHTML;
+  return safeHtml(clone.innerHTML);
 }
 
 function getActiveBlock(editor: HTMLElement | null) {

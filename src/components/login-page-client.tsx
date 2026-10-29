@@ -1,4 +1,5 @@
 "use client";
+import { safeHtml } from "@/lib/safe-html";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Sparkles, UsersRound, X } from "lucide-react";
@@ -244,9 +245,9 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
 
       <section className="landing-hero landing-reveal is-visible">
         <div className="landing-copy">
-          <span className="landing-kicker" dangerouslySetInnerHTML={{ __html: landing.heroKicker }} />
-          <h2 dangerouslySetInnerHTML={{ __html: landing.heroTitle }} />
-          <p dangerouslySetInnerHTML={{ __html: landing.heroText }} />
+          <span className="landing-kicker" dangerouslySetInnerHTML={{ __html: safeHtml(landing.heroKicker) }} />
+          <h2 dangerouslySetInnerHTML={{ __html: safeHtml(landing.heroTitle) }} />
+          <p dangerouslySetInnerHTML={{ __html: safeHtml(landing.heroText) }} />
           <div className="landing-actions">
             <a
               className="button primary landing-member-button"
@@ -256,10 +257,10 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
                 document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
             >
-              <span dangerouslySetInnerHTML={{ __html: landing.primaryButtonText }} />
+              <span dangerouslySetInnerHTML={{ __html: safeHtml(landing.primaryButtonText) }} />
             </a>
             <a className="button landing-request-button" href="/request/motion">
-              <span dangerouslySetInnerHTML={{ __html: landing.requestButtonText }} />
+              <span dangerouslySetInnerHTML={{ __html: safeHtml(landing.requestButtonText) }} />
             </a>
           </div>
         </div>
@@ -295,8 +296,8 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
 
       <section className="landing-impressions landing-reveal">
         <div className="landing-section-head">
-          <span className="eyebrow" dangerouslySetInnerHTML={{ __html: landing.impressionsKicker }} />
-          <h2 dangerouslySetInnerHTML={{ __html: landing.impressionsTitle }} />
+          <span className="eyebrow" dangerouslySetInnerHTML={{ __html: safeHtml(landing.impressionsKicker) }} />
+          <h2 dangerouslySetInnerHTML={{ __html: safeHtml(landing.impressionsTitle) }} />
         </div>
         <div className="impression-grid">
           {landing.impressions.map((impression) => (
@@ -318,8 +319,8 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
 
       <section className="landing-team landing-reveal" id="team">
         <div className="landing-section-head">
-          <span className="eyebrow" dangerouslySetInnerHTML={{ __html: landing.teamKicker }} />
-          <h2 dangerouslySetInnerHTML={{ __html: landing.teamTitle }} />
+          <span className="eyebrow" dangerouslySetInnerHTML={{ __html: safeHtml(landing.teamKicker) }} />
+          <h2 dangerouslySetInnerHTML={{ __html: safeHtml(landing.teamTitle) }} />
         </div>
         <div className="team-portrait-card">
           <img alt="Technikteam bei einer Veranstaltung" decoding="async" loading="lazy" src={landing.teamImage} />
@@ -337,20 +338,20 @@ export function LoginPageClient({ initialCounts, initialLanding }: { initialCoun
         <article className="landing-request-card">
           <div>
             <ClipboardList size={24} />
-            <span className="eyebrow" dangerouslySetInnerHTML={{ __html: landing.requestKicker }} />
-            <h2 dangerouslySetInnerHTML={{ __html: landing.requestTitle }} />
-            <p dangerouslySetInnerHTML={{ __html: landing.requestText }} />
+            <span className="eyebrow" dangerouslySetInnerHTML={{ __html: safeHtml(landing.requestKicker) }} />
+            <h2 dangerouslySetInnerHTML={{ __html: safeHtml(landing.requestTitle) }} />
+            <p dangerouslySetInnerHTML={{ __html: safeHtml(landing.requestText) }} />
           </div>
           <a className="button primary landing-member-button" href="/request/motion">
-            <span dangerouslySetInnerHTML={{ __html: landing.requestCta }} />
+            <span dangerouslySetInnerHTML={{ __html: safeHtml(landing.requestCta) }} />
           </a>
         </article>
       </section>
 
       <section className="landing-bottom landing-reveal" id="join">
         <article className="join-card">
-          <h2 dangerouslySetInnerHTML={{ __html: landing.joinTitle }} />
-          <p dangerouslySetInnerHTML={{ __html: landing.joinText }} />
+          <h2 dangerouslySetInnerHTML={{ __html: safeHtml(landing.joinTitle) }} />
+          <p dangerouslySetInnerHTML={{ __html: safeHtml(landing.joinText) }} />
         </article>
       </section>
 

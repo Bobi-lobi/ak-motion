@@ -1,4 +1,5 @@
 "use client";
+import { safeHtml } from "@/lib/safe-html";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { GalleryVerticalEnd, ImagePlus, Italic, Plus, Save, Trash2, Type, Upload, X } from "lucide-react";
@@ -308,7 +309,7 @@ export default function LandingEditorPage() {
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(event) => syncEditable("brandTitle", event.currentTarget.innerHTML)}
-                  dangerouslySetInnerHTML={{ __html: content.brandTitle }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(content.brandTitle) }}
                 />
               </div>
             </nav>
@@ -320,21 +321,21 @@ export default function LandingEditorPage() {
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(event) => syncEditable("heroKicker", event.currentTarget.innerHTML)}
-                  dangerouslySetInnerHTML={{ __html: content.heroKicker }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(content.heroKicker) }}
                 />
                 <h2
                   data-landing-field="heroTitle"
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(event) => syncEditable("heroTitle", event.currentTarget.innerHTML)}
-                  dangerouslySetInnerHTML={{ __html: content.heroTitle }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(content.heroTitle) }}
                 />
                 <p
                   data-landing-field="heroText"
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(event) => syncEditable("heroText", event.currentTarget.innerHTML)}
-                  dangerouslySetInnerHTML={{ __html: content.heroText }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(content.heroText) }}
                 />
                 <div className="landing-actions">
                   <button className="button primary landing-member-button" type="button">
@@ -343,7 +344,7 @@ export default function LandingEditorPage() {
                       contentEditable
                       suppressContentEditableWarning
                       onBlur={(event) => syncEditable("primaryButtonText", event.currentTarget.innerHTML)}
-                      dangerouslySetInnerHTML={{ __html: content.primaryButtonText }}
+                      dangerouslySetInnerHTML={{ __html: safeHtml(content.primaryButtonText) }}
                     />
                   </button>
                   <button className="button landing-request-button" type="button">
@@ -352,7 +353,7 @@ export default function LandingEditorPage() {
                       contentEditable
                       suppressContentEditableWarning
                       onBlur={(event) => syncEditable("requestButtonText", event.currentTarget.innerHTML)}
-                      dangerouslySetInnerHTML={{ __html: content.requestButtonText }}
+                      dangerouslySetInnerHTML={{ __html: safeHtml(content.requestButtonText) }}
                     />
                   </button>
                 </div>
@@ -458,14 +459,14 @@ export default function LandingEditorPage() {
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(event) => syncEditable("impressionsKicker", event.currentTarget.innerHTML)}
-                    dangerouslySetInnerHTML={{ __html: content.impressionsKicker }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml(content.impressionsKicker) }}
                   />
                   <h2
                     data-landing-field="impressionsTitle"
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(event) => syncEditable("impressionsTitle", event.currentTarget.innerHTML)}
-                    dangerouslySetInnerHTML={{ __html: content.impressionsTitle }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml(content.impressionsTitle) }}
                   />
                 </div>
                 <span className="landing-impression-count">{content.impressions.length} Einträge</span>
@@ -517,14 +518,14 @@ export default function LandingEditorPage() {
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(event) => syncEditable("teamKicker", event.currentTarget.innerHTML)}
-                  dangerouslySetInnerHTML={{ __html: content.teamKicker }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(content.teamKicker) }}
                 />
                 <h2
                   data-landing-field="teamTitle"
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(event) => syncEditable("teamTitle", event.currentTarget.innerHTML)}
-                  dangerouslySetInnerHTML={{ __html: content.teamTitle }}
+                  dangerouslySetInnerHTML={{ __html: safeHtml(content.teamTitle) }}
                 />
               </div>
               <figure>
@@ -569,21 +570,21 @@ export default function LandingEditorPage() {
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(event) => syncEditable("requestKicker", event.currentTarget.innerHTML)}
-                    dangerouslySetInnerHTML={{ __html: content.requestKicker }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml(content.requestKicker) }}
                   />
                   <h2
                     data-landing-field="requestTitle"
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(event) => syncEditable("requestTitle", event.currentTarget.innerHTML)}
-                    dangerouslySetInnerHTML={{ __html: content.requestTitle }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml(content.requestTitle) }}
                   />
                   <p
                     data-landing-field="requestText"
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(event) => syncEditable("requestText", event.currentTarget.innerHTML)}
-                    dangerouslySetInnerHTML={{ __html: content.requestText }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml(content.requestText) }}
                   />
                 </div>
                 <button className="button primary landing-member-button" type="button">
@@ -592,7 +593,7 @@ export default function LandingEditorPage() {
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(event) => syncEditable("requestCta", event.currentTarget.innerHTML)}
-                    dangerouslySetInnerHTML={{ __html: content.requestCta }}
+                    dangerouslySetInnerHTML={{ __html: safeHtml(content.requestCta) }}
                   />
                 </button>
               </article>
@@ -604,14 +605,14 @@ export default function LandingEditorPage() {
                 contentEditable
                 suppressContentEditableWarning
                 onBlur={(event) => syncEditable("joinTitle", event.currentTarget.innerHTML)}
-                dangerouslySetInnerHTML={{ __html: content.joinTitle }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(content.joinTitle) }}
               />
               <p
                 data-landing-field="joinText"
                 contentEditable
                 suppressContentEditableWarning
                 onBlur={(event) => syncEditable("joinText", event.currentTarget.innerHTML)}
-                dangerouslySetInnerHTML={{ __html: content.joinText }}
+                dangerouslySetInnerHTML={{ __html: safeHtml(content.joinText) }}
               />
             </article>
           </section>

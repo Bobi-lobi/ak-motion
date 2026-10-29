@@ -1,4 +1,5 @@
 "use client";
+import { safeHtml } from "@/lib/safe-html";
 
 import { Check, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -114,7 +115,7 @@ export function KnowledgePageView({ pageId }: { pageId: KnowledgePageId }) {
                   realtimeKey={`knowledge-${pageId}`}
                 />
               ) : page.content.trim() ? (
-                <div className="knowledge-content" dangerouslySetInnerHTML={{ __html: page.content }} />
+                <div className="knowledge-content" dangerouslySetInnerHTML={{ __html: safeHtml(page.content) }} />
               ) : (
                 <p className="knowledge-empty">Diese Seite ist noch leer.</p>
               )}

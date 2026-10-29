@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { uploadStorageFile } from "@/lib/storage-upload";
 
 const APP_MEDIA_BUCKET = "app-media";
 
@@ -17,15 +18,8 @@ export async function uploadAppMedia(file: File, scope: "chat" | "editor" | "pro
     .toLowerCase()
     .slice(0, 48) || "datei";
   const objectPath = `${scope}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName}.${extension}`;
-  const { error } = await supabase.storage.from(APP_MEDIA_BUCKET).upload(objectPath, uploadFile, {
-    cacheControl: "31536000",
-    contentType: uploadFile.type,
-    upsert: false
-  });
-
-  if (error) {
-    throw new Error(storageErrorMessage(error.message));
-  }
+  try { await uploadStorageFile(APP_MEDIA_BUCKET, objectPath, uploadFile, uploadFile.name); }
+  catch (error) { throw new Error(storageErrorMessage(error instanceof Error ? error.message : "Upload fehlgeschlagen.")); }
 
   return supabase.storage.from(APP_MEDIA_BUCKET).getPublicUrl(objectPath).data.publicUrl;
 }
