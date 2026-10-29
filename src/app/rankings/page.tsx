@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { saveQuestClaims } from "@/lib/quest-claims";
+import type { XpAward } from "@/lib/types";
 import { CheckCircle2, CircleHelp, Clock, Flag, Lock, Medal, Sparkles, Trophy, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { RouteGuard } from "@/components/route-guard";
@@ -16,68 +18,55 @@ import {
 } from "@/lib/gamification";
 
 export default function RankingsPage() {
-  const { data, session } = useApp();
+  const { data, session, updateData, refresh } = useApp();
   const [helpOpen, setHelpOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [claimedQuestIds, setClaimedQuestIds] = useState<string[]>([]);
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState("");
   const [claimAnimation, setClaimAnimation] = useState<{ id: string; xp: number } | null>(null);
 
-  const claimStorageKey = session?.id ? `ak-motion-claimed-quests:${session.id}:lifetime` : "";
+  const mergeAwards = useCallback((awards: XpAward[]) => {
+    updateData((current) => {
+      const byId = new Map(current.xpAwards.map((award) => [award.id, award]));
+      awards.forEach((award) => byId.set(award.id, award));
+      return { ...current, xpAwards: [...byId.values()] };
+    });
+  }, [updateData]);
 
   useEffect(() => {
-    if (!claimStorageKey) {
-      setClaimedQuestIds([]);
-      return;
+    if (!session?.id) return;
+    let cancelled = false;
+    const legacy = new Set<string>();
+    for (const key of Object.keys(window.localStorage)) {
+      if (!key.startsWith(`ak-motion-claimed-quests:${session.id}:`)) continue;
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(key) ?? "[]");
+        if (Array.isArray(stored)) stored.forEach((id) => { if (typeof id === "string" && questDefinitions.some((quest) => quest.id === id)) legacy.add(id); });
+      } catch { /* Preserve malformed legacy storage without using it for scores. */ }
     }
-    try {
-      const stored = window.localStorage.getItem(claimStorageKey);
-      const parsed = stored ? JSON.parse(stored) : [];
-      const historical = stored || !session?.id
-        ? []
-        : Object.keys(window.localStorage)
-            .filter((key) => key.startsWith(`ak-motion-claimed-quests:${session.id}:`))
-            .flatMap((key) => {
-              try {
-                const value = JSON.parse(window.localStorage.getItem(key) ?? "[]");
-                return Array.isArray(value) ? value : [];
-              } catch {
-                return [];
-              }
-            });
-      const claimed = Array.from(new Set([...parsed, ...historical])).filter(
-        (item): item is string => typeof item === "string"
-      );
-      setClaimedQuestIds(claimed);
-      if (!stored && claimed.length) {
-        window.localStorage.setItem(claimStorageKey, JSON.stringify(claimed));
-      }
-    } catch {
-      setClaimedQuestIds([]);
+    if (legacy.size) {
+      void saveQuestClaims([...legacy]).then((awards) => { if (!cancelled) mergeAwards(awards); })
+        .catch((error) => { if (!cancelled) setClaimError(error instanceof Error ? error.message : "Quest-XP konnten nicht übernommen werden."); });
     }
-  }, [claimStorageKey, session?.id]);
+    return () => { cancelled = true; };
+  }, [session?.id, mergeAwards]);
 
-  function claimQuest(quest: QuestProgress) {
-    if (!session || quest.current < quest.goal || claimedQuestIds.includes(quest.id)) {
-      return;
-    }
-    const next = [...claimedQuestIds, quest.id];
-    setClaimedQuestIds(next);
-    if (claimStorageKey) {
-      window.localStorage.setItem(claimStorageKey, JSON.stringify(next));
-    }
-    setClaimAnimation({ id: `${quest.id}-${Date.now()}`, xp: quest.bonusXp });
-    window.setTimeout(() => setClaimAnimation(null), 950);
+  async function claimQuest(quest: QuestProgress) {
+    if (!session || claiming || quest.current < quest.goal) return;
+    setClaiming(true); setClaimError("");
+    try {
+      const awards = await saveQuestClaims([quest.id]);
+      mergeAwards(awards);
+      if (!awards.some((award) => award.reason === `quest:${quest.id}`)) throw new Error("Diese Quest ist laut Datenbank noch nicht erfüllt. Bitte aktualisiere die Seite.");
+      setClaimAnimation({ id: `${quest.id}-${Date.now()}`, xp: quest.bonusXp });
+      window.setTimeout(() => setClaimAnimation(null), 950);
+      void refresh().catch(() => undefined);
+    } catch (error) { setClaimError(error instanceof Error ? error.message : "Quest-XP konnten nicht gespeichert werden."); }
+    finally { setClaiming(false); }
   }
 
-  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, session?.id ? { [session.id]: claimedQuestIds } : {}, data.xpAwards, data.preparationRatings), [
-    data.assignments,
-    data.attendance,
-    data.events,
-    data.profiles,
-    data.xpAwards,
-    data.preparationRatings,
-    claimedQuestIds,
-    session?.id
+  const scores = useMemo(() => calculatePlayerScores(data.profiles, data.events, data.assignments, data.attendance, {}, data.xpAwards, data.preparationRatings), [
+    data.assignments, data.attendance, data.events, data.profiles, data.xpAwards, data.preparationRatings
   ]);
 
   const currentPlayer = scores.find((score) => score.profile.id === session?.id) ?? scores[0] ?? null;
@@ -103,6 +92,7 @@ export default function RankingsPage() {
           <PlayerStatus score={currentPlayer} />
           <TrophyRoad points={currentPlayer?.points ?? 0} />
         </section>
+        {claimError ? <p className="error-text" role="alert">{claimError}</p> : null}
 
         {podium.length ? <Podium scores={podium} /> : null}
 

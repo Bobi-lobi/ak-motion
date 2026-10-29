@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { UploadProgress } from "@/components/upload-progress";
 import { RouteGuard } from "@/components/route-guard";
 import { useApp } from "@/components/app-provider";
 import {
@@ -394,6 +395,7 @@ export default function ChatPage() {
           </div>
           {showJumpToLatest ? <button className="chat-jump-latest" type="button" aria-label="Zur neuesten Nachricht" onClick={() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}><ArrowDown size={20} /></button> : null}
           <div className="chat-composer">
+            <UploadProgress inline />
             {typingLabel ? <div className="chat-typing-indicator" role="status" aria-live="polite"><span className="chat-typing-dots" aria-hidden="true">•••</span>{typingLabel}</div> : null}
             {pollOpen ? <PollComposer question={pollQuestion} options={pollOptions} multiple={pollMultiple} sending={sending} onQuestion={setPollQuestion} onOptions={setPollOptions} onMultiple={setPollMultiple} onClose={() => setPollOpen(false)} onSubmit={() => void submitPoll()} /> : null}
             {replyingTo ? <div className="chat-compose-reply"><Reply size={15} /><span><strong>Antwort an {profilesById.get(replyingTo.authorId)?.name}</strong><small>{replyingTo.body || "Datei oder Umfrage"}</small></span><button type="button" aria-label="Antwort abbrechen" onClick={() => setReplyingTo(null)}><X size={16} /></button></div> : null}

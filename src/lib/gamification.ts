@@ -235,7 +235,7 @@ export function durationXp(event: CalendarEvent) {
 }
 
 export function afterSchoolXp(event: CalendarEvent) {
-  return new Date(event.startsAt).getHours() >= 14 ? 35 : 0;
+  return Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: "Europe/Berlin" }).format(new Date(event.startsAt))) >= 14 ? 35 : 0;
 }
 
 export function isRehearsal(event: CalendarEvent) {
@@ -324,7 +324,7 @@ export function calculatePlayerScores(
       });
 
       basePoints += xpAwards
-        .filter((award) => award.profileId === profile.id)
+        .filter((award) => award.profileId === profile.id && !award.reason.startsWith("quest:"))
         .reduce((sum, award) => sum + award.amount, 0);
 
       const questResult = createQuestProgress({
@@ -332,7 +332,7 @@ export function calculatePlayerScores(
         baseXp: basePoints,
         events: completedEventIds.size,
         roles: roles.size
-      }, claimedQuestIdsByProfile[profile.id] ?? []);
+      }, [...(claimedQuestIdsByProfile[profile.id] ?? []), ...xpAwards.filter((award) => award.profileId === profile.id && award.reason.startsWith("quest:")).map((award) => award.reason.slice(6))]);
       const points = basePoints + questResult.questBonus;
       const rank = getRank(points);
       const nextRank = rankLadder.find((item) => item.min > points);
