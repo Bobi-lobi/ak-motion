@@ -124,6 +124,7 @@ export type Announcement = {
 };
 
 export type ChatMessage = {
+  systemEvent?: XpGiftEvent;
   id: string;
   conversationId: string;
   authorId: string;
@@ -136,6 +137,17 @@ export type ChatMessage = {
   pinnedAt?: string;
   pinnedBy?: string;
   createdAt: string;
+};
+
+export type XpGiftEvent = {
+  type: "xp_gift";
+  awardId: string;
+  adminName: string;
+  recipientName: string;
+  amount: number;
+  reason?: string;
+  revokedAt?: string;
+  revokedBy?: string;
 };
 
 export type ChatConversation = {

@@ -1795,12 +1795,13 @@ export async function loadChatMessages(conversationId: string, limit = 120, clea
   if (!hasSupabaseConfig || !supabase) return [];
   let messageQuery = supabase.from("chat_messages").select("id, conversation_id, author_id, body, attachments, reply_to_message_id, edited_at, pinned_at, pinned_by, created_at").eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(limit);
   if (clearedAt) messageQuery = messageQuery.gt("created_at", clearedAt);
-  const [messageResult, pollResult, optionResult, voteResult, reactionResult] = await Promise.all([
+  const [messageResult, pollResult, optionResult, voteResult, reactionResult, systemResult] = await Promise.all([
     messageQuery,
     supabase.from("chat_polls").select("message_id, question, allow_multiple"),
     supabase.from("chat_poll_options").select("id, poll_id, label, position").order("position"),
     supabase.from("chat_poll_votes").select("poll_id, option_id, profile_id"),
-    supabase.from("chat_message_reactions").select("message_id, profile_id, emoji")
+    supabase.from("chat_message_reactions").select("message_id, profile_id, emoji"),
+    supabase.from("chat_messages").select("id, system_event").eq("conversation_id", conversationId).order("created_at", { ascending: false }).limit(limit)
   ]);
   if (messageResult.error) throw new Error(messageResult.error.message);
   const pollsAvailable = !pollResult.error && !optionResult.error && !voteResult.error;
@@ -1819,12 +1820,15 @@ export async function loadChatMessages(conversationId: string, limit = 120, clea
     }
   }
   const rawById = new Map((messageResult.data ?? []).map((message) => [message.id, message]));
+  // Keep normal chats available while the NAS migration is being installed.
+  const systemById = new Map((systemResult.error ? [] : systemResult.data ?? []).map((message) => [message.id, message.system_event]));
   return (messageResult.data ?? []).reverse().map((message) => ({
     id: message.id,
     conversationId: message.conversation_id,
     authorId: message.author_id,
     body: message.body,
     attachments: attachmentFiles(message.attachments),
+    systemEvent: systemById.get(message.id)?.type === "xp_gift" ? systemById.get(message.id) : undefined,
     poll: pollByMessage.get(message.id),
     reactions: Array.from(new Set((reactionResult.data ?? []).filter((reaction) => reaction.message_id === message.id).map((reaction) => reaction.emoji))).map((emoji) => ({
       emoji,
@@ -2063,6 +2067,8 @@ export async function updateChatConversation(conversationId: string, patch: { na
 
 export async function grantXp(profileId: string, amount: number, reason: string, createdBy: string) {
   if (!supabase) throw new Error("XP können nur mit der Supabase-Verbindung vergeben werden.");
+  if (!Number.isFinite(amount) || Math.round(amount) < 1 || Math.round(amount) > 10000) throw new Error("Bitte vergib zwischen 1 und 10.000 Punkten.");
+  if (!reason.trim() || reason.trim().startsWith("quest:")) throw new Error("Bitte gib einen eigenen Grund für das Punktegeschenk an.");
   const { error } = await supabase.from("xp_awards").insert({
     profile_id: profileId,
     amount: Math.round(amount),
