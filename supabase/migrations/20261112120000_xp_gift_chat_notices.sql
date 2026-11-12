@@ -94,5 +94,37 @@ begin
 end $$;
 revoke all on function public.revoke_xp_gift(uuid) from public;
 grant execute on function public.revoke_xp_gift(uuid) to authenticated;
+
+-- A missing migration must never result in points without a chat notice.
+create or replace function public.grant_xp_gift(recipient_id uuid, points integer, gift_reason text)
+returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
+declare award_id uuid;
+begin
+  if auth.uid() is null or not public.is_admin() then
+    raise exception 'Nur Admins dürfen Punkte verschenken.' using errcode = '42501';
+  end if;
+  if points is null or points < 1 or points > 10000 or gift_reason is null or length(btrim(gift_reason)) not between 1 and 500 then
+    raise exception 'Ungültige Punktevergabe.';
+  end if;
+  insert into public.xp_awards(profile_id, amount, reason, created_by)
+    values(recipient_id, points, 'gift:' || btrim(gift_reason), auth.uid()) returning id into award_id;
+  if not exists (select 1 from public.chat_messages where system_event->>'awardId' = award_id::text) then
+    raise exception 'Die Punkte-Mitteilung konnte nicht erstellt werden.';
+  end if;
+  return award_id;
+end $$;
+revoke all on function public.grant_xp_gift(uuid, integer, text) from public;
+grant execute on function public.grant_xp_gift(uuid, integer, text) to authenticated;
+
+alter table public.push_subscriptions add column if not exists achievements_enabled boolean not null default true;
+create table if not exists public.xp_gift_push_deliveries (
+  award_id uuid not null references public.xp_awards(id) on delete cascade,
+  subscription_id uuid not null references public.push_subscriptions(id) on delete cascade,
+  sent_at timestamptz not null default now(),
+  primary key(award_id, subscription_id)
+);
+alter table public.xp_gift_push_deliveries enable row level security;
+grant select, insert, delete on public.xp_gift_push_deliveries to service_role;
+grant select on public.xp_awards, public.profiles to service_role;
 notify pgrst, 'reload schema';
 commit;

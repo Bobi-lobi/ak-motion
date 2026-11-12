@@ -6,6 +6,7 @@ type SubscriptionBody = {
   keys?: { auth?: string; p256dh?: string };
   chatMessagesEnabled?: boolean;
   newEventsEnabled?: boolean;
+  achievementsEnabled?: boolean;
 };
 
 export async function GET(request: Request) {
@@ -31,15 +32,21 @@ export async function POST(request: Request) {
     if (!body.endpoint || !body.keys?.auth || !body.keys.p256dh) {
       return NextResponse.json({ error: "Die Push-Anmeldung ist unvollständig." }, { status: 400 });
     }
-    const { error } = await supabaseAdmin!.from("push_subscriptions").upsert({
+    const subscription = {
       profile_id: user.id,
       endpoint: body.endpoint,
       p256dh: body.keys.p256dh,
       auth: body.keys.auth,
       chat_messages_enabled: body.chatMessagesEnabled === true,
       new_events_enabled: body.newEventsEnabled === true,
+      achievements_enabled: body.achievementsEnabled !== false,
       updated_at: new Date().toISOString()
-    }, { onConflict: "endpoint" });
+    };
+    let { error } = await supabaseAdmin!.from("push_subscriptions").upsert(subscription, { onConflict: "endpoint" });
+    if (error && ["PGRST204", "42703"].includes(error.code) && error.message.includes("achievements_enabled")) {
+      const { achievements_enabled: _achievements, ...legacySubscription } = subscription;
+      ({ error } = await supabaseAdmin!.from("push_subscriptions").upsert(legacySubscription, { onConflict: "endpoint" }));
+    }
     if (error) throw error;
     return NextResponse.json({ ok: true });
   } catch (error) {

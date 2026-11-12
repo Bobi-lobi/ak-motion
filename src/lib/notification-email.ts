@@ -36,7 +36,7 @@ export async function dispatchNonChatEmails(origin: string) {
   const from = process.env.BREVO_FROM_EMAIL;
   if (!apiKey || !from) throw new Error("Brevo ist nicht konfiguriert.");
 
-  const [profilesResult, preferencesResult, eventsResult, assignmentsResult, announcementsResult, requestsResult, registrationsResult, suggestionsResult] = await Promise.all([
+  const [profilesResult, preferencesResult, eventsResult, assignmentsResult, announcementsResult, requestsResult, registrationsResult, suggestionsResult, awardsResult] = await Promise.all([
     supabaseAdmin.from("profiles").select("id, name, email, role"),
     supabaseAdmin.from("email_notification_preferences").select("profile_id, enabled, new_events, assignments, unstaffed, achievements, admin_updates, announcements"),
     supabaseAdmin.from("events").select("id, title, starts_at, ends_at, event_type, status, created_at"),
@@ -44,7 +44,8 @@ export async function dispatchNonChatEmails(origin: string) {
     supabaseAdmin.from("announcements").select("id, title, body, created_at, expires_at"),
     supabaseAdmin.from("event_requests").select("id, title, contact_name, status, created_at"),
     supabaseAdmin.from("registration_requests").select("id, name, status, created_at"),
-    supabaseAdmin.from("knowledge_suggestions").select("id, page_id, author_name, created_at")
+    supabaseAdmin.from("knowledge_suggestions").select("id, page_id, author_name, created_at"),
+    supabaseAdmin.from("xp_awards").select("id, profile_id, amount, reason, created_by, created_at").like("reason", "gift:%")
   ]);
 
   const profiles = must(profilesResult, "Profile") ?? [];
@@ -55,8 +56,12 @@ export async function dispatchNonChatEmails(origin: string) {
   const requests = must(requestsResult, "Anfragen") ?? [];
   const registrations = must(registrationsResult, "Bewerbungen") ?? [];
   const suggestions = must(suggestionsResult, "Vorschläge") ?? [];
+  const awards = awardsResult.data ?? [];
+  if (awardsResult.error) console.error("Punktegeschenke für E-Mail nicht verfügbar:", awardsResult.error.code);
 
   const data = {
+    profiles,
+    xpAwards: awards.map((award) => ({ id: award.id, profileId: award.profile_id, amount: award.amount, reason: award.reason, createdBy: award.created_by, createdAt: award.created_at })),
     announcements: announcements.map((row) => ({ id: row.id, title: row.title, body: row.body, expiresAt: row.expires_at, createdAt: row.created_at })),
     events: events.map((row) => ({ id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at, eventType: row.event_type, status: row.status, createdAt: row.created_at })),
     assignments: assignments.map((row) => ({ id: row.id, eventId: row.event_id, profileId: row.profile_id, role: row.role, createdAt: row.created_at })),
@@ -73,6 +78,7 @@ export async function dispatchNonChatEmails(origin: string) {
     assignmentDate.set(key, new Date(row.created_at).getTime());
   }
   const eventById = new Map(events.map((row) => [row.id, row]));
+  const awardDate = new Map(awards.map((row) => [row.id, new Date(row.created_at).getTime()]));
   const requestDate = new Map(requests.map((row) => [row.id, new Date(row.created_at).getTime()]));
   const registrationDate = new Map(registrations.map((row) => [row.id, new Date(row.created_at).getTime()]));
   const suggestionDate = new Map(suggestions.map((row) => [row.id, new Date(row.created_at).getTime()]));
@@ -87,6 +93,7 @@ export async function dispatchNonChatEmails(origin: string) {
     for (const notification of notifications) {
       const [category, id] = notification.id.split(":", 2);
       const createdAt = category === "event" ? new Date(eventById.get(id)?.created_at ?? 0).getTime()
+        : category === "xp-gift" ? awardDate.get(id)
         : category === "announcement" ? announcementDate.get(id)
         : category === "request" ? requestDate.get(id)
         : category === "registration" ? registrationDate.get(id)

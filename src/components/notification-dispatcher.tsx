@@ -58,7 +58,7 @@ export function NotificationDispatcher() {
       try {
         const registration = await navigator.serviceWorker.register("/sw.js");
         const existing = await registration.pushManager.getSubscription();
-        if (!preferences.browserNotifications || !(preferences.notifyChatMessages || preferences.notifyNewEvents) || Notification.permission !== "granted") {
+        if (!preferences.browserNotifications || !(preferences.notifyChatMessages || preferences.notifyNewEvents || preferences.notifyAchievements) || Notification.permission !== "granted") {
           if (existing) {
             await updatePushSubscription("DELETE", existing);
             await existing.unsubscribe();
@@ -99,7 +99,7 @@ export function NotificationDispatcher() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [preferences.browserNotifications, preferences.notifyChatMessages, preferences.notifyNewEvents, sessionId]);
+  }, [preferences.browserNotifications, preferences.notifyChatMessages, preferences.notifyNewEvents, preferences.notifyAchievements, sessionId]);
 
   useEffect(() => {
     if (!sessionId || !supabase) return;
@@ -107,7 +107,8 @@ export function NotificationDispatcher() {
     const channel = client
       .channel(`ak-motion-chat-notifications-${sessionId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, ({ new: inserted }) => {
-        const message = inserted as { attachments?: unknown[]; author_id?: string; body?: string; id?: string };
+        const message = inserted as { attachments?: unknown[]; author_id?: string; body?: string; id?: string; system_event?: { type?: string } };
+        if (message.system_event?.type === "xp_gift") return;
         if (!message.id || message.author_id === sessionId) return;
         const notificationId = `chat:${message.id}`;
         const chatSeenKey = `${seenKey}:chat`;
@@ -137,7 +138,7 @@ async function updatePushSubscription(method: "DELETE" | "POST", subscription: P
   const response = await fetch("/api/push/subscribe", {
     method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(method === "DELETE" ? { endpoint: subscription.endpoint } : { ...value, chatMessagesEnabled: preferences?.notifyChatMessages ?? false, newEventsEnabled: preferences?.notifyNewEvents ?? false })
+    body: JSON.stringify(method === "DELETE" ? { endpoint: subscription.endpoint } : { ...value, chatMessagesEnabled: preferences?.notifyChatMessages ?? false, newEventsEnabled: preferences?.notifyNewEvents ?? false, achievementsEnabled: preferences?.notifyAchievements ?? false })
   });
   if (!response.ok) throw new Error(`Push-Anmeldung wurde mit HTTP ${response.status} abgelehnt.`);
 }

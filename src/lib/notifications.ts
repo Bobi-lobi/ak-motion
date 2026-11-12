@@ -27,6 +27,12 @@ export function buildNotifications(data: AppData, session: SessionUser | null) {
     data.assignments.filter((assignment) => assignment.profileId === session.id).map((assignment) => assignment.eventId)
   );
 
+  (data.xpAwards ?? []).filter((award) => award.profileId === session.id && award.reason.startsWith("gift:"))
+    .forEach((award) => notifications.push({
+      body: `${data.profiles.find((profile) => profile.id === award.createdBy)?.name ?? "Ein Admin"} hat dir ${award.amount} Punkte geschenkt.`,
+      href: "/chat", id: `xp-gift:${award.id}`, kind: "achievement", title: "Ein Punktegeschenk für dich"
+    }));
+
   data.events.filter((event) => event.createdAt && new Date(event.createdAt).getTime() >= new Date("2026-09-28T00:00:00Z").getTime())
     .forEach((event) => notifications.push({
       body: `${formatEventDate(event.startsAt)} · Eine neue Veranstaltung wurde eingetragen.`,

@@ -2069,14 +2069,20 @@ export async function grantXp(profileId: string, amount: number, reason: string,
   if (!supabase) throw new Error("XP können nur mit der Supabase-Verbindung vergeben werden.");
   if (!Number.isFinite(amount) || Math.round(amount) < 1 || Math.round(amount) > 10000) throw new Error("Bitte vergib zwischen 1 und 10.000 Punkten.");
   if (!reason.trim() || reason.trim().startsWith("quest:")) throw new Error("Bitte gib einen eigenen Grund für das Punktegeschenk an.");
-  const { error } = await supabase.from("xp_awards").insert({
-    profile_id: profileId,
-    amount: Math.round(amount),
-    reason: reason.trim(),
-    created_by: createdBy
-  });
-  if (error) throw new Error(error.message);
+  const { data: awardId, error } = await supabase.rpc("grant_xp_gift", { recipient_id: profileId, points: Math.round(amount), gift_reason: reason.trim() });
+  if (error) throw new Error(["PGRST202", "42883"].includes(error.code)
+    ? "Punkte wurden nicht vergeben. Bitte zuerst die aktualisierte Migration 20261112120000_xp_gift_chat_notices.sql auf dem NAS einspielen."
+    : `Punkte wurden nicht vergeben: ${error.message}`);
   window.dispatchEvent(new Event("ak-motion-data"));
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw new Error("Keine Sitzung");
+    const response = await fetch("/api/push/xp-gift", { method: "POST", headers: { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ awardId }) });
+    const result = await response.json();
+    if (!response.ok || result.configured === false || result.failed) throw new Error("Hinweisversand fehlgeschlagen");
+  } catch {
+    return "Punkte und Chatkarte wurden gespeichert. Der Gerätehinweis konnte nicht bestätigt werden. Bitte die Punkte nicht erneut vergeben.";
+  }
 }
 
 export async function ratePreparation(eventId: string, ratedBy: string, stars: number) {

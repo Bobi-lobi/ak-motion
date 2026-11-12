@@ -59,10 +59,11 @@ export default function TeamPage() {
     if (!session || !xpProfileId || !xpReason.trim() || Number(xpAmount) <= 0) return;
     setActionError("");
     try {
-      await grantXp(xpProfileId, Number(xpAmount), xpReason, session.id);
+      const warning = await grantXp(xpProfileId, Number(xpAmount), xpReason, session.id);
       setXpProfileId(null);
       setXpReason("");
       await refresh();
+      if (warning) setActionError(warning);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "XP konnten nicht vergeben werden.");
     }
